@@ -1,0 +1,30 @@
+fn main() {
+    cc::Build::new()
+        .cpp(true)
+        .flag("-std=c++11")
+        .include("contrib/brotli/c/include")
+        .include("contrib/woff2/include")
+        .file("contrib/woff2/src/font.cc")
+        .file("contrib/woff2/src/glyph.cc")
+        .file("contrib/woff2/src/normalize.cc")
+        .file("contrib/woff2/src/table_tags.cc")
+        .file("contrib/woff2/src/transform.cc")
+        .file("contrib/woff2/src/variable_length.cc")
+        .file("contrib/woff2/src/woff2_common.cc")
+        .file("contrib/woff2/src/woff2_dec.cc")
+        .file("contrib/woff2/src/woff2_enc.cc")
+        .file("contrib/woff2/src/woff2_out.cc")
+        .static_flag(true)
+        .warnings(false)
+        .compile("libwoff2.a");
+
+    cc::Build::new()
+        .cpp(true)
+        .flag("-std=c++11")
+        .file("contrib/woff_wrapper/woff2.cpp")
+        .include("contrib/woff2/include")
+        .include("contrib/woff2/wrapper")
+        .static_flag(true)
+        .warnings(false)
+        .compile("libwoff2wrapper.a");
+}

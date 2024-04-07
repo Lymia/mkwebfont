@@ -16,6 +16,7 @@ use allsorts::{
 use anyhow::*;
 use std::{collections::HashSet, ops::RangeInclusive};
 use tracing::debug;
+use crate::woff2;
 
 pub fn glyphs_in_font<F: FontTableProvider>(font_provider: &F) -> Result<HashSet<char>> {
     let mut chars = HashSet::new();
@@ -55,7 +56,7 @@ pub fn subset<F: FontTableProvider>(
 
     // Subset the font
     let new_font = subset::subset(font_provider, &glyph_ids)?;
-    Ok(new_font)
+    Ok(woff2::compress(&new_font, "".to_string(), 9, true).unwrap())
 }
 
 struct GlyphInfo {

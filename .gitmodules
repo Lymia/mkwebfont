@@ -1,0 +1,6 @@
+[submodule "mkwebfont/contrib/woff2"]
+	path = mkwebfont/contrib/woff2
+	url = https://github.com/google/woff2
+[submodule "mkwebfont/contrib/brotli"]
+	path = mkwebfont/contrib/brotli
+	url = https://github.com/google/brotli

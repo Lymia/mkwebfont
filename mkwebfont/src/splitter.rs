@@ -27,7 +27,7 @@ impl<T: FontTableProvider> FontSplittingContext<T> {
         for subset in GfSubsets::DATA.subsets {
             subset_cache.insert(subset.name, subset);
         }
-        let glyphs_in_font = crate::allsorts_subset::glyphs_in_font(&font)?;
+        let glyphs_in_font = crate::subset::glyphs_in_font(&font)?;
         Ok(FontSplittingContext {
             font,
             fulfilled_glyphs: Default::default(),
@@ -42,7 +42,7 @@ impl<T: FontTableProvider> FontSplittingContext<T> {
     fn do_subset(&mut self, subset: &'static GfSubset) -> Result<()> {
         if !self.subsets.contains_key(subset.name) {
             let glyphs = self.present_glyphs(subset)?;
-            let subset_otf = crate::allsorts_subset::subset(&self.font, subset.ranges)?;
+            let subset_otf = crate::subset::subset(&self.font, subset.ranges)?;
 
             let mut new_glyphs = (*glyphs).clone();
             for gylph in &self.fulfilled_glyphs {
@@ -64,7 +64,7 @@ impl<T: FontTableProvider> FontSplittingContext<T> {
         if let Some(subset) = self.present_glyphs_cache.get(subset.name) {
             Ok(subset.clone())
         } else {
-            let data = crate::allsorts_subset::glyphs_in_font_subset(&self.font, subset.ranges)?;
+            let data = crate::subset::glyphs_in_font_subset(&self.font, subset.ranges)?;
             self.present_glyphs_cache.insert(subset.name, Rc::new(data));
             self.present_glyphs(subset)
         }
@@ -152,7 +152,7 @@ impl<T: FontTableProvider> FontSplittingContext<T> {
             }
 
             info!("Splitting subset from font: residual (unique glyphs: {})", glyph_ranges.len());
-            let subset_otf = crate::allsorts_subset::subset(&self.font, &glyph_ranges)?;
+            let subset_otf = crate::subset::subset(&self.font, &glyph_ranges)?;
             self.subsets.insert("residual", subset_otf);
         }
 
@@ -175,7 +175,7 @@ pub fn test(path: PathBuf) -> Result<()> {
     ctx.split_residual()?;
 
     for (k, v) in &ctx.subsets {
-        let mut file = File::create(format!("run/{k}.ttf"))?;
+        let mut file = File::create(format!("run/{k}.woff2"))?;
         file.write_all(v.as_slice())?;
     }
 
