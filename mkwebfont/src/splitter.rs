@@ -53,7 +53,7 @@ fn extract_version(mut str: &str) -> String {
         } else {
             break;
         }
-        if out.len() == 10 {
+        if out.len() == 20 {
             break;
         }
     }
