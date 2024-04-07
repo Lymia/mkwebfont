@@ -74,6 +74,7 @@ pub struct LoadedFont<'a> {
     pub font_name: String,
     pub font_style: String,
     pub font_version: String,
+    pub is_variable: bool,
     pub parsed_font_style: FontStyle,
     pub parsed_font_weight: FontWeight,
     font_face: PreprocessedFontFace<'a>,
@@ -81,11 +82,30 @@ pub struct LoadedFont<'a> {
 }
 impl<'a> LoadedFont<'a> {
     fn load_for_font(font_face: FontFace) -> Result<LoadedFont> {
-        let font_name = font_face.font_family();
+        let is_variable =
+            unsafe { hb_subset::sys::hb_ot_var_get_axis_count(font_face.as_raw()) != 0 };
+
+        let font_name = if is_variable {
+            // a lot of dynamic fonts have a weight prebaked in the font_family for some reason
+            let family = font_face.font_family();
+            let typographic_family = font_face.typographic_family();
+
+            if family.starts_with(&typographic_family) && !typographic_family.is_empty() {
+                typographic_family
+            } else {
+                family
+            }
+        } else {
+            font_face.font_family()
+        };
         let font_style = font_face.font_subfamily();
         let font_version = font_face.version_string();
         let parsed_font_style = FontStyle::infer(&font_style);
-        let parsed_font_weight = FontWeight::infer(&font_style);
+        let parsed_font_weight = if is_variable {
+            FontWeight::Regular // font weight doesn't matter for variable fonts
+        } else {
+            FontWeight::infer(&font_style)
+        };
 
         let mut available_glyphs = RoaringBitmap::new();
         for char in &font_face.covered_codepoints()? {
@@ -93,8 +113,9 @@ impl<'a> LoadedFont<'a> {
         }
 
         debug!(
-            "Loaded font: {font_name} / {font_style} / {font_version} / {} gylphs",
-            available_glyphs.len()
+            "Loaded font: {font_name} / {font_style} / {font_version} / {} gylphs{}",
+            available_glyphs.len(),
+            if is_variable { " / Variable font" } else { "" },
         );
         debug!("Inferred style: {parsed_font_style:?} / {parsed_font_weight:?}");
 
@@ -102,6 +123,7 @@ impl<'a> LoadedFont<'a> {
             font_name,
             font_style,
             font_version,
+            is_variable,
             parsed_font_style,
             parsed_font_weight,
             font_face: font_face.preprocess_for_subsetting(),

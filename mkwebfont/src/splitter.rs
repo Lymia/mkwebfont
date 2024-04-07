@@ -74,9 +74,18 @@ impl SplitFontData {
         let font_name = extract_name(&font.font_name);
         let font_style = extract_name(&font.font_style);
         let font_version = extract_version(&font.font_version);
+        let is_regular = font_style.to_lowercase() == "regular";
         SplitFontData {
             store_file_name: format!(
-                "{font_name}_{font_style}_{font_version}_{name}_{hash_str}.woff2"
+                "{font_name}{}{}_{font_version}_{name}_{hash_str}.woff2",
+                if !is_regular || font.is_variable { "_" } else { "" },
+                if font.is_variable {
+                    "Variable"
+                } else if !is_regular {
+                    &font_style
+                } else {
+                    ""
+                },
             ),
             subset,
             woff2_data,
@@ -383,6 +392,8 @@ pub fn split_webfont(
 
     let mut stylesheets = Vec::new();
     for font in LoadedFont::load(font_data)? {
+        info!("Splitting font {} {}...", font.font_name, font.font_style);
+
         let mut ctx = FontSplittingContext::new(&tuning, data, font)?;
         ctx.check_high_priority()?;
         while let Some(subset_group) = ctx.select_subset_group()? {
