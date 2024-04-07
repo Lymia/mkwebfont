@@ -1,7 +1,8 @@
+use anyhow::*;
 use clap::Parser;
 use mkwebfont::SplitWebfontCtx;
 use roaring::RoaringBitmap;
-use std::{fmt::Write, io, path::PathBuf};
+use std::{fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
 use tracing::{error, info, warn};
 
 /// Generates webfonts for a given font.
@@ -19,9 +20,13 @@ struct Args {
     #[arg(long)]
     store_uri: Option<String>,
 
-    /// Where to write the generated .css file.
+    /// The path to write the .css file to, replacing the existing contents.
     #[arg(short, long)]
     output: Option<PathBuf>,
+
+    /// The path to append the .css file to, adding it to the end of the file.
+    #[arg(short, long)]
+    append: Option<PathBuf>,
 
     /// Whether to enable verbose output
     #[arg(short, long)]
@@ -44,21 +49,19 @@ struct Args {
     write_default_splitter_tuning: Option<PathBuf>,
 }
 
-fn main() {
-    let args = Args::parse();
-    tracing_subscriber::fmt()
-        .with_env_filter(if args.verbose { "mkwebfont=debug,info" } else { "info" })
-        .with_writer(io::stderr)
-        .init();
-
+fn main_impl(args: Args) -> Result<()> {
     // write splitter configuration
     if let Some(path) = args.write_default_splitter_tuning {
         info!("Writting default splitter configuration to {}", path.display());
-        std::fs::write(path, include_str!("splitter_default_tuning.toml")).unwrap();
-        return;
+        std::fs::write(path, include_str!("splitter_default_tuning.toml"))?;
+        return Ok(());
     }
 
     // check arguments
+    if args.append.is_some() && args.output.is_some() {
+        error!("`--append` and `--output` parameter cannot be used together.");
+        std::process::exit(1)
+    }
     if args.store.is_none() {
         error!("`--store <STORE>` parameter must be provided.");
         std::process::exit(1)
@@ -84,21 +87,37 @@ fn main() {
 
     let mut split_ctx = SplitWebfontCtx::default();
     if let Some(tuning) = args.splitter_tuning {
-        split_ctx.splitter_tuning = Some(std::fs::read_to_string(tuning).unwrap());
+        split_ctx.splitter_tuning = Some(std::fs::read_to_string(tuning)?);
     }
     split_ctx.preload_codepoints = preload_codepoints;
     for font in &args.fonts {
         info!("Processing webfont: {}", font.display());
-        for data in
-            mkwebfont::split_webfont(&split_ctx, font, args.store.as_ref().unwrap()).unwrap()
-        {
-            writeln!(css, "{}", data.render_css(&store_uri)).unwrap();
+        for data in mkwebfont::split_webfont(&split_ctx, font, args.store.as_ref().unwrap())? {
+            writeln!(css, "{}", data.render_css(&store_uri))?;
         }
     }
 
     if let Some(target) = args.output {
-        std::fs::write(target, css).unwrap();
+        std::fs::write(target, css)?;
+    } else if let Some(target) = args.append {
+        let mut file = OpenOptions::new().write(true).append(true).open(target)?;
+        file.write_all(css.as_bytes())?
     } else {
         println!("{}", css);
+    }
+
+    Ok(())
+}
+
+fn main() {
+    let args = Args::parse();
+    tracing_subscriber::fmt()
+        .with_env_filter(if args.verbose { "mkwebfont=debug,info" } else { "info" })
+        .with_writer(io::stderr)
+        .init();
+
+    match main_impl(args) {
+        Result::Ok(()) => {}
+        Result::Err(e) => error!("Error encountered: {e}"),
     }
 }
