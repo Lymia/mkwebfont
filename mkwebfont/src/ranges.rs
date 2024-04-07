@@ -59,7 +59,7 @@ pub fn encode_range(ranges: &[RangeInclusive<char>]) -> RoaringBitmap {
     }
     bitmap
 }
-pub fn decode_range(bitmap: RoaringBitmap) -> Vec<RangeInclusive<char>> {
+pub fn decode_range(bitmap: &RoaringBitmap) -> Vec<RangeInclusive<char>> {
     let mut range_start = None;
     let mut range_last = '\u{fffff}';
     let mut ranges = Vec::new();
