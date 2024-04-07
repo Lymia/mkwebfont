@@ -19,9 +19,9 @@
                     lockFile = ./Cargo.lock;
                 };
 
-                nativeBuildInputs = [ ];
-
-                LIBCLANG_PATH="${pkgs.llvmPackages.libclang}/lib";
+                nativeBuildInputs = [
+                    pkgs.rustPlatform.bindgenHook
+                ];
             };
         in rec {
             packages = {
