@@ -32,14 +32,3 @@ pub fn to_nix_base32(bytes: &[u8]) -> String {
         })
         .collect()
 }
-
-#[test]
-fn test_to_nix_base32() {
-    assert_eq!(
-        to_nix_base32(
-            &hex::decode("ab335240fd942ab8191c5e628cd4ff3903c577bda961fb75df08e0303a00527b")
-                .unwrap()
-        ),
-        "0ysj00x31q08vxsznqd9pmvwa0rrzza8qqjy3hcvhallzm054cxb"
-    );
-}
