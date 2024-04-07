@@ -115,8 +115,9 @@ impl<'a> FontSplittingContext<'a> {
 
     fn do_subset(&mut self, subset: &'static WebfontSubset) -> Result<()> {
         if !self.processed_subsets.contains(subset.name) {
-            let new_glyphs = self.font.glyphs_in_font(&subset.map) - &self.fulfilled_glyphs;
+            self.processed_subsets.insert(subset.name);
 
+            let new_glyphs = self.font.glyphs_in_font(&subset.map) - &self.fulfilled_glyphs;
             if new_glyphs.len() as usize >= self.tuning.reject_subset_threshold {
                 let subset_woff2 = self.font.subset(&subset.map)?;
                 info!(
@@ -125,7 +126,6 @@ impl<'a> FontSplittingContext<'a> {
                     new_glyphs.len()
                 );
                 self.fulfilled_glyphs.extend(new_glyphs.clone());
-                self.processed_subsets.insert(subset.name);
                 self.woff2_subsets.push(SplitFontData::new(
                     &self.font,
                     subset.name,
