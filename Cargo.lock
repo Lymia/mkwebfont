@@ -738,6 +738,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "reqwest",
+ "roaring",
  "serde",
  "serde_json",
  "unic-ucd-category",

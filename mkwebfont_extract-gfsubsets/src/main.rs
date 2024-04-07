@@ -4,10 +4,11 @@
 //! Code quality is very bad, but this needs to be run very rarely, so... it shouldn't matter much.
 
 use anyhow::*;
+use roaring::RoaringBitmap;
 use serde::*;
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     fmt::{Display, Formatter},
     fs::File,
     io::Write,
@@ -16,7 +17,7 @@ use std::{
 use unic_ucd_category::GeneralCategory;
 
 /// Really shitty CSS parser
-fn parse_css_poorly(css: &str, cjk_tag: &str) -> Result<HashMap<String, Vec<char>>> {
+fn parse_css_poorly(css: &str, cjk_tag: &str) -> Result<HashMap<String, RoaringBitmap>> {
     let mut current_subset = None;
     let mut ranges = HashMap::new();
     for line in css.split("\n") {
@@ -31,7 +32,7 @@ fn parse_css_poorly(css: &str, cjk_tag: &str) -> Result<HashMap<String, Vec<char
             if line.starts_with("[") && line.ends_with("]") {
                 let line = line.split("[").skip(1).next().unwrap().trim();
                 let line = line.split("]").next().unwrap().trim();
-                current_subset = Some(Cow::Owned(format!("gf-{cjk_tag}-s{line}")));
+                current_subset = Some(Cow::Owned(format!("group-{cjk_tag}-s{line}")));
             }
         }
 
@@ -42,7 +43,7 @@ fn parse_css_poorly(css: &str, cjk_tag: &str) -> Result<HashMap<String, Vec<char
             let line = line.split(":").skip(1).next().unwrap().trim();
             let line = line.split(";").next().unwrap().trim();
 
-            let mut chars = HashSet::new();
+            let mut chars = RoaringBitmap::new();
             for entry in line.split(",") {
                 let entry = entry.trim();
                 assert!(entry.starts_with("U+"), "entry does not start with U+");
@@ -53,31 +54,28 @@ fn parse_css_poorly(css: &str, cjk_tag: &str) -> Result<HashMap<String, Vec<char
                     assert_eq!(split.len(), 2);
                     let start = u32::from_str_radix(split[0], 16)?;
                     let end = u32::from_str_radix(split[1], 16)?;
-                    for i in start..=end {
-                        chars.insert(char::from_u32(i).unwrap());
+                    for ch in start..=end {
+                        chars.insert(ch);
                     }
                 } else {
-                    let c = u32::from_str_radix(entry, 16)?;
-                    chars.insert(char::from_u32(c).unwrap());
+                    let ch = u32::from_str_radix(entry, 16)?;
+                    chars.insert(ch);
                 }
             }
-
-            let mut chars: Vec<_> = chars.into_iter().collect();
-            chars.sort();
             ranges.insert(subset.to_string(), chars);
         }
     }
     Ok(ranges)
 }
 
-/// Turn a list of character codes into a list of ranges.
-fn unify_ranges(mut range: Vec<char>) -> Vec<RangeInclusive<char>> {
-    range.sort();
-
+// TODO: I know this is code duplication. IDC.
+//noinspection DuplicatedCode
+pub fn decode_range(bitmap: &RoaringBitmap) -> Vec<RangeInclusive<char>> {
     let mut range_start = None;
     let mut range_last = '\u{fffff}';
     let mut ranges = Vec::new();
-    for char in range {
+    for char in bitmap {
+        let char = char::from_u32(char).expect("Invalid char in RoaringBitmap");
         if let Some(start) = range_start {
             let next = char::from_u32(range_last as u32 + 1).unwrap();
             if next != char {
@@ -92,7 +90,6 @@ fn unify_ranges(mut range: Vec<char>) -> Vec<RangeInclusive<char>> {
     if let Some(start) = range_start {
         ranges.push(start..=range_last);
     }
-
     ranges
 }
 
@@ -119,8 +116,7 @@ fn mk_gf_ranges() -> Result<()> {
         subsets: Vec<String>,
     }
 
-    let mut ranges = HashMap::new();
-    let mut sources: HashMap<_, HashSet<_>> = HashMap::new();
+    let mut raw_subsets: HashMap<_, RoaringBitmap> = HashMap::new();
     for font in fonts.items {
         println!("Getting CSS for {}...", font.family);
 
@@ -160,45 +156,30 @@ fn mk_gf_ranges() -> Result<()> {
             .get(format!("https://fonts.googleapis.com/css2?family={}", &font.family))
             .send()?;
         let parsed = parse_css_poorly(&font_css.text()?, cjk_tag)?;
+
         for (k, v) in parsed {
-            sources
-                .entry(k.clone())
-                .or_default()
-                .insert(font.family.clone());
-            ranges.insert(v, k);
+            if let Some(subset) = raw_subsets.get_mut(&k) {
+                if *subset != v {
+                    println!(
+                        "{k} - merging {} codepoints with {} codepoints",
+                        subset.len(),
+                        v.len()
+                    );
+                    subset.extend(v);
+                }
+            } else {
+                raw_subsets.insert(k, v);
+            }
         }
     }
 
     // check for ranges with multiple definitions and merge them
-    let mut ranges: Vec<_> = ranges.into_iter().collect();
-    ranges.sort_by_key(|x| x.1.clone());
-
-    let mut ordered_classes = Vec::new();
-    let mut overlap_check = HashSet::new();
-    let mut classes = HashMap::new();
-    for (k, v) in ranges {
-        println!("{v} - {} glyphs - used in {} fonts", k.len(), sources.get(&v).unwrap().len());
-        if overlap_check.contains(&v) {
-            println!("!!!!!!!!!!!!!!!!!!! Category has more than one definitions: {v:?}");
-            let old = classes.get_mut(&v).unwrap();
-            let old_vec = std::mem::replace(old, Vec::new());
-
-            let mut set = HashSet::new();
-            set.extend(k.into_iter());
-            set.extend(old_vec.into_iter());
-
-            let mut new_vec: Vec<_> = set.into_iter().collect();
-            new_vec.sort();
-
-            *old = new_vec;
-
-            println!("{v} - merged: {} glyphs", old.len());
-        } else {
-            overlap_check.insert(v.clone());
-            ordered_classes.push(v.clone());
-            classes.insert(v, k);
-        }
+    let mut names = Vec::new();
+    for (k, v) in &raw_subsets {
+        println!("{k}: {} codepoints", v.len());
+        names.push(k.clone());
     }
+    names.sort();
 
     // sort into the Google Fonts machine learning subsets and manually coded subsets
     struct GfSubset {
@@ -207,15 +188,15 @@ fn mk_gf_ranges() -> Result<()> {
     }
 
     let mut subsets = Vec::new();
-    let mut gf_subsets: HashMap<_, Vec<_>> = HashMap::new();
-    for class in ordered_classes {
-        let class_data = classes.remove(&class).unwrap();
-        let mut subset = GfSubset { name: class.clone(), ranges: unify_ranges(class_data) };
+    let mut subset_groups: BTreeMap<_, Vec<_>> = BTreeMap::new();
+    for name in names {
+        let class_data = raw_subsets.remove(&name).unwrap();
+        let mut subset = GfSubset { name: name.clone(), ranges: decode_range(&class_data) };
 
-        if class.starts_with("gf-") {
-            let subclass = class.split('-').skip(1).next().unwrap();
-            subset.name = subset.name[3..].to_string().replace("-s", "");
-            gf_subsets
+        if name.starts_with("group-") {
+            let subclass = name.split('-').skip(1).next().unwrap();
+            subset.name = subset.name[6..].to_string().replace("-s", "");
+            subset_groups
                 .entry(subclass.to_string())
                 .or_default()
                 .push(subset);
@@ -276,7 +257,7 @@ fn mk_gf_ranges() -> Result<()> {
     write_subsets(&mut file, &subsets)?;
     writeln!(file, "    ],")?;
     writeln!(file, "    subset_groups: &[")?;
-    for (name, subsets) in gf_subsets {
+    for (name, subsets) in subset_groups {
         writeln!(file, "        GfSubsetGroup {{")?;
         writeln!(file, "            name: {:?},", name)?;
         writeln!(file, "            subsets: &[")?;
