@@ -18,5 +18,5 @@ fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(if args.verbose { "mkwebfont=debug,info" } else { "info" })
         .init();
-    mkwebfont::test(args.font);
+    mkwebfont::split_webfont(args.font).unwrap();
 }

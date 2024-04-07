@@ -1,112 +1,64 @@
-use crate::gf_ranges::{GfSubset, GfSubsets};
-use allsorts::{binary::read::ReadScope, font_data::FontData, tables::FontTableProvider};
-use anyhow::*;
-use std::{
-    collections::{HashMap, HashSet},
-    fs::File,
-    io::Write,
-    path::PathBuf,
-    rc::Rc,
+use crate::{
+    font_ops::LoadedFont,
+    ranges::{WebfontDataCtx, WebfontSubset},
 };
+use anyhow::*;
+use roaring::RoaringBitmap;
+use std::{collections::HashMap, fs::File, io::Write, path::PathBuf};
 use tracing::{debug, info};
 
 const HIGH_PRIORITY: &[&str] = &["latin", "latin-ext"];
 
-struct FontSplittingContext<T: FontTableProvider> {
-    font: T,
-    fulfilled_glyphs: HashSet<char>,
-    subsets: HashMap<&'static str, Vec<u8>>,
-    present_glyphs_cache: HashMap<&'static str, Rc<HashSet<char>>>,
-    subset_glyphs_cache: HashMap<&'static str, Rc<HashSet<char>>>,
-    subset_cache: HashMap<&'static str, &'static GfSubset>,
-    glyphs_in_font: HashSet<char>,
+struct FontSplittingContext<'a> {
+    font: LoadedFont<'a>,
+    data: &'static WebfontDataCtx,
+    fulfilled_glyphs: RoaringBitmap,
+    woff2_subsets: HashMap<&'static str, Vec<u8>>,
 }
-impl<T: FontTableProvider> FontSplittingContext<T> {
-    fn new(font: T) -> Result<Self> {
-        let mut subset_cache = HashMap::new();
-        for subset in GfSubsets::DATA.subsets {
-            subset_cache.insert(subset.name, subset);
-        }
-        let glyphs_in_font = crate::subset::glyphs_in_font(&font)?;
+impl<'a> FontSplittingContext<'a> {
+    fn new(data: &'static WebfontDataCtx, font: &'a [u8]) -> Result<Self> {
         Ok(FontSplittingContext {
-            font,
+            font: LoadedFont::new(font)?,
+            data,
             fulfilled_glyphs: Default::default(),
-            subsets: Default::default(),
-            present_glyphs_cache: Default::default(),
-            subset_glyphs_cache: Default::default(),
-            subset_cache,
-            glyphs_in_font,
+            woff2_subsets: Default::default(),
         })
     }
 
-    fn do_subset(&mut self, subset: &'static GfSubset) -> Result<()> {
-        if !self.subsets.contains_key(subset.name) {
-            let glyphs = self.present_glyphs(subset)?;
-            let subset_otf = crate::subset::subset(&self.font, subset.ranges)?;
+    fn do_subset(&mut self, subset: &'static WebfontSubset) -> Result<()> {
+        if !self.woff2_subsets.contains_key(subset.name) {
+            let subset_woff2 = self.font.subset(&subset.map)?;
+            let new_glyphs = self.font.glyphs_in_font(&subset.map) - &self.fulfilled_glyphs;
 
-            let mut new_glyphs = (*glyphs).clone();
-            for gylph in &self.fulfilled_glyphs {
-                new_glyphs.remove(gylph);
-            }
             info!(
                 "Splitting subset from font: {} (unique glyphs: {})",
                 subset.name,
                 new_glyphs.len()
             );
 
-            self.fulfilled_glyphs.extend(glyphs.iter());
-            self.subsets.insert(subset.name, subset_otf);
+            self.fulfilled_glyphs.extend(new_glyphs);
+            self.woff2_subsets.insert(subset.name, subset_woff2);
         }
         Ok(())
     }
 
-    fn present_glyphs(&mut self, subset: &'static GfSubset) -> Result<Rc<HashSet<char>>> {
-        if let Some(subset) = self.present_glyphs_cache.get(subset.name) {
-            Ok(subset.clone())
-        } else {
-            let data = crate::subset::glyphs_in_font_subset(&self.font, subset.ranges)?;
-            self.present_glyphs_cache.insert(subset.name, Rc::new(data));
-            self.present_glyphs(subset)
-        }
+    fn unique_available_ratio(&self, subset: &'static WebfontSubset) -> f64 {
+        let present_glyphs = (self.font.glyphs_in_font(&subset.map) - &self.fulfilled_glyphs).len();
+        let subset_glyphs = (subset.map.clone() - &self.fulfilled_glyphs).len();
+        (present_glyphs as f64) / (subset_glyphs as f64)
     }
-    fn subset_glyphs(&mut self, subset: &'static GfSubset) -> Result<Rc<HashSet<char>>> {
-        if let Some(subset) = self.subset_glyphs_cache.get(subset.name) {
-            Ok(subset.clone())
-        } else {
-            let mut data = HashSet::new();
-            for range in subset.ranges {
-                for char in range.clone() {
-                    data.insert(char);
-                }
-            }
-            self.subset_glyphs_cache.insert(subset.name, Rc::new(data));
-            self.subset_glyphs(subset)
-        }
-    }
-    fn unique_available_ratio(&mut self, subset: &'static GfSubset) -> Result<f64> {
-        let mut present_glyphs = (*self.present_glyphs(subset)?).clone();
-        let mut subset_glyphs = (*self.subset_glyphs(subset)?).clone();
-        for glyph in &self.fulfilled_glyphs {
-            present_glyphs.remove(glyph);
-            subset_glyphs.remove(glyph);
-        }
-        Ok((present_glyphs.len() as f64) / (subset_glyphs.len() as f64))
-    }
-    fn unique_available_count(&mut self, subset: &'static GfSubset) -> Result<usize> {
-        let mut present_glyphs = (*self.present_glyphs(subset)?).clone();
-        for glyph in &self.fulfilled_glyphs {
-            present_glyphs.remove(glyph);
-        }
-        Ok(present_glyphs.len())
+    fn unique_available_count(&self, subset: &'static WebfontSubset) -> usize {
+        let present_glyphs = (self.font.glyphs_in_font(&subset.map) - &self.fulfilled_glyphs).len();
+        present_glyphs as usize
     }
 
-    fn select_next_subset(&mut self) -> Result<Option<&'static GfSubset>> {
+    fn select_next_subset(&mut self) -> Result<Option<&'static WebfontSubset>> {
         let mut selected = None;
-        for v in GfSubsets::DATA.subsets {
-            if !self.subsets.contains_key(v.name) {
-                let count = self.unique_available_count(v)?;
+        for v in &self.data.subsets {
+            if !self.woff2_subsets.contains_key(v.name) {
+                let count = self.unique_available_count(v);
                 if count != 0 {
-                    let ratio = self.unique_available_ratio(v)?;
+                    let ratio = self.unique_available_ratio(v);
                     if let Some((_, last_score, _)) = selected {
                         if count > last_score {
                             selected = Some((v, count, ratio));
@@ -131,41 +83,28 @@ impl<T: FontTableProvider> FontSplittingContext<T> {
 
     fn check_high_priority(&mut self, name: &'static str) -> Result<()> {
         debug!("Checking high priority subset: {name}");
-        let subset = *self.subset_cache.get(name).unwrap();
-        if self.unique_available_ratio(subset)? > 0.25 {
+        let subset = self.data.by_name.get(name).unwrap();
+        if self.unique_available_ratio(subset) > 0.25 {
             self.do_subset(subset)?;
         }
         Ok(())
     }
 
     fn split_residual(&mut self) -> Result<()> {
-        // TODO: Optimize to remove this weird range hack.
-        let mut glyphs = self.glyphs_in_font.clone();
-        for glyph in &self.fulfilled_glyphs {
-            glyphs.remove(glyph);
-        }
-
+        let glyphs = self.font.all_glyphs() - &self.fulfilled_glyphs;
         if !glyphs.is_empty() {
-            let mut glyph_ranges = Vec::new();
-            for glyph in glyphs {
-                glyph_ranges.push(glyph..=glyph);
-            }
-
-            info!("Splitting subset from font: residual (unique glyphs: {})", glyph_ranges.len());
-            let subset_otf = crate::subset::subset(&self.font, &glyph_ranges)?;
-            self.subsets.insert("residual", subset_otf);
+            info!("Splitting subset from font: residual (unique glyphs: {})", glyphs.len());
+            let subset_woff2 = self.font.subset(&glyphs)?;
+            self.woff2_subsets.insert("residual", subset_woff2);
         }
-
         Ok(())
     }
 }
 
-pub fn test(path: PathBuf) -> Result<()> {
+pub fn split_webfont(data: &'static WebfontDataCtx, path: PathBuf) -> Result<()> {
     let buffer = std::fs::read(&path)?;
-    let font_file = ReadScope::new(&buffer).read::<FontData>()?;
-    let provider = font_file.table_provider(0)?;
 
-    let mut ctx = FontSplittingContext::new(provider)?;
+    let mut ctx = FontSplittingContext::new(data, &buffer)?;
     for subset in HIGH_PRIORITY {
         ctx.check_high_priority(subset)?;
     }
@@ -174,7 +113,7 @@ pub fn test(path: PathBuf) -> Result<()> {
     }
     ctx.split_residual()?;
 
-    for (k, v) in &ctx.subsets {
+    for (k, v) in &ctx.woff2_subsets {
         let mut file = File::create(format!("run/{k}.woff2"))?;
         file.write_all(v.as_slice())?;
     }
