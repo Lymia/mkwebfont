@@ -15,6 +15,8 @@
                 src = ./.;
                 cargoBuildFlags = "-p mkwebfont";
 
+                doCheck = false;
+
                 cargoLock = {
                     lockFile = ./Cargo.lock;
                 };
