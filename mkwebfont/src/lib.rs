@@ -2,6 +2,7 @@ use crate::ranges::WebfontDataCtx;
 
 mod font_ops;
 mod gf_ranges;
+mod nix_base32;
 mod ranges;
 mod splitter;
 mod woff2;

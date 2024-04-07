@@ -14,6 +14,7 @@ required-features = ["binary"]
 [dependencies]
 allsorts = "0.14"
 anyhow = "1.0"
+blake3 = "1.5"
 brotli = { version = "3.5", features = ["ffi-api"] }
 clap = { version = "4.5", features = ["derive"], optional = true }
 lazy_static = "1.4"

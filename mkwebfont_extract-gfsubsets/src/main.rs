@@ -141,11 +141,11 @@ fn mk_gf_ranges() -> Result<()> {
         let cjk_tag = if is_multiple {
             "unk"
         } else if has_chinese_simplified {
-            "zh_simp"
+            "zhsimp"
         } else if has_chinese_traditional {
-            "zh_trad"
+            "zhtrad"
         } else if has_chinese_hongkong {
-            "zh_hk"
+            "zhhk"
         } else if has_korean {
             "kr"
         } else if has_japanese {

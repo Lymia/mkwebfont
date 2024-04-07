@@ -17,8 +17,13 @@ use allsorts::{
 };
 use anyhow::*;
 use roaring::RoaringBitmap;
+use std::ffi::CString;
+use tracing::debug;
 
 pub struct LoadedFont<'a> {
+    pub font_name: String,
+    pub font_style: String,
+    pub font_version: String,
     font_provider: DynamicFontTableProvider<'a>,
     cmap_subtable: CmapSubtable,
     available_glyphs: RoaringBitmap,
@@ -34,13 +39,30 @@ impl<'a> LoadedFont<'a> {
             .ok_or(Error::msg("no suitable cmap sub-table found"))?
             .1;
 
+        let name_data = font_provider.read_table_data(tag::NAME)?;
+        fn cstr_to_str(c: Option<CString>) -> String {
+            c.map(|x| x.to_string_lossy().to_string())
+                .unwrap_or_else(|| "unknown".to_string())
+        }
+        let font_name = cstr_to_str(allsorts::get_name::fontcode_get_name(&name_data, 1)?);
+        let font_style = cstr_to_str(allsorts::get_name::fontcode_get_name(&name_data, 2)?);
+        let font_version = cstr_to_str(allsorts::get_name::fontcode_get_name(&name_data, 5)?);
+        debug!("Loaded font: {font_name} / {font_style} / {font_version}");
+
         let mut available_glyphs = RoaringBitmap::new();
         cmap_subtable.mappings_fn(|x, _| {
             available_glyphs.insert(x);
         })?;
         let cmap_subtable = cmap_subtable.to_owned().unwrap();
 
-        Ok(LoadedFont { font_provider, cmap_subtable, available_glyphs })
+        Ok(LoadedFont {
+            font_name,
+            font_style,
+            font_version,
+            font_provider,
+            cmap_subtable,
+            available_glyphs,
+        })
     }
 
     pub fn glyphs_in_font(&self, set: &RoaringBitmap) -> RoaringBitmap {

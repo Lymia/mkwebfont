@@ -5,7 +5,7 @@ use crate::{
 use anyhow::*;
 use roaring::RoaringBitmap;
 use serde::Deserialize;
-use std::{borrow::Cow, collections::HashSet, fs::File, io::Write};
+use std::{collections::HashSet, fs::File, io::Write};
 use tracing::{debug, info};
 use unic_ucd_block::Block;
 
@@ -20,10 +20,61 @@ struct TuningParameters {
     residual_class_max_size: usize,
 }
 
-struct SplitFontData {
-    name: Cow<'static, str>,
-    subset: RoaringBitmap,
-    woff2_data: Vec<u8>,
+fn extract_name(str: &str) -> String {
+    let mut out = String::new();
+    for char in str.chars() {
+        if char.is_alphanumeric() {
+            out.push(char);
+        } else if out.chars().last() != Some('-') {
+            out.push('-');
+        }
+        if out.len() == 20 {
+            break;
+        }
+    }
+    out.trim_matches('-').to_string()
+}
+fn extract_version(mut str: &str) -> String {
+    let mut out = String::new();
+    let version_txt = "version ";
+    if str.to_lowercase().starts_with(version_txt) {
+        str = &str[version_txt.len()..];
+    }
+    for char in str.chars() {
+        if char.is_numeric() || char == '.' {
+            out.push(char);
+        } else {
+            break;
+        }
+        if out.len() == 10 {
+            break;
+        }
+    }
+    out.trim_matches('.').to_string()
+}
+
+pub struct SplitFontData {
+    pub store_file_name: String,
+    pub subset: RoaringBitmap,
+    pub woff2_data: Vec<u8>,
+}
+impl SplitFontData {
+    fn new(font: &LoadedFont, name: &str, subset: RoaringBitmap, woff2_data: Vec<u8>) -> Self {
+        let blake3_hash = blake3::hash(&woff2_data);
+        let hash_str = crate::nix_base32::to_nix_base32(&*blake3_hash.as_bytes());
+        let hash_str = &hash_str[1..21];
+
+        let font_name = extract_name(&font.font_name);
+        let font_style = extract_name(&font.font_style);
+        let font_version = extract_version(&font.font_version);
+        SplitFontData {
+            store_file_name: format!(
+                "{font_name}_{font_style}_{font_version}_{name}_{hash_str}.woff2"
+            ),
+            subset,
+            woff2_data,
+        }
+    }
 }
 
 struct FontSplittingContext<'a> {
@@ -68,11 +119,8 @@ impl<'a> FontSplittingContext<'a> {
                 );
                 self.fulfilled_glyphs.extend(new_glyphs.clone());
                 self.processed_subsets.insert(subset.name);
-                self.woff2_subsets.push(SplitFontData {
-                    name: Cow::Borrowed(subset.name),
-                    subset: new_glyphs,
-                    woff2_data: subset_woff2,
-                });
+                self.woff2_subsets
+                    .push(SplitFontData::new(&self.font, subset.name, new_glyphs, subset_woff2));
             } else {
                 debug!("Rejecting subset: {} (unique glyphs: {})", subset.name, new_glyphs.len())
             }
@@ -215,17 +263,11 @@ impl<'a> FontSplittingContext<'a> {
         }
 
         assert!(!set.is_empty());
+        let name = format!("residual-s{}", self.residual_id);
         let subset_woff2 = self.font.subset(&set)?;
-        info!(
-            "Splitting subset from font: residual-s{} (unique glyphs: {})",
-            self.residual_id,
-            set.len()
-        );
-        self.woff2_subsets.push(SplitFontData {
-            name: Cow::Owned(format!("residual-s{}", self.residual_id)),
-            subset: set,
-            woff2_data: subset_woff2,
-        });
+        info!("Splitting subset from font: {name} (unique glyphs: {})", set.len());
+        self.woff2_subsets
+            .push(SplitFontData::new(&self.font, &name, set, subset_woff2));
         self.residual_id += 1;
 
         Ok(())
@@ -264,7 +306,7 @@ pub fn split_webfont(
     ctx.split_residual()?;
 
     for data in &ctx.woff2_subsets {
-        let mut file = File::create(format!("run/{}.woff2", data.name))?;
+        let mut file = File::create(format!("run/{}", data.store_file_name))?;
         file.write_all(&data.woff2_data)?;
     }
 
