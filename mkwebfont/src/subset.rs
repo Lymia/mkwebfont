@@ -1,5 +1,6 @@
 //! Code from <https://github.com/yeslogic/allsorts-tools/blob/master/src/subset.rs>
 
+use crate::woff2;
 use allsorts::{
     binary::read::ReadScope,
     font::read_cmap_subtable,
@@ -16,7 +17,6 @@ use allsorts::{
 use anyhow::*;
 use std::{collections::HashSet, ops::RangeInclusive};
 use tracing::debug;
-use crate::woff2;
 
 pub fn glyphs_in_font<F: FontTableProvider>(font_provider: &F) -> Result<HashSet<char>> {
     let mut chars = HashSet::new();

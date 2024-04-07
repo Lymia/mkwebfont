@@ -3,11 +3,11 @@ use allsorts::{binary::read::ReadScope, font_data::FontData, tables::FontTablePr
 use anyhow::*;
 use std::{
     collections::{HashMap, HashSet},
+    fs::File,
+    io::Write,
     path::PathBuf,
     rc::Rc,
 };
-use std::fs::File;
-use std::io::Write;
 use tracing::{debug, info};
 
 const HIGH_PRIORITY: &[&str] = &["latin", "latin-ext"];

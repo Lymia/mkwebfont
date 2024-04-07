@@ -12,9 +12,6 @@ extern "C" {
         extended_metadata: *const core::ffi::c_char,
         extended_metadata_length: usize,
     ) -> usize;
-
-    fn ComputeWOFF2ToTTFSize(data: *const u8, length: usize) -> usize;
-
     fn ConvertTTFToWOFF2(
         data: *const u8,
         length: usize,
@@ -24,13 +21,6 @@ extern "C" {
         extended_metadata_length: usize,
         brotli_quality: core::ffi::c_int,
         allow_transforms: core::ffi::c_int,
-    ) -> core::ffi::c_int;
-
-    fn ConvertWOFF2ToTTF(
-        result: *mut u8,
-        result_length: usize,
-        data: *const u8,
-        length: usize,
     ) -> core::ffi::c_int;
 }
 
@@ -67,23 +57,5 @@ pub fn compress(data: &[u8], metadata: String, quality: usize, transform: bool) 
         return None;
     }
     result.truncate(result_length);
-    result.into()
-}
-
-/// Decompress.
-pub fn decompress(data: &[u8]) -> Option<Vec<u8>> {
-    let size = unsafe { ComputeWOFF2ToTTFSize(data.as_ptr() as *const _, data.len()) };
-    let mut result = vec![0; size];
-    let success = unsafe {
-        ConvertWOFF2ToTTF(
-            result.as_mut_ptr() as *mut _,
-            size,
-            data.as_ptr() as *const _,
-            data.len(),
-        ) != 0
-    };
-    if !success {
-        return None;
-    }
     result.into()
 }
