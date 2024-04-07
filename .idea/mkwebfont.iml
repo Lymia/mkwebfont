@@ -4,6 +4,8 @@
     <exclude-output />
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mkwebfont/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mkwebfont_extract-gfsubsets/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>

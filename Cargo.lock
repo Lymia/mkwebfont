@@ -548,6 +548,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mkwebfont_extract-gfsubsets"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "unic-ucd-category",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"

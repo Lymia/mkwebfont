@@ -222,7 +222,7 @@ fn main_impl() -> Result<()> {
     }
 
     // output the data file
-    let mut file = File::create("src/gf_ranges.rs")?;
+    let mut file = File::create("mkwebfont/src/gf_ranges.rs")?;
     fn write_subset(file: &mut File, subset: &GfSubset) -> Result<()> {
         struct CharRepr(char);
         impl Display for CharRepr {
@@ -265,7 +265,7 @@ fn main_impl() -> Result<()> {
         Ok(())
     }
     writeln!(file, "// Automatically generated file. Do not edit manually.")?;
-    writeln!(file, "// Run `cargo run --example extract_gfsubsets`.`")?;
+    writeln!(file, "// Run `cargo run -p mkwebfont_extract-gfsubsets`.`")?;
     writeln!(file, "#![cfg_attr(rustfmt, rustfmt_skip)]")?;
     writeln!(file, "{}", include_str!("res/gfsubsets.rs"))?;
     writeln!(file, "const DATA: GfSubsets = GfSubsets {{")?;
