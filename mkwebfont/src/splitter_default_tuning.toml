@@ -39,6 +39,3 @@ reject_subset_threshold = 20
 
 # The maximum size for a residual subset made from codepoints not included in a Google Fonts subset.
 residual_class_max_size = 200
-
-# The preferred size for a residual subset made from codepoints not included in a Google Fonts subset.
-residual_class_preferred_size = 100

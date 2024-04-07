@@ -5,12 +5,9 @@ use crate::{
 use anyhow::*;
 use roaring::RoaringBitmap;
 use serde::Deserialize;
-use std::{
-    collections::{HashMap, HashSet},
-    fs::File,
-    io::Write,
-};
+use std::{borrow::Cow, collections::HashSet, fs::File, io::Write};
 use tracing::{debug, info};
+use unic_ucd_block::Block;
 
 #[derive(Clone, Debug, Deserialize)]
 struct TuningParameters {
@@ -21,7 +18,12 @@ struct TuningParameters {
     high_priority_ratio_threshold: f64,
     high_priority_subsets: Vec<String>,
     residual_class_max_size: usize,
-    residual_class_preferred_size: usize,
+}
+
+struct SplitFontData {
+    name: Cow<'static, str>,
+    subset: RoaringBitmap,
+    woff2_data: Vec<u8>,
 }
 
 struct FontSplittingContext<'a> {
@@ -29,8 +31,10 @@ struct FontSplittingContext<'a> {
     font: LoadedFont<'a>,
     data: &'static WebfontDataCtx,
     fulfilled_glyphs: RoaringBitmap,
-    woff2_subsets: HashMap<String, Vec<u8>>,
+    woff2_subsets: Vec<SplitFontData>,
+    processed_subsets: HashSet<&'static str>,
     processed_groups: HashSet<&'static str>,
+    residual_id: usize,
 }
 impl<'a> FontSplittingContext<'a> {
     fn new(
@@ -45,12 +49,14 @@ impl<'a> FontSplittingContext<'a> {
             data,
             fulfilled_glyphs: Default::default(),
             woff2_subsets: Default::default(),
+            processed_subsets: Default::default(),
             processed_groups: Default::default(),
+            residual_id: 0,
         })
     }
 
     fn do_subset(&mut self, subset: &'static WebfontSubset) -> Result<()> {
-        if !self.woff2_subsets.contains_key(subset.name) {
+        if !self.processed_subsets.contains(subset.name) {
             let new_glyphs = self.font.glyphs_in_font(&subset.map) - &self.fulfilled_glyphs;
 
             if new_glyphs.len() as usize >= self.tuning.reject_subset_threshold {
@@ -60,9 +66,13 @@ impl<'a> FontSplittingContext<'a> {
                     subset.name,
                     new_glyphs.len()
                 );
-                self.fulfilled_glyphs.extend(new_glyphs);
-                self.woff2_subsets
-                    .insert(subset.name.to_string(), subset_woff2);
+                self.fulfilled_glyphs.extend(new_glyphs.clone());
+                self.processed_subsets.insert(subset.name);
+                self.woff2_subsets.push(SplitFontData {
+                    name: Cow::Borrowed(subset.name),
+                    subset: new_glyphs,
+                    woff2_data: subset_woff2,
+                });
             } else {
                 debug!("Rejecting subset: {} (unique glyphs: {})", subset.name, new_glyphs.len())
             }
@@ -127,7 +137,7 @@ impl<'a> FontSplittingContext<'a> {
     fn select_next_subset(&mut self) -> Result<Option<&'static WebfontSubset>> {
         let mut selected = None;
         for v in &self.data.subsets {
-            if !self.woff2_subsets.contains_key(v.name) {
+            if !self.processed_subsets.contains(v.name) {
                 let count = self.unique_available_count(v);
                 if count != 0 {
                     let ratio = self.unique_available_ratio(v);
@@ -167,13 +177,67 @@ impl<'a> FontSplittingContext<'a> {
         Ok(())
     }
 
+    fn split_to_blocks(glyphs: RoaringBitmap) -> Vec<RoaringBitmap> {
+        let mut last_glyph_block = None;
+        let mut accum = RoaringBitmap::new();
+        let mut list = Vec::new();
+        for glyph in glyphs {
+            let block = Block::of(char::from_u32(glyph).unwrap()).map(|x| x.name);
+            if last_glyph_block != block && !accum.is_empty() {
+                list.push(std::mem::replace(&mut accum, RoaringBitmap::new()));
+            }
+            last_glyph_block = block;
+            accum.insert(glyph);
+        }
+        if !accum.is_empty() {
+            list.push(accum);
+        }
+        list
+    }
+    fn generate_residual_block(&mut self, residual: &mut Vec<RoaringBitmap>) -> Result<()> {
+        let mut set = RoaringBitmap::new();
+        let mut i = 0;
+        while i < residual.len() {
+            if residual[i].len() as usize > self.tuning.residual_class_max_size && set.is_empty() {
+                set = residual[i]
+                    .iter()
+                    .take(self.tuning.residual_class_max_size)
+                    .collect();
+                residual[i] = residual[i].clone() - set.clone();
+                break;
+            } else if (set.len() + residual[i].len()) as usize
+                <= self.tuning.residual_class_max_size
+            {
+                set.extend(residual.remove(i));
+            } else {
+                i += 1;
+            }
+        }
+
+        assert!(!set.is_empty());
+        let subset_woff2 = self.font.subset(&set)?;
+        info!(
+            "Splitting subset from font: residual-s{} (unique glyphs: {})",
+            self.residual_id,
+            set.len()
+        );
+        self.woff2_subsets.push(SplitFontData {
+            name: Cow::Owned(format!("residual-s{}", self.residual_id)),
+            subset: set,
+            woff2_data: subset_woff2,
+        });
+        self.residual_id += 1;
+
+        Ok(())
+    }
     fn split_residual(&mut self) -> Result<()> {
         let glyphs = self.font.all_glyphs() - &self.fulfilled_glyphs;
         if !glyphs.is_empty() {
-            info!("Splitting subset from font: residual (unique glyphs: {})", glyphs.len());
-            let subset_woff2 = self.font.subset(&glyphs)?;
-            self.woff2_subsets
-                .insert("residual".to_string(), subset_woff2);
+            info!("Splitting residual glyphs into subsets (remaining glyphs: {})", glyphs.len());
+            let mut split = Self::split_to_blocks(glyphs);
+            while !split.is_empty() {
+                self.generate_residual_block(&mut split)?;
+            }
         }
         Ok(())
     }
@@ -199,9 +263,9 @@ pub fn split_webfont(
     }
     ctx.split_residual()?;
 
-    for (k, v) in &ctx.woff2_subsets {
-        let mut file = File::create(format!("run/{k}.woff2"))?;
-        file.write_all(v.as_slice())?;
+    for data in &ctx.woff2_subsets {
+        let mut file = File::create(format!("run/{}.woff2", data.name))?;
+        file.write_all(&data.woff2_data)?;
     }
 
     Ok(())
