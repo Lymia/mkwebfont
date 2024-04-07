@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["binary"]
+default = ["binary", "bundled-harfbuzz"]
 binary = ["clap", "tracing-subscriber"]
+bundled-harfbuzz = ["hb-subset/bundled"]
 
 [[bin]]
 name = "mkwebfont"
@@ -16,7 +17,7 @@ anyhow = "1.0"
 blake3 = "1.5"
 brotli = { version = "4.0", features = ["ffi-api"] }
 clap = { version = "4.5", features = ["derive"], optional = true }
-hb-subset = { version = "0.3", features = ["bundled"] }
+hb-subset = "0.3"
 lazy_static = "1.4"
 roaring = "0.10"
 serde = { version = "1.0", features = ["derive"] }

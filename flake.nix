@@ -13,7 +13,7 @@
                 pname = "mkwebfont";
                 version = "0.1.0";
                 src = ./.;
-                cargoBuildFlags = "-p mkwebfont";
+                cargoBuildFlags = "-p mkwebfont --no-default-features --features binary";
 
                 doCheck = false;
 
@@ -21,7 +21,11 @@
                     lockFile = ./Cargo.lock;
                 };
 
+                buildInputs = [
+                    pkgs.harfbuzz
+                ];
                 nativeBuildInputs = [
+                    pkgs.pkg-config
                     pkgs.rustPlatform.bindgenHook
                 ];
             };
