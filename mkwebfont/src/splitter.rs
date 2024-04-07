@@ -84,9 +84,9 @@ impl SplitFontData {
     }
 }
 
-struct FontSplittingContext<'a> {
+struct FontSplittingContext {
     tuning: TuningParameters,
-    font: LoadedFont<'a>,
+    font: LoadedFont,
     data: &'static WebfontDataCtx,
     fulfilled_glyphs: RoaringBitmap,
     woff2_subsets: Vec<SplitFontData>,
@@ -94,12 +94,8 @@ struct FontSplittingContext<'a> {
     processed_groups: HashSet<&'static str>,
     residual_id: usize,
 }
-impl<'a> FontSplittingContext<'a> {
-    fn new(
-        tuning: &TuningParameters,
-        data: &'static WebfontDataCtx,
-        font: &'a [u8],
-    ) -> Result<Self> {
+impl FontSplittingContext {
+    fn new(tuning: &TuningParameters, data: &'static WebfontDataCtx, font: &[u8]) -> Result<Self> {
         debug!("Font splitting tuning parameters: {tuning:#?}");
         Ok(FontSplittingContext {
             tuning: tuning.clone(),

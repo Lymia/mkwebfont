@@ -4,16 +4,9 @@ use crate::woff2;
 use allsorts::{
     binary::read::ReadScope,
     font::read_cmap_subtable,
-    font_data::{DynamicFontTableProvider, FontData},
-    gsub::{GlyphOrigin, RawGlyph},
-    subset,
-    tables::{
-        cmap::{owned::CmapSubtable, Cmap},
-        FontTableProvider,
-    },
+    font_data::FontData,
+    tables::{cmap::Cmap, FontTableProvider},
     tag,
-    tinyvec::tiny_vec,
-    unicode::VariationSelector,
 };
 use anyhow::*;
 use roaring::RoaringBitmap;
@@ -88,19 +81,18 @@ impl Display for FontWeight {
     }
 }
 
-pub struct LoadedFont<'a> {
+pub struct LoadedFont {
     pub font_name: String,
     pub font_style: String,
     pub font_version: String,
     pub is_variable: bool,
     pub parsed_font_style: FontStyle,
     pub parsed_font_weight: FontWeight,
-    font_provider: DynamicFontTableProvider<'a>,
-    cmap_subtable: CmapSubtable,
+    font_data: Vec<u8>,
     available_glyphs: RoaringBitmap,
 }
-impl<'a> LoadedFont<'a> {
-    pub fn new(buffer: &'a [u8]) -> Result<LoadedFont<'a>> {
+impl LoadedFont {
+    pub fn new(buffer: &[u8]) -> Result<LoadedFont> {
         let font_file = ReadScope::new(buffer).read::<FontData>()?;
         let font_provider = font_file.table_provider(0)?;
 
@@ -132,7 +124,6 @@ impl<'a> LoadedFont<'a> {
         cmap_subtable.mappings_fn(|x, _| {
             available_glyphs.insert(x);
         })?;
-        let cmap_subtable = cmap_subtable.to_owned().unwrap();
 
         Ok(LoadedFont {
             font_name,
@@ -141,8 +132,7 @@ impl<'a> LoadedFont<'a> {
             is_variable,
             parsed_font_style,
             parsed_font_weight,
-            font_provider,
-            cmap_subtable,
+            font_data: buffer.to_vec(),
             available_glyphs,
         })
     }
@@ -156,55 +146,12 @@ impl<'a> LoadedFont<'a> {
     }
 
     pub fn subset(&self, chars: &RoaringBitmap) -> Result<Vec<u8>> {
-        // Work out the glyphs we want to keep from the text
-        let mut glyph_ids = Vec::new();
-        for glyph in self.map_glyphs(chars) {
-            glyph_ids.push(glyph.glyph_index);
-        }
-        glyph_ids.push(0);
-        glyph_ids.sort();
-        glyph_ids.dedup();
-
         // Subset the font
-        let new_font = subset::subset(&self.font_provider, &glyph_ids)?;
+        let mut vec = Vec::new();
+        for char in chars {
+            vec.push(char::from_u32(char).unwrap());
+        }
+        let new_font = hb_subset::subset(&self.font_data, vec)?;
         Ok(woff2::compress(&new_font, "".to_string(), 9, true).unwrap())
-    }
-
-    fn map_glyphs(&self, set: &RoaringBitmap) -> Vec<RawGlyph<()>> {
-        let mut glyphs = Vec::new();
-        for ch in set {
-            let ch = char::from_u32(ch).unwrap();
-            if let Some(glyph) = Self::map(&self.cmap_subtable, ch, None) {
-                glyphs.push(glyph);
-            }
-        }
-        glyphs
-    }
-    fn map(
-        cmap_subtable: &CmapSubtable,
-        ch: char,
-        variation: Option<VariationSelector>,
-    ) -> Option<RawGlyph<()>> {
-        if let Result::Ok(Some(glyph_index)) = cmap_subtable.map_glyph(ch as u32) {
-            let glyph = Self::make(ch, glyph_index, variation);
-            Some(glyph)
-        } else {
-            None
-        }
-    }
-    fn make(ch: char, glyph_index: u16, variation: Option<VariationSelector>) -> RawGlyph<()> {
-        RawGlyph {
-            unicodes: tiny_vec![[char; 1] => ch],
-            glyph_index,
-            liga_component_pos: 0,
-            glyph_origin: GlyphOrigin::Char(ch),
-            small_caps: false,
-            multi_subst_dup: false,
-            is_vert_alt: false,
-            fake_bold: false,
-            fake_italic: false,
-            extra_data: (),
-            variation,
-        }
     }
 }
