@@ -94,7 +94,7 @@ fn unify_ranges(mut range: Vec<char>) -> Vec<RangeInclusive<char>> {
     ranges
 }
 
-fn main_impl() -> Result<()> {
+fn mk_gf_ranges() -> Result<()> {
     // download the font list
     let webfont_apikey = std::env::var("WEBFONT_APIKEY")?;
     let client = reqwest::blocking::ClientBuilder::new()
@@ -292,5 +292,5 @@ fn main_impl() -> Result<()> {
 }
 
 fn main() {
-    main_impl().unwrap();
+    mk_gf_ranges().unwrap();
 }
