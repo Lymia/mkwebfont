@@ -78,7 +78,7 @@ pub struct LoadedFont<'a> {
     pub parsed_font_style: FontStyle,
     pub parsed_font_weight: FontWeight,
     font_face: PreprocessedFontFace<'a>,
-    available_glyphs: RoaringBitmap,
+    available_codepoints: RoaringBitmap,
 }
 impl<'a> LoadedFont<'a> {
     fn load_for_font(font_face: FontFace) -> Result<LoadedFont> {
@@ -107,14 +107,14 @@ impl<'a> LoadedFont<'a> {
             FontWeight::infer(&font_style)
         };
 
-        let mut available_glyphs = RoaringBitmap::new();
+        let mut available_codepoints = RoaringBitmap::new();
         for char in &font_face.covered_codepoints()? {
-            available_glyphs.insert(char as u32);
+            available_codepoints.insert(char as u32);
         }
 
         debug!(
             "Loaded font: {font_name} / {font_style} / {font_version} / {} gylphs{}",
-            available_glyphs.len(),
+            available_codepoints.len(),
             if is_variable { " / Variable font" } else { "" },
         );
         debug!("Inferred style: {parsed_font_style:?} / {parsed_font_weight:?}");
@@ -127,11 +127,17 @@ impl<'a> LoadedFont<'a> {
             parsed_font_style,
             parsed_font_weight,
             font_face: font_face.preprocess_for_subsetting(),
-            available_glyphs,
+            available_codepoints,
         })
     }
     pub fn load(buffer: &[u8]) -> Result<Vec<LoadedFont>> {
+        let is_woff = buffer.len() >= 4 && &buffer[0..4] == b"wOFF";
+        let is_woff2 = buffer.len() >= 4 && &buffer[0..4] == b"wOF2";
         let is_collection = buffer.len() >= 4 && &buffer[0..4] == b"ttcf";
+
+        if is_woff || is_woff2 {
+            bail!("woff/woff2 input is not supported. Please convert to .ttf or .otf first.");
+        }
 
         let blob = Blob::from_bytes(buffer)?;
 
@@ -154,12 +160,12 @@ impl<'a> LoadedFont<'a> {
         Ok(fonts)
     }
 
-    pub fn glyphs_in_font(&self, set: &RoaringBitmap) -> RoaringBitmap {
-        self.available_glyphs.clone() & set
+    pub fn codepoints_in_fault(&self, set: &RoaringBitmap) -> RoaringBitmap {
+        self.available_codepoints.clone() & set
     }
 
-    pub fn all_glyphs(&self) -> &RoaringBitmap {
-        &self.available_glyphs
+    pub fn all_codepoints(&self) -> &RoaringBitmap {
+        &self.available_codepoints
     }
 
     pub fn subset(&self, name: &str, chars: &RoaringBitmap) -> Result<Vec<u8>> {

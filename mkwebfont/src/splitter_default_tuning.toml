@@ -32,7 +32,7 @@ accept_subset_ratio_threshold = 0.1
 ##########
 # Stage 4
 
-# Any font subsets with less than this number of glyphs will not be generated, and instead will be combined into
+# Any font subsets with less than this number of codepoints will not be generated, and instead will be combined into
 # the residual Stage 4 subsets.
 reject_subset_threshold = 20
 

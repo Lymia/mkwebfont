@@ -98,7 +98,7 @@ struct FontSplittingContext<'a> {
     tuning: TuningParameters,
     font: LoadedFont<'a>,
     data: &'static WebfontDataCtx,
-    fulfilled_glyphs: RoaringBitmap,
+    fulfilled_codepoints: RoaringBitmap,
     woff2_subsets: Vec<SplitFontData>,
     processed_subsets: HashSet<&'static str>,
     processed_groups: HashSet<&'static str>,
@@ -115,7 +115,7 @@ impl<'a> FontSplittingContext<'a> {
             tuning: tuning.clone(),
             font,
             data,
-            fulfilled_glyphs: Default::default(),
+            fulfilled_codepoints: Default::default(),
             woff2_subsets: Default::default(),
             processed_subsets: Default::default(),
             processed_groups: Default::default(),
@@ -127,23 +127,28 @@ impl<'a> FontSplittingContext<'a> {
         if !self.processed_subsets.contains(subset.name) {
             self.processed_subsets.insert(subset.name);
 
-            let new_glyphs = self.font.glyphs_in_font(&subset.map) - &self.fulfilled_glyphs;
-            if new_glyphs.len() as usize >= self.tuning.reject_subset_threshold {
-                let subset_woff2 = self.font.subset(subset.name, &new_glyphs)?;
+            let new_codepoints =
+                self.font.codepoints_in_fault(&subset.map) - &self.fulfilled_codepoints;
+            if new_codepoints.len() as usize >= self.tuning.reject_subset_threshold {
+                let subset_woff2 = self.font.subset(subset.name, &new_codepoints)?;
                 info!(
-                    "Splitting subset from font: {} (unique glyphs: {})",
+                    "Splitting subset from font: {} (unique codepoints: {})",
                     subset.name,
-                    new_glyphs.len()
+                    new_codepoints.len()
                 );
-                self.fulfilled_glyphs.extend(new_glyphs.clone());
+                self.fulfilled_codepoints.extend(new_codepoints.clone());
                 self.woff2_subsets.push(SplitFontData::new(
                     &self.font,
                     subset.name,
-                    new_glyphs,
+                    new_codepoints,
                     subset_woff2,
                 ));
             } else {
-                debug!("Rejecting subset: {} (unique glyphs: {})", subset.name, new_glyphs.len())
+                debug!(
+                    "Rejecting subset: {} (unique codepoints: {})",
+                    subset.name,
+                    new_codepoints.len()
+                )
             }
         }
         Ok(())
@@ -160,17 +165,19 @@ impl<'a> FontSplittingContext<'a> {
     }
 
     fn unique_available_ratio(&self, subset: &'static WebfontSubset) -> f64 {
-        let present_glyphs = (self.font.glyphs_in_font(&subset.map) - &self.fulfilled_glyphs).len();
-        let subset_glyphs = (subset.map.clone() - &self.fulfilled_glyphs).len();
-        if subset_glyphs == 0 {
+        let present_codepoints =
+            (self.font.codepoints_in_fault(&subset.map) - &self.fulfilled_codepoints).len();
+        let subset_codepoints = (subset.map.clone() - &self.fulfilled_codepoints).len();
+        if subset_codepoints == 0 {
             0.0
         } else {
-            (present_glyphs as f64) / (subset_glyphs as f64)
+            (present_codepoints as f64) / (subset_codepoints as f64)
         }
     }
     fn unique_available_count(&self, subset: &'static WebfontSubset) -> usize {
-        let present_glyphs = (self.font.glyphs_in_font(&subset.map) - &self.fulfilled_glyphs).len();
-        present_glyphs as usize
+        let present_codepoints =
+            (self.font.codepoints_in_fault(&subset.map) - &self.fulfilled_codepoints).len();
+        present_codepoints as usize
     }
     fn subset_group_ratio(&self, group: &'static WebfontSubsetGroup) -> f64 {
         let mut accum = 0.0;
@@ -200,7 +207,7 @@ impl<'a> FontSplittingContext<'a> {
             if ratio >= self.tuning.accept_group_ratio_threshold {
                 Ok(Some(subset))
             } else {
-                debug!("Omitted subset group {} - unique glyphs ratio {}", subset.name, ratio);
+                debug!("Omitted subset group {} - unique codepoints ratio {}", subset.name, ratio);
                 Ok(None)
             }
         } else {
@@ -232,10 +239,7 @@ impl<'a> FontSplittingContext<'a> {
             }
         }
         for (subset, count, ratio) in top {
-            debug!(
-                "Omitted subset {} - unique glyphs count {count} - unique glyphs ratio {ratio}",
-                subset.name
-            );
+            debug!("Omitted subset {} - unique count {count} - unique ratio {ratio}", subset.name);
         }
         Ok(None)
     }
@@ -252,11 +256,11 @@ impl<'a> FontSplittingContext<'a> {
         Ok(())
     }
 
-    fn split_to_blocks(glyphs: RoaringBitmap) -> Vec<RoaringBitmap> {
+    fn split_to_blocks(codepoints: RoaringBitmap) -> Vec<RoaringBitmap> {
         let mut last_glyph_block = None;
         let mut accum = RoaringBitmap::new();
         let mut list = Vec::new();
-        for glyph in glyphs {
+        for glyph in codepoints {
             let block = Block::of(char::from_u32(glyph).unwrap()).map(|x| x.name);
             if last_glyph_block != block && !accum.is_empty() {
                 list.push(std::mem::replace(&mut accum, RoaringBitmap::new()));
@@ -292,7 +296,7 @@ impl<'a> FontSplittingContext<'a> {
         assert!(!set.is_empty());
         let name = format!("residual-s{}", self.residual_id);
         let subset_woff2 = self.font.subset(&name, &set)?;
-        info!("Splitting subset from font: {name} (unique glyphs: {})", set.len());
+        info!("Splitting subset from font: {name} (unique codepoints: {})", set.len());
         self.woff2_subsets
             .push(SplitFontData::new(&self.font, &name, set, subset_woff2));
         self.residual_id += 1;
@@ -300,10 +304,13 @@ impl<'a> FontSplittingContext<'a> {
         Ok(())
     }
     fn split_residual(&mut self) -> Result<()> {
-        let glyphs = self.font.all_glyphs() - &self.fulfilled_glyphs;
-        if !glyphs.is_empty() {
-            info!("Splitting residual glyphs into subsets (remaining glyphs: {})", glyphs.len());
-            let mut split = Self::split_to_blocks(glyphs);
+        let codepoints = self.font.all_codepoints() - &self.fulfilled_codepoints;
+        if !codepoints.is_empty() {
+            info!(
+                "Splitting residual codepoints into subsets (remaining codepoints: {})",
+                codepoints.len()
+            );
+            let mut split = Self::split_to_blocks(codepoints);
             while !split.is_empty() {
                 self.generate_residual_block(&mut split)?;
             }
@@ -348,7 +355,7 @@ impl<'a> Display for FontStylesheetDisplay<'a> {
             if self.sheet.font_weight != FontWeight::Regular {
                 writeln!(f, "    font-weight: {};", self.sheet.font_weight)?;
             }
-            writeln!(f, "    unicode-range: {};", UnicodeRange(&entry.glyphs))?;
+            writeln!(f, "    unicode-range: {};", UnicodeRange(&entry.codepoints))?;
             writeln!(
                 f,
                 "    src: url({:?}) format(\"woff2\");",
@@ -376,7 +383,7 @@ impl FontStylesheetInfo {
 #[derive(Debug)]
 pub struct FontStylesheetEntry {
     pub file_name: String,
-    pub glyphs: Vec<RangeInclusive<char>>,
+    pub codepoints: Vec<RangeInclusive<char>>,
 }
 
 /// The internal function that actually splits the webfont.
@@ -415,7 +422,7 @@ pub fn split_webfont(
 
             entries.push(FontStylesheetEntry {
                 file_name: data.store_file_name.clone(),
-                glyphs: crate::ranges::decode_range(&data.subset),
+                codepoints: crate::ranges::decode_range(&data.subset),
             });
         }
         entries.sort_by_cached_key(|x| x.file_name.to_string());
