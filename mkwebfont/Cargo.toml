@@ -12,10 +12,9 @@ name = "mkwebfont"
 required-features = ["binary"]
 
 [dependencies]
-allsorts = "0.14"
 anyhow = "1.0"
 blake3 = "1.5"
-brotli = { version = "3.5", features = ["ffi-api"] }
+brotli = { version = "4.0", features = ["ffi-api"] }
 clap = { version = "4.5", features = ["derive"], optional = true }
 hb-subset = { version = "0.3", features = ["bundled"] }
 lazy_static = "1.4"

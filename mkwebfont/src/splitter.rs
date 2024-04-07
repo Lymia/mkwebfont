@@ -84,9 +84,9 @@ impl SplitFontData {
     }
 }
 
-struct FontSplittingContext {
+struct FontSplittingContext<'a> {
     tuning: TuningParameters,
-    font: LoadedFont,
+    font: LoadedFont<'a>,
     data: &'static WebfontDataCtx,
     fulfilled_glyphs: RoaringBitmap,
     woff2_subsets: Vec<SplitFontData>,
@@ -94,8 +94,12 @@ struct FontSplittingContext {
     processed_groups: HashSet<&'static str>,
     residual_id: usize,
 }
-impl FontSplittingContext {
-    fn new(tuning: &TuningParameters, data: &'static WebfontDataCtx, font: &[u8]) -> Result<Self> {
+impl<'a> FontSplittingContext<'a> {
+    fn new(
+        tuning: &TuningParameters,
+        data: &'static WebfontDataCtx,
+        font: &'a [u8],
+    ) -> Result<Self> {
         debug!("Font splitting tuning parameters: {tuning:#?}");
         Ok(FontSplittingContext {
             tuning: tuning.clone(),
@@ -115,7 +119,7 @@ impl FontSplittingContext {
 
             let new_glyphs = self.font.glyphs_in_font(&subset.map) - &self.fulfilled_glyphs;
             if new_glyphs.len() as usize >= self.tuning.reject_subset_threshold {
-                let subset_woff2 = self.font.subset(&subset.map)?;
+                let subset_woff2 = self.font.subset(subset.name, &subset.map)?;
                 info!(
                     "Splitting subset from font: {} (unique glyphs: {})",
                     subset.name,
@@ -277,7 +281,7 @@ impl FontSplittingContext {
 
         assert!(!set.is_empty());
         let name = format!("residual-s{}", self.residual_id);
-        let subset_woff2 = self.font.subset(&set)?;
+        let subset_woff2 = self.font.subset(&name, &set)?;
         info!("Splitting subset from font: {name} (unique glyphs: {})", set.len());
         self.woff2_subsets
             .push(SplitFontData::new(&self.font, &name, set, subset_woff2));

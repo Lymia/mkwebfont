@@ -1,19 +1,8 @@
-//! Code from <https://github.com/yeslogic/allsorts-tools/blob/master/src/subset.rs>
-
 use crate::woff2;
-use allsorts::{
-    binary::read::ReadScope,
-    font::read_cmap_subtable,
-    font_data::FontData,
-    tables::{cmap::Cmap, FontTableProvider},
-    tag,
-};
 use anyhow::*;
+use hb_subset::{Blob, FontFace, PreprocessedFontFace, SubsetInput};
 use roaring::RoaringBitmap;
-use std::{
-    ffi::CString,
-    fmt::{Display, Formatter},
-};
+use std::fmt::{Display, Formatter};
 use tracing::debug;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -81,58 +70,43 @@ impl Display for FontWeight {
     }
 }
 
-pub struct LoadedFont {
+pub struct LoadedFont<'a> {
     pub font_name: String,
     pub font_style: String,
     pub font_version: String,
-    pub is_variable: bool,
     pub parsed_font_style: FontStyle,
     pub parsed_font_weight: FontWeight,
-    font_data: Vec<u8>,
+    font_face: PreprocessedFontFace<'a>,
     available_glyphs: RoaringBitmap,
 }
-impl LoadedFont {
+impl<'a> LoadedFont<'a> {
     pub fn new(buffer: &[u8]) -> Result<LoadedFont> {
-        let font_file = ReadScope::new(buffer).read::<FontData>()?;
-        let font_provider = font_file.table_provider(0)?;
+        let font_face = FontFace::new(Blob::from_bytes(buffer)?)?;
 
-        let cmap_data = font_provider.read_table_data(tag::CMAP)?;
-        let cmap = ReadScope::new(&cmap_data).read::<Cmap>()?;
-        let cmap_subtable = read_cmap_subtable(&cmap)?
-            .ok_or(Error::msg("no suitable cmap sub-table found"))?
-            .1;
-
-        let name_data = font_provider.read_table_data(tag::NAME)?;
-        fn cstr_to_str(c: Option<CString>) -> String {
-            c.map(|x| x.to_string_lossy().to_string())
-                .unwrap_or_else(|| "unknown".to_string())
-        }
-        let font_name = cstr_to_str(allsorts::get_name::fontcode_get_name(&name_data, 1)?);
-        let font_style = cstr_to_str(allsorts::get_name::fontcode_get_name(&name_data, 2)?);
-        let font_version = cstr_to_str(allsorts::get_name::fontcode_get_name(&name_data, 5)?);
-        let is_variable = font_provider.has_table(tag::FVAR);
+        let font_name = font_face.font_family();
+        let font_style = font_face.font_subfamily();
+        let font_version = font_face.version_string();
         let parsed_font_style = FontStyle::infer_from_style(&font_style);
         let parsed_font_weight = FontWeight::infer_from_style(&font_style);
 
+        let mut available_glyphs = RoaringBitmap::new();
+        for char in &font_face.covered_codepoints()? {
+            available_glyphs.insert(char as u32);
+        }
+
         debug!(
-            "Loaded font: {font_name} / {font_style} / {font_version}{}",
-            if is_variable { " / Variable" } else { "" }
+            "Loaded font: {font_name} / {font_style} / {font_version} / {} gylphs",
+            available_glyphs.len()
         );
         debug!("Inferred style: {parsed_font_style:?} / {parsed_font_weight:?}");
-
-        let mut available_glyphs = RoaringBitmap::new();
-        cmap_subtable.mappings_fn(|x, _| {
-            available_glyphs.insert(x);
-        })?;
 
         Ok(LoadedFont {
             font_name,
             font_style,
             font_version,
-            is_variable,
             parsed_font_style,
             parsed_font_weight,
-            font_data: buffer.to_vec(),
+            font_face: font_face.preprocess_for_subsetting(),
             available_glyphs,
         })
     }
@@ -145,13 +119,18 @@ impl LoadedFont {
         &self.available_glyphs
     }
 
-    pub fn subset(&self, chars: &RoaringBitmap) -> Result<Vec<u8>> {
+    pub fn subset(&self, name: &str, chars: &RoaringBitmap) -> Result<Vec<u8>> {
         // Subset the font
-        let mut vec = Vec::new();
+        let mut subset_input = SubsetInput::new()?;
+        subset_input.unicode_set().clear();
         for char in chars {
-            vec.push(char::from_u32(char).unwrap());
+            subset_input
+                .unicode_set()
+                .insert(char::from_u32(char).unwrap());
         }
-        let new_font = hb_subset::subset(&self.font_data, vec)?;
-        Ok(woff2::compress(&new_font, "".to_string(), 9, true).unwrap())
+
+        let new_font = subset_input.subset_font(&self.font_face)?;
+        let new_font = new_font.underlying_blob().to_vec();
+        Ok(woff2::compress(&new_font, name.to_string(), 9, true).unwrap())
     }
 }
