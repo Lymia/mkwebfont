@@ -1,9 +1,9 @@
 mod contrib;
-mod font_ops;
+mod fonts;
 mod ranges;
 mod splitter;
 
-pub use font_ops::{FontStyle, FontWeight};
+pub use fonts::{FontStyle, FontWeight};
 pub use splitter::{FontStylesheetEntry, FontStylesheetInfo};
 
 pub fn split_webfont(

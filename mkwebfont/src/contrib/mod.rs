@@ -1,3 +1,6 @@
+//! A module used to contain code copied in from other projects or data generated from other
+//! sources.
+
 pub mod gfsubsets;
 pub mod nix_base32;
 pub mod woff2;

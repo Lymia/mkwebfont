@@ -1,6 +1,6 @@
 use crate::{
     contrib::nix_base32,
-    font_ops::{FontStyle, FontWeight, LoadedFont},
+    fonts::{FontStyle, FontWeight, LoadedFont},
     ranges::{WebfontDataCtx, WebfontSubset, WebfontSubsetGroup},
 };
 use anyhow::*;
