@@ -210,10 +210,11 @@ fn mk_gf_ranges() -> Result<()> {
     let mut gf_subsets: HashMap<_, Vec<_>> = HashMap::new();
     for class in ordered_classes {
         let class_data = classes.remove(&class).unwrap();
-        let subset = GfSubset { name: class.clone(), ranges: unify_ranges(class_data) };
+        let mut subset = GfSubset { name: class.clone(), ranges: unify_ranges(class_data) };
 
         if class.starts_with("gf-") {
             let subclass = class.split('-').skip(1).next().unwrap();
+            subset.name = subset.name[3..].to_string().replace("-s", "");
             gf_subsets
                 .entry(subclass.to_string())
                 .or_default()
