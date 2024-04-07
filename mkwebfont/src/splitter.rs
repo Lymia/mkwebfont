@@ -129,7 +129,7 @@ impl<'a> FontSplittingContext<'a> {
 
             let new_glyphs = self.font.glyphs_in_font(&subset.map) - &self.fulfilled_glyphs;
             if new_glyphs.len() as usize >= self.tuning.reject_subset_threshold {
-                let subset_woff2 = self.font.subset(subset.name, &subset.map)?;
+                let subset_woff2 = self.font.subset(subset.name, &new_glyphs)?;
                 info!(
                     "Splitting subset from font: {} (unique glyphs: {})",
                     subset.name,
