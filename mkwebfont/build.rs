@@ -2,7 +2,7 @@ fn main() {
     cc::Build::new()
         .cpp(true)
         .flag("-std=c++11")
-        .include("contrib/brotli/c/include")
+        .include("contrib/woff2/brotli/c/include")
         .include("contrib/woff2/include")
         .file("contrib/woff2/src/font.cc")
         .file("contrib/woff2/src/glyph.cc")
