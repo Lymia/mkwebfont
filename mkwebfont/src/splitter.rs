@@ -198,34 +198,36 @@ impl<'a> FontSplittingContext<'a> {
         }
     }
     fn select_next_subset(&mut self) -> Result<Option<&'static WebfontSubset>> {
-        let mut selected = None;
+        let mut subsets = Vec::new();
         for v in &self.data.subsets {
             if !self.processed_subsets.contains(v.name) {
                 let count = self.unique_available_count(v);
-                if count != 0 {
-                    let ratio = self.unique_available_ratio(v);
-                    if let Some((_, last_score, _)) = selected {
-                        if count > last_score {
-                            selected = Some((v, count, ratio));
-                        }
-                    } else {
-                        selected = Some((v, count, ratio));
-                    }
-                }
+                let ratio = self.unique_available_ratio(v);
+                subsets.push((v, count, ratio));
             }
         }
-        if let Some((subset, count, ratio)) = selected {
-            if ratio >= self.tuning.accept_subset_ratio_threshold
-                || count >= self.tuning.accept_subset_count_threshold
+
+        let mut top = Vec::new();
+        subsets.sort_by_key(|x| -(x.1 as isize));
+        top.extend(subsets.first().cloned());
+        subsets.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap());
+        top.extend(subsets.first().cloned());
+        top.dedup_by(|x, y| x.0.name == y.0.name);
+
+        for (subset, count, ratio) in &top {
+            if *ratio >= self.tuning.accept_subset_ratio_threshold
+                || *count >= self.tuning.accept_subset_count_threshold
             {
-                Ok(Some(subset))
-            } else {
-                debug!("Omitted subset {} - unique glyphs ratio {}", subset.name, ratio);
-                Ok(None)
+                return Ok(Some(*subset));
             }
-        } else {
-            Ok(None)
         }
+        for (subset, count, ratio) in top {
+            debug!(
+                "Omitted subset {} - unique glyphs count {count} - unique glyphs ratio {ratio}",
+                subset.name
+            );
+        }
+        Ok(None)
     }
 
     fn check_high_priority(&mut self) -> Result<()> {
@@ -401,7 +403,7 @@ pub fn split_webfont(
             glyphs: crate::ranges::decode_range(&data.subset),
         });
     }
-    entries.sort_by_key(|x| x.file_name.to_string());
+    entries.sort_by_cached_key(|x| x.file_name.to_string());
 
     Ok(FontStylesheetInfo {
         font_family: ctx.font.font_name.clone(),
