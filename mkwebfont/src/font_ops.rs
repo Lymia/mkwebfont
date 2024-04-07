@@ -1,4 +1,4 @@
-use crate::woff2;
+use crate::contrib::woff2;
 use anyhow::*;
 use hb_subset::{Blob, FontFace, PreprocessedFontFace, SubsetInput};
 use roaring::RoaringBitmap;

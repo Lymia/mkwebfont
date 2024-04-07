@@ -1,4 +1,5 @@
 use crate::{
+    contrib::nix_base32,
     font_ops::{FontStyle, FontWeight, LoadedFont},
     ranges::{WebfontDataCtx, WebfontSubset, WebfontSubsetGroup},
 };
@@ -68,7 +69,7 @@ struct SplitFontData {
 impl SplitFontData {
     fn new(font: &LoadedFont, name: &str, subset: RoaringBitmap, woff2_data: Vec<u8>) -> Self {
         let blake3_hash = blake3::hash(&woff2_data);
-        let hash_str = crate::nix_base32::to_nix_base32(&*blake3_hash.as_bytes());
+        let hash_str = nix_base32::to_nix_base32(&*blake3_hash.as_bytes());
         let hash_str = &hash_str[1..21];
 
         let font_name = extract_name(&font.font_name);

@@ -224,7 +224,7 @@ fn mk_gf_ranges() -> Result<()> {
     }
 
     // output the data file
-    let mut file = File::create("mkwebfont/src/gf_ranges.rs")?;
+    let mut file = File::create("mkwebfont/src/contrib/gfsubsets.rs")?;
     fn write_subset(file: &mut File, subset: &GfSubset) -> Result<()> {
         struct CharRepr(char);
         impl Display for CharRepr {

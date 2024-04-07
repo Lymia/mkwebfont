@@ -1,4 +1,4 @@
-use crate::gf_ranges::{GfSubset, GfSubsets};
+use crate::contrib::gfsubsets::{GfSubset, GfSubsets};
 use lazy_static::lazy_static;
 use roaring::RoaringBitmap;
 use std::{collections::HashMap, ops::RangeInclusive};
