@@ -208,10 +208,7 @@ fn main_impl() -> Result<()> {
     let mut gf_subsets: HashMap<_, Vec<_>> = HashMap::new();
     for class in ordered_classes {
         let class_data = classes.remove(&class).unwrap();
-        let subset = GfSubset {
-            name: class.clone(),
-            ranges: unify_ranges(class_data),
-        };
+        let subset = GfSubset { name: class.clone(), ranges: unify_ranges(class_data) };
 
         if class.starts_with("gf-") {
             let subclass = class.split('-').skip(1).next().unwrap();
