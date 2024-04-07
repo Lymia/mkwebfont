@@ -12,7 +12,7 @@ pub enum FontStyle {
     Oblique,
 }
 impl FontStyle {
-    fn infer_from_style(style: &str) -> FontStyle {
+    fn infer(style: &str) -> FontStyle {
         let style = style.to_lowercase().replace("-", " ");
         match style {
             x if x.contains("regular") => FontStyle::Regular,
@@ -39,7 +39,7 @@ pub enum FontWeight {
     Numeric(u32),
 }
 impl FontWeight {
-    pub fn infer_from_style(style: &str) -> FontWeight {
+    pub fn infer(style: &str) -> FontWeight {
         let style = style.to_lowercase().replace("-", " ");
         match style {
             x if x.contains("regular") => FontWeight::Regular,
@@ -80,14 +80,12 @@ pub struct LoadedFont<'a> {
     available_glyphs: RoaringBitmap,
 }
 impl<'a> LoadedFont<'a> {
-    pub fn new(buffer: &[u8]) -> Result<LoadedFont> {
-        let font_face = FontFace::new(Blob::from_bytes(buffer)?)?;
-
+    fn load_for_font(font_face: FontFace) -> Result<LoadedFont> {
         let font_name = font_face.font_family();
         let font_style = font_face.font_subfamily();
         let font_version = font_face.version_string();
-        let parsed_font_style = FontStyle::infer_from_style(&font_style);
-        let parsed_font_weight = FontWeight::infer_from_style(&font_style);
+        let parsed_font_style = FontStyle::infer(&font_style);
+        let parsed_font_weight = FontWeight::infer(&font_style);
 
         let mut available_glyphs = RoaringBitmap::new();
         for char in &font_face.covered_codepoints()? {
@@ -109,6 +107,29 @@ impl<'a> LoadedFont<'a> {
             font_face: font_face.preprocess_for_subsetting(),
             available_glyphs,
         })
+    }
+    pub fn load(buffer: &[u8]) -> Result<Vec<LoadedFont>> {
+        let is_collection = buffer.len() >= 4 && &buffer[0..4] == b"ttcf";
+
+        let blob = Blob::from_bytes(buffer)?;
+
+        let mut fonts = Vec::new();
+        fonts.push(Self::load_for_font(FontFace::new_with_index(blob.clone(), 0)?)?);
+
+        if is_collection {
+            let mut i = 1;
+            while let Result::Ok(font) = FontFace::new_with_index(blob.clone(), i) {
+                if font.glyph_count() == 0 {
+                    break;
+                }
+                fonts.push(Self::load_for_font(font)?);
+                i += 1;
+            }
+        }
+
+        debug!("Found {} fonts in collection.", fonts.len());
+
+        Ok(fonts)
     }
 
     pub fn glyphs_in_font(&self, set: &RoaringBitmap) -> RoaringBitmap {

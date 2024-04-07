@@ -98,12 +98,12 @@ impl<'a> FontSplittingContext<'a> {
     fn new(
         tuning: &TuningParameters,
         data: &'static WebfontDataCtx,
-        font: &'a [u8],
+        font: LoadedFont<'a>,
     ) -> Result<Self> {
         debug!("Font splitting tuning parameters: {tuning:#?}");
         Ok(FontSplittingContext {
             tuning: tuning.clone(),
-            font: LoadedFont::new(font)?,
+            font,
             data,
             fulfilled_glyphs: Default::default(),
             woff2_subsets: Default::default(),
@@ -375,42 +375,47 @@ pub fn split_webfont(
     data: &'static WebfontDataCtx,
     font_data: &[u8],
     store_dir: &Path,
-) -> Result<FontStylesheetInfo> {
+) -> Result<Vec<FontStylesheetInfo>> {
     let tuning = match tuning {
         Some(x) => toml::from_str(x)?,
         None => toml::from_str(DEFAULT_TUNING_PARAMETERS)?,
     };
-    let mut ctx = FontSplittingContext::new(&tuning, data, font_data)?;
-    ctx.check_high_priority()?;
-    while let Some(subset_group) = ctx.select_subset_group()? {
-        ctx.do_subset_group(subset_group)?;
-    }
-    while let Some(subset) = ctx.select_next_subset()? {
-        ctx.do_subset(subset)?;
-    }
-    ctx.split_residual()?;
 
-    let mut entries = Vec::new();
-    for data in &ctx.woff2_subsets {
-        let mut target = store_dir.to_path_buf();
-        target.push(&data.store_file_name);
+    let mut stylesheets = Vec::new();
+    for font in LoadedFont::load(font_data)? {
+        let mut ctx = FontSplittingContext::new(&tuning, data, font)?;
+        ctx.check_high_priority()?;
+        while let Some(subset_group) = ctx.select_subset_group()? {
+            ctx.do_subset_group(subset_group)?;
+        }
+        while let Some(subset) = ctx.select_next_subset()? {
+            ctx.do_subset(subset)?;
+        }
+        ctx.split_residual()?;
 
-        let mut file = File::create(target)?;
-        file.write_all(&data.woff2_data)?;
+        let mut entries = Vec::new();
+        for data in &ctx.woff2_subsets {
+            let mut target = store_dir.to_path_buf();
+            target.push(&data.store_file_name);
 
-        entries.push(FontStylesheetEntry {
-            file_name: data.store_file_name.clone(),
-            glyphs: crate::ranges::decode_range(&data.subset),
+            let mut file = File::create(target)?;
+            file.write_all(&data.woff2_data)?;
+
+            entries.push(FontStylesheetEntry {
+                file_name: data.store_file_name.clone(),
+                glyphs: crate::ranges::decode_range(&data.subset),
+            });
+        }
+        entries.sort_by_cached_key(|x| x.file_name.to_string());
+
+        stylesheets.push(FontStylesheetInfo {
+            font_family: ctx.font.font_name.clone(),
+            font_style: ctx.font.parsed_font_style,
+            font_weight: ctx.font.parsed_font_weight,
+            entries,
         });
     }
-    entries.sort_by_cached_key(|x| x.file_name.to_string());
-
-    Ok(FontStylesheetInfo {
-        font_family: ctx.font.font_name.clone(),
-        font_style: ctx.font.parsed_font_style,
-        font_weight: ctx.font.parsed_font_weight,
-        entries,
-    })
+    Ok(stylesheets)
 }
 
 /// The default tuning parameters for the splitter.

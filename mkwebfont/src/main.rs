@@ -41,8 +41,9 @@ fn main() {
     };
     for font in &args.fonts {
         info!("Processing webfont: {}", font.display());
-        let data = mkwebfont::split_webfont(font, &args.store).unwrap();
-        writeln!(css, "{}", data.render_css(&store_uri)).unwrap();
+        for data in mkwebfont::split_webfont(font, &args.store).unwrap() {
+            writeln!(css, "{}", data.render_css(&store_uri)).unwrap();
+        }
     }
 
     if let Some(target) = args.output {
