@@ -20,6 +20,8 @@
                 };
 
                 nativeBuildInputs = [ ];
+
+                LIBCLANG_PATH="${pkgs.llvmPackages.libclang}/lib";
             };
         in rec {
             packages = {
