@@ -7,5 +7,5 @@ mod splitter;
 mod woff2;
 
 pub fn split_webfont(path: std::path::PathBuf) -> anyhow::Result<()> {
-    splitter::split_webfont(WebfontDataCtx::load(), path)
+    splitter::split_webfont(None, WebfontDataCtx::load(), &std::fs::read(path)?)
 }
