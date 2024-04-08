@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Lymia Kanokawa <lymia@lymia.moe>"]
 edition = "2021"
 
-description = "A library for creating compact sets of enums."
+description = "A simple tool for turning .ttf/.otf files into webfonts."
 keywords = ["fonts"]
 categories = ["command-line-utilities"]
 

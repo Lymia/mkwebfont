@@ -1,7 +1,7 @@
 # mkwebfont
 
 mkwebfont is a simple tool for turning .ttf/.otf files into webfonts for self-hosting, without the complication or lack
-of flexibility that prepackaged webfonts or hsoted webfonts have. It's designed to be an easy one-command solution
+of flexibility that prepackaged webfonts or hosted webfonts have. It's designed to be an easy one-command solution
 that doesn't require complicated scripts or specific understanding of .woff2 or fonts to make work.
 
 Like Google Fonts, it splits the fonts into subsets that allows only part of the font to be loaded as needed,
