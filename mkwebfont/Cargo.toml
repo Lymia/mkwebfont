@@ -13,13 +13,14 @@ readme = "README.md"
 
 license = "Apache-2.0"
 
-exclude = [
-    "contrib/woff2/brotli/docs",
-    "contrib/woff2/brotli/tests",
-    "contrib/woff2/brotli/java",
-    "contrib/woff2/brotli/csharp",
-    "contrib/woff2/brotli/js",
-    "contrib/woff2/brotli/go",
+include = [
+    "src",
+    "LICENSE-APACHE",
+    "build.rs",
+    "contrib/woff2/include",
+    "contrib/woff2/src",
+    "contrib/woff2/brotli/c/include",
+    "contrib/woff_wrapper",
 ]
 
 [features]
