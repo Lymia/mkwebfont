@@ -53,7 +53,7 @@ impl WebfontCtxBuilder {
 
     /// Builds the context, and checks its arguments properly.
     pub fn build(self) -> anyhow::Result<WebfontCtx> {
-        Ok(WebfontCtx {
+        Ok(WebfontCtx(std::sync::Arc::new(WebfontCtxData {
             store_path: self.store_path,
             preload_codepoints: self.preload_codepoints,
             preload_codepoints_in: self.preload_codepoints_in,
@@ -67,13 +67,15 @@ impl WebfontCtxBuilder {
                 ))?,
                 Some(data) => subset_manifest::WebfontData::load(&data)?,
             },
-        })
+        })))
     }
 }
 
 /// A particular configuration for splitting webfonts.
 #[derive(Clone, Debug)]
-pub struct WebfontCtx {
+pub struct WebfontCtx(pub(crate) std::sync::Arc<WebfontCtxData>);
+#[derive(Debug)]
+pub(crate) struct WebfontCtxData {
     pub(crate) store_path: std::path::PathBuf,
     pub(crate) preload_codepoints: roaring::RoaringBitmap,
     pub(crate) preload_codepoints_in: std::collections::HashMap<String, roaring::RoaringBitmap>,
@@ -84,13 +86,13 @@ pub struct WebfontCtx {
 /// A loaded font.
 ///
 /// This may be used to filter font collections or simply subset multiple fonts in one operation.
-pub struct LoadedFont<'a> {
-    underlying: fonts::LoadedFont<'a>,
+pub struct LoadedFont {
+    underlying: fonts::LoadedFont,
 }
-impl<'a> LoadedFont<'a> {
+impl LoadedFont {
     /// Loads all fonts present in a given binary font data.
-    pub fn load(font_data: &'a [u8]) -> anyhow::Result<Vec<Self>> {
-        Ok(fonts::LoadedFont::load(font_data)?
+    pub fn load(font_data: &[u8]) -> anyhow::Result<Vec<Self>> {
+        Ok(fonts::LoadedFont::load(font_data.into())?
             .into_iter()
             .map(|x| LoadedFont { underlying: x })
             .collect())
@@ -98,22 +100,22 @@ impl<'a> LoadedFont<'a> {
 
     /// Returns the name of the font family
     pub fn font_family(&self) -> &str {
-        &self.underlying.font_name
+        self.underlying.font_name()
     }
 
     /// Returns the font's style
     pub fn font_style(&self) -> &str {
-        &self.underlying.font_style
+        self.underlying.font_style()
     }
 
     /// Returns the font version
     pub fn font_version(&self) -> &str {
-        &self.underlying.font_version
+        self.underlying.font_version()
     }
 
     /// Returns whether the font is a variable font
     pub fn is_variable(&self) -> bool {
-        self.underlying.is_variable
+        self.underlying.is_variable()
     }
 }
 

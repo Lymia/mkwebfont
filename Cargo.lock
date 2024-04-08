@@ -715,7 +715,7 @@ dependencies = [
 
 [[package]]
 name = "mkwebfont"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "blake3",
@@ -725,6 +725,7 @@ dependencies = [
  "hb-subset",
  "roaring",
  "serde",
+ "tokio",
  "toml",
  "tracing",
  "tracing-subscriber",

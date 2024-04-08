@@ -2,7 +2,7 @@ use crate::{
     contrib::nix_base32,
     fonts::{FontStyle, FontWeight, LoadedFont},
     subset_manifest::{WebfontSubset, WebfontSubsetGroup},
-    WebfontCtx,
+    WebfontCtx, WebfontCtxData,
 };
 use anyhow::*;
 use roaring::RoaringBitmap;
@@ -71,15 +71,15 @@ impl SplitFontData {
         let hash_str = nix_base32::to_nix_base32(&*blake3_hash.as_bytes());
         let hash_str = &hash_str[1..21];
 
-        let font_name = extract_name(&font.font_name);
-        let font_style = extract_name(&font.font_style);
-        let font_version = extract_version(&font.font_version);
+        let font_name = extract_name(font.font_name());
+        let font_style = extract_name(font.font_style());
+        let font_version = extract_version(font.font_version());
         let is_regular = font_style.to_lowercase() == "regular";
         SplitFontData {
             store_file_name: format!(
                 "{font_name}{}{}_{font_version}_{name}_{hash_str}.woff2",
-                if !is_regular || font.is_variable { "_" } else { "" },
-                if font.is_variable {
+                if !is_regular || font.is_variable() { "_" } else { "" },
+                if font.is_variable() {
                     "Variable"
                 } else if !is_regular {
                     &font_style
@@ -93,9 +93,9 @@ impl SplitFontData {
     }
 }
 
-struct FontSplittingContext<'a> {
-    ctx: &'a WebfontCtx,
-    font: &'a LoadedFont<'a>,
+struct FontSplittingContext {
+    ctx: Arc<WebfontCtxData>,
+    font: LoadedFont,
     fulfilled_codepoints: RoaringBitmap,
     woff2_subsets: Vec<SplitFontData>,
     processed_subsets: HashSet<Arc<str>>,
@@ -103,12 +103,12 @@ struct FontSplittingContext<'a> {
     residual_id: usize,
     preload_done: bool,
 }
-impl<'a> FontSplittingContext<'a> {
-    fn new(ctx: &'a WebfontCtx, font: &'a LoadedFont<'a>) -> Result<Self> {
-        debug!("Font splitting tuning parameters: {:#?}", ctx.tuning);
+impl FontSplittingContext {
+    fn new(ctx: &WebfontCtx, font: &LoadedFont) -> Result<Self> {
+        debug!("Font splitting tuning parameters: {:#?}", ctx.0.tuning);
         Ok(FontSplittingContext {
-            ctx,
-            font,
+            ctx: ctx.0.clone(),
+            font: font.clone(),
             fulfilled_codepoints: Default::default(),
             woff2_subsets: Default::default(),
             processed_subsets: Default::default(),
@@ -129,7 +129,7 @@ impl<'a> FontSplittingContext<'a> {
             if new_codepoints.len() as usize >= self.ctx.tuning.reject_subset_threshold {
                 if !self.preload_done {
                     let mut preload_list = self.ctx.preload_codepoints.clone();
-                    if let Some(list) = self.ctx.preload_codepoints_in.get(&self.font.font_name) {
+                    if let Some(list) = self.ctx.preload_codepoints_in.get(self.font.font_name()) {
                         preload_list |= list;
                     }
 
@@ -258,9 +258,10 @@ impl<'a> FontSplittingContext<'a> {
         for name in self.ctx.tuning.high_priority_subsets.clone() {
             let name = name.as_str();
             debug!("Checking high priority subset: {name}");
-            let subset = self.ctx.data.by_name.get(name).unwrap();
-            if self.unique_available_ratio(subset) > self.ctx.tuning.high_priority_ratio_threshold {
-                self.do_subset(subset)?;
+            let subset = self.ctx.data.by_name.get(name).unwrap().clone();
+            if self.unique_available_ratio(&subset) > self.ctx.tuning.high_priority_ratio_threshold
+            {
+                self.do_subset(&subset)?;
             }
         }
         Ok(())
@@ -400,7 +401,7 @@ pub struct FontStylesheetEntry {
 
 /// The internal function that actually splits the webfont.
 pub fn split_webfont(split_ctx: &WebfontCtx, font: &LoadedFont) -> Result<FontStylesheetInfo> {
-    info!("Splitting font {} {}...", font.font_name, font.font_style);
+    info!("Splitting font {font}...");
 
     let mut ctx = FontSplittingContext::new(split_ctx, font)?;
     ctx.check_high_priority()?;
@@ -414,7 +415,7 @@ pub fn split_webfont(split_ctx: &WebfontCtx, font: &LoadedFont) -> Result<FontSt
 
     let mut entries = Vec::new();
     for data in &ctx.woff2_subsets {
-        let mut target = split_ctx.store_path.to_path_buf();
+        let mut target = split_ctx.0.store_path.to_path_buf();
         target.push(&data.store_file_name);
 
         let mut file = File::create(target)?;
@@ -428,9 +429,9 @@ pub fn split_webfont(split_ctx: &WebfontCtx, font: &LoadedFont) -> Result<FontSt
     entries.sort_by_cached_key(|x| x.file_name.to_string());
 
     Ok(FontStylesheetInfo {
-        font_family: ctx.font.font_name.clone(),
-        font_style: ctx.font.parsed_font_style,
-        font_weight: ctx.font.parsed_font_weight,
+        font_family: ctx.font.font_name().into(),
+        font_style: ctx.font.parsed_font_style(),
+        font_weight: ctx.font.parsed_font_weight(),
         entries,
     })
 }

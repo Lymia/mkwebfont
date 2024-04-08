@@ -1,8 +1,11 @@
 use crate::contrib::woff2;
 use anyhow::*;
-use hb_subset::{Blob, FontFace, PreprocessedFontFace, SubsetInput};
+use hb_subset::{Blob, FontFace, SubsetInput};
 use roaring::RoaringBitmap;
-use std::fmt::{Display, Formatter};
+use std::{
+    fmt::{Debug, Display, Formatter},
+    sync::Arc,
+};
 use tracing::debug;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -70,18 +73,57 @@ impl Display for FontWeight {
     }
 }
 
-pub struct LoadedFont<'a> {
-    pub font_name: String,
-    pub font_style: String,
-    pub font_version: String,
-    pub is_variable: bool,
-    pub parsed_font_style: FontStyle,
-    pub parsed_font_weight: FontWeight,
-    font_face: PreprocessedFontFace<'a>,
+#[derive(Clone)]
+pub struct LoadedFont(Arc<LoadedFontData>);
+struct LoadedFontData {
+    font_name: String,
+    font_style: String,
+    font_version: String,
+    is_variable: bool,
+    parsed_font_style: FontStyle,
+    parsed_font_weight: FontWeight,
     available_codepoints: RoaringBitmap,
+    font_data: Arc<[u8]>,
+    font_index: u32,
 }
-impl<'a> LoadedFont<'a> {
-    fn load_for_font(font_face: FontFace) -> Result<LoadedFont> {
+impl LoadedFont {
+    pub fn load(buffer: Vec<u8>) -> Result<Vec<LoadedFont>> {
+        let is_woff = buffer.len() >= 4 && &buffer[0..4] == b"wOFF";
+        let is_woff2 = buffer.len() >= 4 && &buffer[0..4] == b"wOF2";
+        let is_collection = buffer.len() >= 4 && &buffer[0..4] == b"ttcf";
+
+        if is_woff || is_woff2 {
+            bail!("woff/woff2 input is not supported. Please convert to .ttf or .otf first.");
+        }
+
+        let data: Arc<[u8]> = buffer.into();
+
+        let mut fonts = Vec::new();
+        if let Some(font) = Self::load_for_font(data.clone(), 0)? {
+            fonts.push(font);
+        } else {
+            bail!("No glyphs in first font?");
+        }
+
+        if is_collection {
+            let mut i = 1;
+            while let Some(x) = Self::load_for_font(data.clone(), i)? {
+                fonts.push(x);
+                i += 1;
+            }
+        }
+
+        debug!("Found {} fonts in collection.", fonts.len());
+
+        Ok(fonts)
+    }
+    fn load_for_font(font_data: Arc<[u8]>, idx: u32) -> Result<Option<LoadedFont>> {
+        let blob = Blob::from_bytes(&font_data)?;
+        let font_face = FontFace::new_with_index(blob, idx)?;
+        if font_face.glyph_count() == 0 {
+            return Ok(None);
+        }
+
         let is_variable =
             unsafe { hb_subset::sys::hb_ot_var_get_axis_count(font_face.as_raw()) != 0 };
 
@@ -119,53 +161,44 @@ impl<'a> LoadedFont<'a> {
         );
         debug!("Inferred style: {parsed_font_style:?} / {parsed_font_weight:?}");
 
-        Ok(LoadedFont {
+        drop(font_face);
+
+        Ok(Some(LoadedFont(Arc::new(LoadedFontData {
             font_name,
             font_style,
             font_version,
             is_variable,
             parsed_font_style,
             parsed_font_weight,
-            font_face: font_face.preprocess_for_subsetting(),
             available_codepoints,
-        })
-    }
-    pub fn load(buffer: &[u8]) -> Result<Vec<LoadedFont>> {
-        let is_woff = buffer.len() >= 4 && &buffer[0..4] == b"wOFF";
-        let is_woff2 = buffer.len() >= 4 && &buffer[0..4] == b"wOF2";
-        let is_collection = buffer.len() >= 4 && &buffer[0..4] == b"ttcf";
-
-        if is_woff || is_woff2 {
-            bail!("woff/woff2 input is not supported. Please convert to .ttf or .otf first.");
-        }
-
-        let blob = Blob::from_bytes(buffer)?;
-
-        let mut fonts = Vec::new();
-        fonts.push(Self::load_for_font(FontFace::new_with_index(blob.clone(), 0)?)?);
-
-        if is_collection {
-            let mut i = 1;
-            while let Result::Ok(font) = FontFace::new_with_index(blob.clone(), i) {
-                if font.glyph_count() == 0 {
-                    break;
-                }
-                fonts.push(Self::load_for_font(font)?);
-                i += 1;
-            }
-        }
-
-        debug!("Found {} fonts in collection.", fonts.len());
-
-        Ok(fonts)
+            font_data,
+            font_index: idx,
+        }))))
     }
 
     pub fn codepoints_in_fault(&self, set: &RoaringBitmap) -> RoaringBitmap {
-        self.available_codepoints.clone() & set
+        self.0.available_codepoints.clone() & set
     }
-
     pub fn all_codepoints(&self) -> &RoaringBitmap {
-        &self.available_codepoints
+        &self.0.available_codepoints
+    }
+    pub fn font_name(&self) -> &str {
+        &self.0.font_name
+    }
+    pub fn font_style(&self) -> &str {
+        &self.0.font_style
+    }
+    pub fn font_version(&self) -> &str {
+        &self.0.font_version
+    }
+    pub fn is_variable(&self) -> bool {
+        self.0.is_variable
+    }
+    pub fn parsed_font_style(&self) -> FontStyle {
+        self.0.parsed_font_style
+    }
+    pub fn parsed_font_weight(&self) -> FontWeight {
+        self.0.parsed_font_weight
     }
 
     pub fn subset(&self, name: &str, chars: &RoaringBitmap) -> Result<Vec<u8>> {
@@ -178,8 +211,26 @@ impl<'a> LoadedFont<'a> {
                 .insert(char::from_u32(char).unwrap());
         }
 
-        let new_font = subset_input.subset_font(&self.font_face)?;
+        let blob = Blob::from_bytes(&self.0.font_data)?;
+        let font = FontFace::new_with_index(blob, self.0.font_index)?;
+        let new_font = subset_input.subset_font(&font)?;
         let new_font = new_font.underlying_blob().to_vec();
         Ok(woff2::compress(&new_font, name.to_string(), 9, true).unwrap())
+    }
+}
+impl Debug for LoadedFont {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[font: {} / {} / {}]",
+            self.font_name(),
+            self.font_style(),
+            self.font_version(),
+        )
+    }
+}
+impl Display for LoadedFont {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.font_name(), self.font_style())
     }
 }
