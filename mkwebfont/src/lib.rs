@@ -6,22 +6,79 @@ mod subset_manifest;
 pub use fonts::{FontStyle, FontWeight};
 pub use splitter::{FontStylesheetEntry, FontStylesheetInfo};
 
-/// A particular configuration for splitting webfonts.
+/// A builder for making configuration for splitting webfonts.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct SplitWebfontCtx {
-    pub splitter_tuning: Option<String>,
-    pub preload_codepoints: roaring::RoaringBitmap,
+pub struct WebfontCtxBuilder {
+    store_path: std::path::PathBuf,
+    splitter_tuning: Option<String>,
+    subset_manifest: Option<String>,
+    preload_codepoints: roaring::RoaringBitmap,
+    preload_codepoints_in: std::collections::HashMap<String, roaring::RoaringBitmap>,
 }
-impl Default for SplitWebfontCtx {
-    fn default() -> Self {
-        SplitWebfontCtx { splitter_tuning: None, preload_codepoints: Default::default() }
+impl WebfontCtxBuilder {
+    /// Creates a new builder.
+    pub fn new(store_path: &std::path::Path) -> Self {
+        WebfontCtxBuilder {
+            store_path: store_path.to_path_buf(),
+            splitter_tuning: None,
+            subset_manifest: None,
+            preload_codepoints: Default::default(),
+            preload_codepoints_in: Default::default(),
+        }
+    }
+
+    /// Adds a splitter tuning file.
+    pub fn add_splitter_tuning(&mut self, path: &str) {
+        self.splitter_tuning = Some(path.to_string());
+    }
+
+    /// Adds a subset manifest file.
+    pub fn add_subset_manifest(&mut self, path: &str) {
+        self.subset_manifest = Some(path.to_string());
+    }
+
+    /// Preload certain characters into every font loaded in this context.
+    pub fn preload(&mut self, chars: impl Iterator<Item = char>) {
+        self.preload_codepoints.extend(chars.map(|x| x as u32));
+    }
+
+    /// Preload certain characters into a given font family.
+    pub fn preload_in(&mut self, font: &str, chars: impl Iterator<Item = char>) {
+        self.preload_codepoints_in
+            .entry(font.to_string())
+            .or_default()
+            .extend(chars.map(|x| x as u32));
+    }
+
+    /// Builds the context, and checks its arguments properly.
+    pub fn build(self) -> anyhow::Result<WebfontCtx> {
+        Ok(WebfontCtx {
+            store_path: self.store_path,
+            preload_codepoints: self.preload_codepoints,
+            preload_codepoints_in: self.preload_codepoints_in,
+            tuning: match self.splitter_tuning {
+                None => toml::from_str(include_str!("splitter_default_tuning.toml"))?,
+                Some(data) => toml::from_str(&data)?,
+            },
+            data: match self.subset_manifest {
+                None => subset_manifest::WebfontData::load(include_str!(
+                    "subset_manifest_default.toml"
+                ))?,
+                Some(data) => subset_manifest::WebfontData::load(&data)?,
+            },
+        })
     }
 }
 
-#[derive(Debug)]
-pub struct ActiveSplitWebfontCtx<'a> {
-    pub(crate) ctx: &'a mut SplitWebfontCtx,
+/// A particular configuration for splitting webfonts.
+#[derive(Clone, Debug)]
+pub struct WebfontCtx {
+    pub(crate) store_path: std::path::PathBuf,
+    pub(crate) preload_codepoints: roaring::RoaringBitmap,
+    pub(crate) preload_codepoints_in: std::collections::HashMap<String, roaring::RoaringBitmap>,
+    pub(crate) tuning: splitter::TuningParameters,
+    pub(crate) data: subset_manifest::WebfontData,
 }
 
 /// A loaded font.
@@ -61,15 +118,12 @@ impl<'a> LoadedFont<'a> {
 }
 
 pub fn split_webfont(
-    split_ctx: &SplitWebfontCtx,
-    font_path: &std::path::Path,
-    store_path: &std::path::Path,
+    split_ctx: &WebfontCtx,
+    fonts: &[LoadedFont],
 ) -> anyhow::Result<Vec<FontStylesheetInfo>> {
-    splitter::split_webfont(
-        split_ctx,
-        None,
-        subset_manifest::WebfontDataCtx::load(),
-        &std::fs::read(font_path)?,
-        store_path,
-    )
+    let mut out = Vec::new();
+    for font in fonts {
+        out.push(splitter::split_webfont(split_ctx, &font.underlying)?);
+    }
+    Ok(out)
 }

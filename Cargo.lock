@@ -723,7 +723,6 @@ dependencies = [
  "cc",
  "clap",
  "hb-subset",
- "lazy_static",
  "roaring",
  "serde",
  "toml",

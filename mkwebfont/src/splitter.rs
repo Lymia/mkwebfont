@@ -1,8 +1,8 @@
 use crate::{
     contrib::nix_base32,
     fonts::{FontStyle, FontWeight, LoadedFont},
-    subset_manifest::{WebfontDataCtx, WebfontSubset, WebfontSubsetGroup},
-    SplitWebfontCtx,
+    subset_manifest::{WebfontSubset, WebfontSubsetGroup},
+    WebfontCtx,
 };
 use anyhow::*;
 use roaring::RoaringBitmap;
@@ -13,13 +13,13 @@ use std::{
     fs::File,
     io::Write,
     ops::RangeInclusive,
-    path::Path,
+    sync::Arc,
 };
 use tracing::{debug, info};
 use unic_ucd_block::Block;
 
 #[derive(Clone, Debug, Deserialize)]
-struct TuningParameters {
+pub struct TuningParameters {
     reject_subset_threshold: usize,
     accept_subset_count_threshold: usize,
     accept_subset_ratio_threshold: f64,
@@ -94,30 +94,21 @@ impl SplitFontData {
 }
 
 struct FontSplittingContext<'a> {
-    split_ctx: SplitWebfontCtx,
-    tuning: TuningParameters,
-    font: LoadedFont<'a>,
-    data: &'static WebfontDataCtx,
+    ctx: &'a WebfontCtx,
+    font: &'a LoadedFont<'a>,
     fulfilled_codepoints: RoaringBitmap,
     woff2_subsets: Vec<SplitFontData>,
-    processed_subsets: HashSet<&'static str>,
-    processed_groups: HashSet<&'static str>,
+    processed_subsets: HashSet<Arc<str>>,
+    processed_groups: HashSet<Arc<str>>,
     residual_id: usize,
     preload_done: bool,
 }
 impl<'a> FontSplittingContext<'a> {
-    fn new(
-        split_ctx: &SplitWebfontCtx,
-        tuning: &TuningParameters,
-        data: &'static WebfontDataCtx,
-        font: LoadedFont<'a>,
-    ) -> Result<Self> {
-        debug!("Font splitting tuning parameters: {tuning:#?}");
+    fn new(ctx: &'a WebfontCtx, font: &'a LoadedFont<'a>) -> Result<Self> {
+        debug!("Font splitting tuning parameters: {:#?}", ctx.tuning);
         Ok(FontSplittingContext {
-            split_ctx: split_ctx.clone(),
-            tuning: tuning.clone(),
+            ctx,
             font,
-            data,
             fulfilled_codepoints: Default::default(),
             woff2_subsets: Default::default(),
             processed_subsets: Default::default(),
@@ -127,17 +118,17 @@ impl<'a> FontSplittingContext<'a> {
         })
     }
 
-    fn do_subset(&mut self, subset: &'static WebfontSubset) -> Result<()> {
-        if !self.processed_subsets.contains(subset.name) {
-            self.processed_subsets.insert(subset.name);
+    fn do_subset(&mut self, subset: &WebfontSubset) -> Result<()> {
+        if !self.processed_subsets.contains(&subset.name) {
+            self.processed_subsets.insert(subset.name.clone());
 
             let mut name = subset.name.to_string();
             let mut new_codepoints =
                 self.font.codepoints_in_fault(&subset.map) - &self.fulfilled_codepoints;
 
-            if new_codepoints.len() as usize >= self.tuning.reject_subset_threshold {
+            if new_codepoints.len() as usize >= self.ctx.tuning.reject_subset_threshold {
                 if !self.preload_done {
-                    let new = new_codepoints.clone() | &self.split_ctx.preload_codepoints;
+                    let new = new_codepoints.clone() | &self.ctx.preload_codepoints;
                     if new != new_codepoints {
                         name = format!("{name}+pl");
                         debug!(
@@ -167,10 +158,10 @@ impl<'a> FontSplittingContext<'a> {
         }
         Ok(())
     }
-    fn do_subset_group(&mut self, subset_group: &'static WebfontSubsetGroup) -> Result<()> {
+    fn do_subset_group(&mut self, subset_group: &WebfontSubsetGroup) -> Result<()> {
         info!("Splitting subset group from font: {}", subset_group.name);
-        if !self.processed_groups.contains(subset_group.name) {
-            self.processed_groups.insert(subset_group.name);
+        if !self.processed_groups.contains(&subset_group.name) {
+            self.processed_groups.insert(subset_group.name.clone());
             for subset in &subset_group.subsets {
                 self.do_subset(subset)?;
             }
@@ -178,7 +169,7 @@ impl<'a> FontSplittingContext<'a> {
         Ok(())
     }
 
-    fn unique_available_ratio(&self, subset: &'static WebfontSubset) -> f64 {
+    fn unique_available_ratio(&self, subset: &WebfontSubset) -> f64 {
         let present_codepoints =
             (self.font.codepoints_in_fault(&subset.map) - &self.fulfilled_codepoints).len();
         let subset_codepoints = (subset.map.clone() - &self.fulfilled_codepoints).len();
@@ -188,12 +179,12 @@ impl<'a> FontSplittingContext<'a> {
             (present_codepoints as f64) / (subset_codepoints as f64)
         }
     }
-    fn unique_available_count(&self, subset: &'static WebfontSubset) -> usize {
+    fn unique_available_count(&self, subset: &WebfontSubset) -> usize {
         let present_codepoints =
             (self.font.codepoints_in_fault(&subset.map) - &self.fulfilled_codepoints).len();
         present_codepoints as usize
     }
-    fn subset_group_ratio(&self, group: &'static WebfontSubsetGroup) -> f64 {
+    fn subset_group_ratio(&self, group: &WebfontSubsetGroup) -> f64 {
         let mut accum = 0.0;
         for subset in &group.subsets {
             accum += self.unique_available_ratio(subset);
@@ -201,10 +192,10 @@ impl<'a> FontSplittingContext<'a> {
         accum / group.subsets.len() as f64
     }
 
-    fn select_subset_group(&mut self) -> Result<Option<&'static WebfontSubsetGroup>> {
+    fn select_subset_group(&mut self) -> Result<Option<Arc<WebfontSubsetGroup>>> {
         let mut selected = None;
-        for v in &self.data.groups {
-            if !self.processed_groups.contains(v.name) {
+        for v in &self.ctx.data.groups {
+            if !self.processed_groups.contains(&v.name) {
                 let ratio = self.subset_group_ratio(v);
                 if ratio != 0.0 {
                     if let Some((_, last_score)) = selected {
@@ -218,8 +209,8 @@ impl<'a> FontSplittingContext<'a> {
             }
         }
         if let Some((subset, ratio)) = selected {
-            if ratio >= self.tuning.accept_group_ratio_threshold {
-                Ok(Some(subset))
+            if ratio >= self.ctx.tuning.accept_group_ratio_threshold {
+                Ok(Some(subset.clone()))
             } else {
                 debug!("Omitted subset group {} - unique codepoints ratio {}", subset.name, ratio);
                 Ok(None)
@@ -228,10 +219,10 @@ impl<'a> FontSplittingContext<'a> {
             Ok(None)
         }
     }
-    fn select_next_subset(&mut self) -> Result<Option<&'static WebfontSubset>> {
+    fn select_next_subset(&mut self) -> Result<Option<Arc<WebfontSubset>>> {
         let mut subsets = Vec::new();
-        for v in &self.data.subsets {
-            if !self.processed_subsets.contains(v.name) {
+        for v in &self.ctx.data.subsets {
+            if !self.processed_subsets.contains(&v.name) {
                 let count = self.unique_available_count(v);
                 let ratio = self.unique_available_ratio(v);
                 subsets.push((v, count, ratio));
@@ -246,10 +237,10 @@ impl<'a> FontSplittingContext<'a> {
         top.dedup_by(|x, y| x.0.name == y.0.name);
 
         for (subset, count, ratio) in &top {
-            if *ratio >= self.tuning.accept_subset_ratio_threshold
-                || *count >= self.tuning.accept_subset_count_threshold
+            if *ratio >= self.ctx.tuning.accept_subset_ratio_threshold
+                || *count >= self.ctx.tuning.accept_subset_count_threshold
             {
-                return Ok(Some(*subset));
+                return Ok(Some((*subset).clone()));
             }
         }
         for (subset, count, ratio) in top {
@@ -259,11 +250,11 @@ impl<'a> FontSplittingContext<'a> {
     }
 
     fn check_high_priority(&mut self) -> Result<()> {
-        for name in self.tuning.high_priority_subsets.clone() {
+        for name in self.ctx.tuning.high_priority_subsets.clone() {
             let name = name.as_str();
             debug!("Checking high priority subset: {name}");
-            let subset = self.data.by_name.get(name).unwrap();
-            if self.unique_available_ratio(subset) > self.tuning.high_priority_ratio_threshold {
+            let subset = self.ctx.data.by_name.get(name).unwrap();
+            if self.unique_available_ratio(subset) > self.ctx.tuning.high_priority_ratio_threshold {
                 self.do_subset(subset)?;
             }
         }
@@ -291,15 +282,17 @@ impl<'a> FontSplittingContext<'a> {
         let mut set = RoaringBitmap::new();
         let mut i = 0;
         while i < residual.len() {
-            if residual[i].len() as usize > self.tuning.residual_class_max_size && set.is_empty() {
+            if residual[i].len() as usize > self.ctx.tuning.residual_class_max_size
+                && set.is_empty()
+            {
                 set = residual[i]
                     .iter()
-                    .take(self.tuning.residual_class_max_size)
+                    .take(self.ctx.tuning.residual_class_max_size)
                     .collect();
                 residual[i] = residual[i].clone() - set.clone();
                 break;
             } else if (set.len() + residual[i].len()) as usize
-                <= self.tuning.residual_class_max_size
+                <= self.ctx.tuning.residual_class_max_size
             {
                 set.extend(residual.remove(i));
             } else {
@@ -401,56 +394,38 @@ pub struct FontStylesheetEntry {
 }
 
 /// The internal function that actually splits the webfont.
-pub fn split_webfont(
-    split_ctx: &SplitWebfontCtx,
-    tuning: Option<&str>,
-    data: &'static WebfontDataCtx,
-    font_data: &[u8],
-    store_dir: &Path,
-) -> Result<Vec<FontStylesheetInfo>> {
-    let tuning = match tuning {
-        Some(x) => toml::from_str(x)?,
-        None => toml::from_str(DEFAULT_TUNING_PARAMETERS)?,
-    };
+pub fn split_webfont(split_ctx: &WebfontCtx, font: &LoadedFont) -> Result<FontStylesheetInfo> {
+    info!("Splitting font {} {}...", font.font_name, font.font_style);
 
-    let mut stylesheets = Vec::new();
-    for font in LoadedFont::load(font_data)? {
-        info!("Splitting font {} {}...", font.font_name, font.font_style);
+    let mut ctx = FontSplittingContext::new(split_ctx, font)?;
+    ctx.check_high_priority()?;
+    while let Some(subset_group) = ctx.select_subset_group()? {
+        ctx.do_subset_group(&subset_group)?;
+    }
+    while let Some(subset) = ctx.select_next_subset()? {
+        ctx.do_subset(&subset)?;
+    }
+    ctx.split_residual()?;
 
-        let mut ctx = FontSplittingContext::new(split_ctx, &tuning, data, font)?;
-        ctx.check_high_priority()?;
-        while let Some(subset_group) = ctx.select_subset_group()? {
-            ctx.do_subset_group(subset_group)?;
-        }
-        while let Some(subset) = ctx.select_next_subset()? {
-            ctx.do_subset(subset)?;
-        }
-        ctx.split_residual()?;
+    let mut entries = Vec::new();
+    for data in &ctx.woff2_subsets {
+        let mut target = split_ctx.store_path.to_path_buf();
+        target.push(&data.store_file_name);
 
-        let mut entries = Vec::new();
-        for data in &ctx.woff2_subsets {
-            let mut target = store_dir.to_path_buf();
-            target.push(&data.store_file_name);
+        let mut file = File::create(target)?;
+        file.write_all(&data.woff2_data)?;
 
-            let mut file = File::create(target)?;
-            file.write_all(&data.woff2_data)?;
-
-            entries.push(FontStylesheetEntry {
-                file_name: data.store_file_name.clone(),
-                codepoints: crate::subset_manifest::decode_range(&data.subset),
-            });
-        }
-        entries.sort_by_cached_key(|x| x.file_name.to_string());
-
-        stylesheets.push(FontStylesheetInfo {
-            font_family: ctx.font.font_name.clone(),
-            font_style: ctx.font.parsed_font_style,
-            font_weight: ctx.font.parsed_font_weight,
-            entries,
+        entries.push(FontStylesheetEntry {
+            file_name: data.store_file_name.clone(),
+            codepoints: crate::subset_manifest::decode_range(&data.subset),
         });
     }
-    Ok(stylesheets)
-}
+    entries.sort_by_cached_key(|x| x.file_name.to_string());
 
-/// The default tuning parameters for the splitter.
-pub const DEFAULT_TUNING_PARAMETERS: &str = include_str!("splitter_default_tuning.toml");
+    Ok(FontStylesheetInfo {
+        font_family: ctx.font.font_name.clone(),
+        font_style: ctx.font.parsed_font_style,
+        font_weight: ctx.font.parsed_font_weight,
+        entries,
+    })
+}

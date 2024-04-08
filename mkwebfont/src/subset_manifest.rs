@@ -1,64 +1,85 @@
-use crate::contrib::gfsubsets::{GfSubset, GfSubsets};
-use lazy_static::lazy_static;
+use anyhow::*;
 use roaring::RoaringBitmap;
-use std::{collections::HashMap, ops::RangeInclusive};
+use serde::Deserialize;
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    ops::RangeInclusive,
+    sync::Arc,
+};
 
-pub struct WebfontDataCtx {
-    pub by_name: HashMap<&'static str, WebfontSubset>,
-    pub subsets: Vec<WebfontSubset>,
-    pub groups: Vec<WebfontSubsetGroup>,
+#[derive(Clone, Debug)]
+pub struct WebfontData {
+    pub by_name: HashMap<Arc<str>, Arc<WebfontSubset>>,
+    pub subsets: Vec<Arc<WebfontSubset>>,
+    pub groups: Vec<Arc<WebfontSubsetGroup>>,
 }
-impl WebfontDataCtx {
-    pub fn load() -> &'static WebfontDataCtx {
-        &CTX
-    }
-}
-
+#[derive(Clone, Debug)]
 pub struct WebfontSubsetGroup {
-    pub name: &'static str,
-    pub subsets: Vec<WebfontSubset>,
+    pub name: Arc<str>,
+    pub subsets: Vec<Arc<WebfontSubset>>,
 }
+#[derive(Clone, Debug)]
 pub struct WebfontSubset {
-    pub name: &'static str,
+    pub name: Arc<str>,
     pub map: RoaringBitmap,
 }
 
-fn load_subset(subset: &GfSubset) -> WebfontSubset {
-    WebfontSubset { name: subset.name, map: encode_range(subset.ranges) }
-}
-fn load_list(subsets: &[GfSubset]) -> Vec<WebfontSubset> {
-    subsets.iter().map(load_subset).collect()
-}
-fn load() -> WebfontDataCtx {
-    let mut by_name = HashMap::new();
-    let mut groups = Vec::new();
-
-    for subset in GfSubsets::DATA.subsets {
-        by_name.insert(subset.name, load_subset(subset));
-    }
-    for group in GfSubsets::DATA.subset_groups {
-        groups.push(WebfontSubsetGroup { name: group.name, subsets: load_list(group.subsets) });
-        for subset in group.subsets {
-            by_name.insert(subset.name, load_subset(subset));
+impl WebfontData {
+    pub fn load(data: &str) -> Result<WebfontData> {
+        #[derive(Deserialize)]
+        struct RawSubset {
+            name: String,
+            group: Option<String>,
+            chars: String,
+            codepoints: Vec<u32>,
         }
-    }
 
-    WebfontDataCtx { by_name, subsets: load_list(GfSubsets::DATA.subsets), groups }
-}
-
-lazy_static! {
-    static ref CTX: WebfontDataCtx = load();
-}
-
-pub fn encode_range(ranges: &[RangeInclusive<char>]) -> RoaringBitmap {
-    let mut bitmap = RoaringBitmap::new();
-    for range in ranges {
-        for char in range.clone() {
-            bitmap.insert(char as u32);
+        #[derive(Deserialize)]
+        struct RawSubsets {
+            subset: Vec<RawSubset>,
         }
+
+        let loaded_data: RawSubsets = toml::from_str(data)?;
+        let mut loaded_data = loaded_data.subset;
+        loaded_data.sort_by_cached_key(|x| x.name.clone());
+
+        let mut data = WebfontData { by_name: Default::default(), subsets: vec![], groups: vec![] };
+
+        let mut groups_tmp: BTreeMap<_, Vec<_>> = BTreeMap::new();
+        let mut present_names = HashSet::new();
+        for raw in loaded_data {
+            let name: Arc<str> = raw.name.into();
+
+            if present_names.contains(&name) {
+                bail!("Duplicate subset name: {}", name);
+            }
+            present_names.insert(name.clone());
+
+            let mut map = RoaringBitmap::new();
+            for ch in raw.chars.chars() {
+                map.insert(ch as u32);
+            }
+            for ch in raw.codepoints {
+                map.insert(ch);
+            }
+
+            let subset = Arc::new(WebfontSubset { name: name.clone(), map });
+            match raw.group {
+                None => data.subsets.push(subset.clone()),
+                Some(group) => groups_tmp.entry(group).or_default().push(subset.clone()),
+            }
+            data.by_name.insert(name, subset);
+        }
+        for (k, v) in groups_tmp {
+            data.groups
+                .push(Arc::new(WebfontSubsetGroup { name: k.into(), subsets: v }));
+        }
+
+        Ok(data)
     }
-    bitmap
 }
+
+//noinspection DuplicatedCode
 pub fn decode_range(bitmap: &RoaringBitmap) -> Vec<RangeInclusive<char>> {
     let mut range_start = None;
     let mut range_last = '\u{fffff}';
