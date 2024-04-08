@@ -1,7 +1,26 @@
 [package]
 name = "mkwebfont"
 version = "0.1.0"
+authors = ["Lymia Kanokawa <lymia@lymia.moe>"]
 edition = "2021"
+
+description = "A library for creating compact sets of enums."
+keywords = ["fonts"]
+categories = ["command-line-utilities"]
+
+repository = "https://github.com/Lymia/mkwebfont"
+readme = "README.md"
+
+license = "Apache-2.0"
+
+exclude = [
+    "contrib/woff2/brotli/docs",
+    "contrib/woff2/brotli/tests",
+    "contrib/woff2/brotli/java",
+    "contrib/woff2/brotli/csharp",
+    "contrib/woff2/brotli/js",
+    "contrib/woff2/brotli/go",
+]
 
 [features]
 default = ["binary", "bundled-harfbuzz"]
