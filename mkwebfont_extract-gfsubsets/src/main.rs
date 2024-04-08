@@ -6,14 +6,7 @@
 use anyhow::*;
 use roaring::RoaringBitmap;
 use serde::*;
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    fmt::{Display, Formatter},
-    fs::File,
-    io::Write,
-    ops::RangeInclusive,
-};
+use std::{borrow::Cow, collections::HashMap, fs::File, io::Write, ops::RangeInclusive};
 use unic_ucd_category::GeneralCategory;
 
 /// Really shitty CSS parser
@@ -182,96 +175,77 @@ fn mk_gf_ranges() -> Result<()> {
     names.sort();
 
     // sort into the Google Fonts machine learning subsets and manually coded subsets
-    struct GfSubset {
+    struct SubsetInfo {
         name: String,
-        ranges: Vec<RangeInclusive<char>>,
+        group: Option<String>,
+        chars: RoaringBitmap,
     }
 
-    let mut subsets = Vec::new();
-    let mut subset_groups: BTreeMap<_, Vec<_>> = BTreeMap::new();
+    let mut grouped_subsets = Vec::new();
     for name in names {
-        let class_data = raw_subsets.remove(&name).unwrap();
-        let mut subset = GfSubset { name: name.clone(), ranges: decode_range(&class_data) };
+        let chars = raw_subsets.remove(&name).unwrap();
+        let mut subset = SubsetInfo { name: name.clone(), group: None, chars };
 
         if name.starts_with("group-") {
             let subclass = name.split('-').skip(1).next().unwrap();
             subset.name = subset.name[6..].to_string().replace("-s", "");
-            subset_groups
-                .entry(subclass.to_string())
-                .or_default()
-                .push(subset);
-        } else {
-            subsets.push(subset);
+            subset.group = Some(subclass.to_string());
         }
+
+        grouped_subsets.push(subset);
     }
 
     // output the data file
-    let mut file = File::create("mkwebfont/src/contrib/gfsubsets.rs")?;
-    fn write_subset(file: &mut File, subset: &GfSubset) -> Result<()> {
-        struct CharRepr(char);
-        impl Display for CharRepr {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                let category = GeneralCategory::of(self.0);
-                if self.0 == '\'' {
-                    write!(f, "'\\''")
-                } else if self.0 == ' ' {
-                    write!(f, "' '")
-                } else if category.is_letter()
-                    || category.is_number()
-                    || category.is_punctuation()
-                    || category.is_symbol()
-                {
-                    write!(f, "'{}'", self.0)
-                } else {
-                    write!(f, "'{}'", self.0.escape_unicode())
-                }
-            }
-        }
+    #[derive(Serialize)]
+    struct Subset {
+        name: String,
+        group: Option<String>,
+        chars: String,
+        codepoints: Vec<u32>,
+    }
+    #[derive(Serialize)]
+    struct Subsets {
+        subset: Vec<Subset>,
+    }
 
-        write!(file, "GfSubset{{name:{:?},ranges:&[", subset.name)?;
-        for range in &subset.ranges {
-            if range.start() == range.end() {
-                write!(file, "o({}),", CharRepr(*range.start()))?;
+    let mut subsets = Vec::new();
+    for subset in grouped_subsets {
+        let mut chars = String::new();
+        let mut codepoints = Vec::new();
+        for char in subset.chars {
+            let cat = GeneralCategory::of(char::from_u32(char).unwrap());
+            if cat.is_letter() || cat.is_number() || cat.is_punctuation() || cat.is_symbol() {
+                chars.push(char::from_u32(char).unwrap())
             } else {
-                write!(file, "{}..={},", CharRepr(*range.start()), CharRepr(*range.end()))?;
+                codepoints.push(char);
             }
         }
-        writeln!(file, "],}},")?;
 
-        Ok(())
+        subsets.push(Subset { name: subset.name, group: subset.group, chars, codepoints });
     }
-    fn write_subsets(file: &mut File, subsets: &[GfSubset]) -> Result<()> {
-        writeln!(file, "// -- start {} ranges --", subsets.len())?;
-        for subset in subsets {
-            write_subset(file, subset)?;
-        }
-        writeln!(file, "// -- end {} ranges --", subsets.len())?;
-        Ok(())
-    }
-    writeln!(file, "// Automatically generated file. Do not edit manually.")?;
-    writeln!(file, "// Run `cargo run -p mkwebfont_extract-gfsubsets`.`")?;
-    writeln!(file, "#![cfg_attr(rustfmt, rustfmt_skip)]")?;
-    writeln!(file, "{}", include_str!("res/gfsubsets.rs"))?;
-    writeln!(file, "const DATA: GfSubsets = GfSubsets {{")?;
-    writeln!(file, "    subsets: &[")?;
-    write_subsets(&mut file, &subsets)?;
-    writeln!(file, "    ],")?;
-    writeln!(file, "    subset_groups: &[")?;
-    for (name, subsets) in subset_groups {
-        writeln!(file, "        GfSubsetGroup {{")?;
-        writeln!(file, "            name: {:?},", name)?;
-        writeln!(file, "            subsets: &[")?;
-        write_subsets(&mut file, &subsets)?;
-        writeln!(file, "            ],")?;
-        writeln!(file, "        }},")?;
-    }
-    writeln!(file, "    ],")?;
-    writeln!(file, "}};")?;
+    let subsets = Subsets { subset: subsets };
 
-    writeln!(file, "impl GfSubsets {{")?;
-    writeln!(file, "    pub const DATA: GfSubsets = DATA;")?;
-    writeln!(file, "}}")?;
-
+    let mut file = File::create("subset_manifest_default.toml")?;
+    writeln!(file, "# ")?;
+    writeln!(file, "# Subset Manifest")?;
+    writeln!(file, "# ===============")?;
+    writeln!(file, "# ")?;
+    writeln!(file, "# This file defines the subsets that mkwebfont splits its fonts into.")?;
+    writeln!(file, "# Each [[subset]] block has the following fields:")?;
+    writeln!(file, "# ")?;
+    writeln!(file, "# * name       = the name of the subset")?;
+    writeln!(file, "# * group      = the optional name of the subset group")?;
+    writeln!(file, "# * chars      = a string containing unicode codepoints to include")?;
+    writeln!(file, "# * codepoints = a list of unicode codepoints to include")?;
+    writeln!(file, "# ")?;
+    writeln!(file, "# Subsets in a group will only be generated together or not at all.")?;
+    writeln!(file, "# ")?;
+    writeln!(file, "# The default subset manifest here is based on Google Fonts metadata.")?;
+    writeln!(file, "# Regenerate it with `cargo run -p mkwebfont_extract-gfsubsets`.")?;
+    writeln!(file, "# ")?;
+    writeln!(file)?;
+    writeln!(file)?;
+    file.write_all(toml::to_string(&subsets)?.as_bytes())?;
     Ok(())
 }
 
