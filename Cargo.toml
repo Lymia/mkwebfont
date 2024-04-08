@@ -2,6 +2,9 @@
 members = ["mkwebfont", "mkwebfont_extract-gfsubsets"]
 resolver = "2"
 
+[profile.dev]
+opt-level = 1
+
 [profile.release]
 opt-level = 3
 lto = true

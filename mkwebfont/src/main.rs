@@ -1,10 +1,11 @@
-use anyhow::*;
+use anyhow::Result;
 use clap::Parser;
 use mkwebfont::{LoadedFont, WebfontCtxBuilder};
 use std::{
     collections::HashSet, fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf,
 };
-use tracing::{error, info, warn};
+use tokio::runtime::Builder;
+use tracing::{debug, error, info, warn};
 
 /// Generates webfonts for a given font.
 #[derive(Parser, Debug)]
@@ -81,7 +82,7 @@ struct Args {
     write_default_splitter_tuning: Option<PathBuf>,
 }
 
-fn main_impl(args: Args) -> Result<()> {
+async fn main_impl(args: Args) -> Result<()> {
     // write default configuration
     {
         let mut early_exit = false;
@@ -114,7 +115,7 @@ fn main_impl(args: Args) -> Result<()> {
     }
 
     // prepare webfont generation context
-    let mut ctx = WebfontCtxBuilder::new(&args.store.unwrap());
+    let mut ctx = WebfontCtxBuilder::new();
     for str in args.preload {
         ctx.preload(str.chars());
     }
@@ -140,20 +141,18 @@ fn main_impl(args: Args) -> Result<()> {
     let ctx = ctx.build()?;
 
     // load fonts
-    let mut font_data = Vec::new();
-    for font in &args.fonts {
-        font_data.push((font, std::fs::read(font)?));
-    }
     let mut raw_fonts = Vec::new();
-    for (path, font) in &font_data {
+    for path in &args.fonts {
         info!("Loading fonts from path: {}", path.display());
-        raw_fonts.extend(LoadedFont::load(font.as_slice())?);
+        raw_fonts.extend(LoadedFont::load(&std::fs::read(path)?)?);
     }
-    info!("Found {} fonts:", raw_fonts.len());
-    let mut accepted_fonts = Vec::new();
-    {
+    let raw_fonts_len = raw_fonts.len();
+    debug!("Found {} fonts:", raw_fonts_len);
+    let accepted_fonts = {
         let exclude: HashSet<_> = args.exclude.into_iter().collect();
         let family: HashSet<_> = args.family.into_iter().collect();
+
+        let mut accepted_fonts = Vec::new();
         for font in raw_fonts {
             let name = font.font_family();
             let style = font.font_style();
@@ -161,27 +160,33 @@ fn main_impl(args: Args) -> Result<()> {
             let is_not_whitelisted = !family.is_empty() && !family.contains(name);
 
             if is_excluded {
-                info!(" - {name} {style} (excluded)");
+                debug!(" - {name} {style} (excluded)");
             } else if is_not_whitelisted {
-                info!(" - {name} {style} (not in whitelist)");
+                debug!(" - {name} {style} (not in whitelist)");
             } else {
-                info!(" - {name} {style}");
+                debug!(" - {name} {style}");
                 accepted_fonts.push(font);
             }
         }
-    }
+        accepted_fonts
+    };
+    info!("Found {} fonts, and accepted {} fonts.", raw_fonts_len, accepted_fonts.len());
 
     // process webfonts
-    let styles = mkwebfont::split_webfont(&ctx, &accepted_fonts)?;
+    let styles = mkwebfont::process_webfont(&ctx, &accepted_fonts).await?;
 
     let store_uri = if let Some(store_uri) = args.store_uri {
         store_uri
     } else {
         String::new()
     };
+
+    // write webfonts to store and render css
     let mut css = String::new();
+    let store = args.store.unwrap();
     for style in styles {
         writeln!(css, "{}", style.render_css(&store_uri))?;
+        style.write_to_store(&store)?;
     }
 
     // write css to output
@@ -196,6 +201,10 @@ fn main_impl(args: Args) -> Result<()> {
 
     Ok(())
 }
+fn main_sync(args: Args) -> Result<()> {
+    let rt = Builder::new_multi_thread().build()?;
+    rt.block_on(main_impl(args))
+}
 
 fn main() {
     let args = Args::parse();
@@ -204,8 +213,8 @@ fn main() {
         .with_writer(io::stderr)
         .init();
 
-    match main_impl(args) {
-        Result::Ok(()) => {}
-        Result::Err(e) => error!("Error encountered: {e}"),
+    match main_sync(args) {
+        Ok(()) => {}
+        Err(e) => error!("Error encountered: {e}"),
     }
 }

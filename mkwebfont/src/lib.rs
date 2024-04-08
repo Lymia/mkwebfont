@@ -1,16 +1,14 @@
 mod contrib;
 mod fonts;
-mod splitter;
+mod render;
 mod subset_manifest;
 
-pub use fonts::{FontStyle, FontWeight};
-pub use splitter::{FontStylesheetEntry, FontStylesheetInfo};
+pub use render::WebfontInfo;
 
 /// A builder for making configuration for splitting webfonts.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct WebfontCtxBuilder {
-    store_path: std::path::PathBuf,
     splitter_tuning: Option<String>,
     subset_manifest: Option<String>,
     preload_codepoints: roaring::RoaringBitmap,
@@ -18,9 +16,8 @@ pub struct WebfontCtxBuilder {
 }
 impl WebfontCtxBuilder {
     /// Creates a new builder.
-    pub fn new(store_path: &std::path::Path) -> Self {
+    pub fn new() -> Self {
         WebfontCtxBuilder {
-            store_path: store_path.to_path_buf(),
             splitter_tuning: None,
             subset_manifest: None,
             preload_codepoints: Default::default(),
@@ -54,7 +51,6 @@ impl WebfontCtxBuilder {
     /// Builds the context, and checks its arguments properly.
     pub fn build(self) -> anyhow::Result<WebfontCtx> {
         Ok(WebfontCtx(std::sync::Arc::new(WebfontCtxData {
-            store_path: self.store_path,
             preload_codepoints: self.preload_codepoints,
             preload_codepoints_in: self.preload_codepoints_in,
             tuning: match self.splitter_tuning {
@@ -76,10 +72,9 @@ impl WebfontCtxBuilder {
 pub struct WebfontCtx(pub(crate) std::sync::Arc<WebfontCtxData>);
 #[derive(Debug)]
 pub(crate) struct WebfontCtxData {
-    pub(crate) store_path: std::path::PathBuf,
     pub(crate) preload_codepoints: roaring::RoaringBitmap,
     pub(crate) preload_codepoints_in: std::collections::HashMap<String, roaring::RoaringBitmap>,
-    pub(crate) tuning: splitter::TuningParameters,
+    pub(crate) tuning: render::TuningParameters,
     pub(crate) data: subset_manifest::WebfontData,
 }
 
@@ -119,13 +114,28 @@ impl LoadedFont {
     }
 }
 
-pub fn split_webfont(
+pub async fn process_webfont(
     split_ctx: &WebfontCtx,
     fonts: &[LoadedFont],
-) -> anyhow::Result<Vec<FontStylesheetInfo>> {
-    let mut out = Vec::new();
+) -> anyhow::Result<Vec<WebfontInfo>> {
+    use tracing::Instrument;
+
+    let mut awaits = Vec::new();
     for font in fonts {
-        out.push(splitter::split_webfont(split_ctx, &font.underlying)?);
+        let ctx = split_ctx.clone();
+        let font = font.underlying.clone();
+
+        let span = tracing::info_span!("split", "{font}");
+        let _enter = span.enter();
+
+        awaits.push(tokio::task::spawn(
+            async move { render::split_webfont(&ctx, &font).await }.in_current_span(),
+        ));
+    }
+
+    let mut out = Vec::new();
+    for font in awaits {
+        out.push(font.await??)
     }
     Ok(out)
 }
