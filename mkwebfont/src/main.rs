@@ -32,6 +32,18 @@ struct Args {
     #[arg(short, long)]
     verbose: bool,
 
+    /// Include only certain font families.
+    ///
+    /// This is useful when working with TrueType Font Collections.
+    #[arg(short, long)]
+    font: Option<String>,
+
+    /// Exclude certain font families.
+    ///
+    /// This is useful when working with TrueType Font Collections.
+    #[arg(short = 'E', long)]
+    exclude: Option<String>,
+
     /// Always include a list of codepoints in the first partition split off from the font
     /// (usually latin).
     ///
@@ -40,7 +52,26 @@ struct Args {
     #[arg(long)]
     preload: Vec<String>,
 
+    /// Functions like preload, but allows preloading only for a specific font.
+    ///
+    /// The format is: `--preload-in "Font Family Name:abcdef"`
+    #[arg(long)]
+    preload_in: Vec<String>,
+
+    /// Uses the subset manifest file at the given path.
+    ///
+    /// This can be used to customize which characters are subsetted into which groups.
+    #[arg(long)]
+    subset_manifest: Option<PathBuf>,
+
+    /// Writes the default subset manifest file to the given path.
+    #[arg(long)]
+    write_default_subset_manifest: Option<PathBuf>,
+
     /// Uses the splitter tuning file at the given path.
+    ///
+    /// This can be used to customize how mkwebfont decides which subsets to apply to a given font.
+    /// You will likely not need to use this.
     #[arg(long)]
     splitter_tuning: Option<PathBuf>,
 

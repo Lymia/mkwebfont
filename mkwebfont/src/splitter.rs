@@ -1,7 +1,7 @@
 use crate::{
     contrib::nix_base32,
     fonts::{FontStyle, FontWeight, LoadedFont},
-    ranges::{WebfontDataCtx, WebfontSubset, WebfontSubsetGroup},
+    subset_manifest::{WebfontDataCtx, WebfontSubset, WebfontSubsetGroup},
     SplitWebfontCtx,
 };
 use anyhow::*;
@@ -437,7 +437,7 @@ pub fn split_webfont(
 
             entries.push(FontStylesheetEntry {
                 file_name: data.store_file_name.clone(),
-                codepoints: crate::ranges::decode_range(&data.subset),
+                codepoints: crate::subset_manifest::decode_range(&data.subset),
             });
         }
         entries.sort_by_cached_key(|x| x.file_name.to_string());
