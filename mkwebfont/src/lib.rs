@@ -29,13 +29,13 @@ impl WebfontCtxBuilder {
     }
 
     /// Adds a splitter tuning file.
-    pub fn add_splitter_tuning(&mut self, path: &str) {
-        self.splitter_tuning = Some(path.to_string());
+    pub fn add_splitter_tuning(&mut self, data: &str) {
+        self.splitter_tuning = Some(data.to_string());
     }
 
     /// Adds a subset manifest file.
-    pub fn add_subset_manifest(&mut self, path: &str) {
-        self.subset_manifest = Some(path.to_string());
+    pub fn add_subset_manifest(&mut self, data: &str) {
+        self.subset_manifest = Some(data.to_string());
     }
 
     /// Preload certain characters into every font loaded in this context.

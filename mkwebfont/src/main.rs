@@ -1,8 +1,8 @@
 use anyhow::*;
 use clap::Parser;
-use mkwebfont::SplitWebfontCtx;
-use roaring::RoaringBitmap;
+use mkwebfont::{LoadedFont, WebfontCtxBuilder};
 use std::{fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
+use std::collections::HashSet;
 use tracing::{error, info, warn};
 
 /// Generates webfonts for a given font.
@@ -36,13 +36,13 @@ struct Args {
     ///
     /// This is useful when working with TrueType Font Collections.
     #[arg(short, long)]
-    font: Option<String>,
+    family: Vec<String>,
 
     /// Exclude certain font families.
     ///
     /// This is useful when working with TrueType Font Collections.
     #[arg(short = 'E', long)]
-    exclude: Option<String>,
+    exclude: Vec<String>,
 
     /// Always include a list of codepoints in the first partition split off from the font
     /// (usually latin).
@@ -81,11 +81,22 @@ struct Args {
 }
 
 fn main_impl(args: Args) -> Result<()> {
-    // write splitter configuration
-    if let Some(path) = args.write_default_splitter_tuning {
-        info!("Writting default splitter configuration to {}", path.display());
-        std::fs::write(path, include_str!("splitter_default_tuning.toml"))?;
-        return Ok(());
+    // write default configuration
+    {
+        let mut early_exit = false;
+        if let Some(path) = args.write_default_subset_manifest {
+            info!("Writting default subset manifest to {}", path.display());
+            std::fs::write(path, include_str!("subset_manifest_default.toml"))?;
+            early_exit = true;
+        }
+        if let Some(path) = args.write_default_splitter_tuning {
+            info!("Writting default splitter configuration to {}", path.display());
+            std::fs::write(path, include_str!("splitter_default_tuning.toml"))?;
+            early_exit = true;
+        }
+        if early_exit {
+            return Ok(());
+        }
     }
 
     // check arguments
@@ -101,33 +112,65 @@ fn main_impl(args: Args) -> Result<()> {
         warn!("No fonts were specified! An empty .css file will be generated.");
     }
 
-    // do actual webfont generaetion
-    let mut css = String::new();
+    // prepare webfont generation context
+    let mut ctx = WebfontCtxBuilder::new(&args.store.unwrap());
+    for str in args.preload {
+        ctx.preload(str.chars());
+    }
+    if let Some(manifest) = args.subset_manifest {
+        ctx.add_subset_manifest(&std::fs::read_to_string(manifest)?);
+    }
+    if let Some(tuning) = args.splitter_tuning {
+        ctx.add_splitter_tuning(&std::fs::read_to_string(tuning)?);
+    }
+    let ctx = ctx.build()?;
+
+    // load fonts
+    let mut font_data = Vec::new();
+    for font in &args.fonts {
+        font_data.push((font, std::fs::read(font)?));
+    }
+    let mut raw_fonts = Vec::new();
+    for (path, font) in &font_data {
+        info!("Loading fonts from path: {}", path.display());
+        raw_fonts.extend(LoadedFont::load(font.as_slice())?);
+    }
+    info!("Found {} fonts:", raw_fonts.len());
+    let mut accepted_fonts = Vec::new();
+    {
+        let exclude: HashSet<_> = args.exclude.into_iter().collect();
+        let family: HashSet<_> = args.family.into_iter().collect();
+        for font in raw_fonts {
+            let name = font.font_family();
+            let style = font.font_style();
+            let is_excluded = exclude.contains(name);
+            let is_not_whitelisted = !family.is_empty() && !family.contains(name);
+
+            if is_excluded {
+                info!(" - {name} {style} (excluded)");
+            } else if is_not_whitelisted {
+                info!(" - {name} {style} (not in whitelist)");
+            } else {
+                info!(" - {name} {style}");
+                accepted_fonts.push(font);
+            }
+        }
+    }
+
+    // process webfonts
+    let styles = mkwebfont::split_webfont(&ctx, &accepted_fonts)?;
+
     let store_uri = if let Some(store_uri) = args.store_uri {
         store_uri
     } else {
         String::new()
     };
-
-    let mut preload_codepoints = RoaringBitmap::new();
-    for str in args.preload {
-        for char in str.chars() {
-            preload_codepoints.insert(char as u32);
-        }
+    let mut css = String::new();
+    for style in styles {
+        writeln!(css, "{}", style.render_css(&store_uri))?;
     }
 
-    let mut split_ctx = SplitWebfontCtx::default();
-    if let Some(tuning) = args.splitter_tuning {
-        split_ctx.splitter_tuning = Some(std::fs::read_to_string(tuning)?);
-    }
-    split_ctx.preload_codepoints = preload_codepoints;
-    for font in &args.fonts {
-        info!("Processing webfont: {}", font.display());
-        for data in mkwebfont::split_webfont(&split_ctx, font, args.store.as_ref().unwrap())? {
-            writeln!(css, "{}", data.render_css(&store_uri))?;
-        }
-    }
-
+    // write css to output
     if let Some(target) = args.output {
         std::fs::write(target, css)?;
     } else if let Some(target) = args.append {
