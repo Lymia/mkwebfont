@@ -19,7 +19,6 @@ high_priority_ratio_threshold = 0.25
 # The percentage of codepoints that must be present in a subset group before it is emitted in this stage.
 accept_group_ratio_threshold = 0.25
 
-
 ##########
 # Stage 3
 
@@ -35,7 +34,6 @@ accept_subset_ratio_threshold = 0.1
 # Any font subsets with less than this number of codepoints will not be generated, and instead will be combined into
 # the residual Stage 4 subsets.
 reject_subset_threshold = 20
-
 
 # The maximum size for a residual subset made from codepoints not included in a Google Fonts subset.
 residual_class_max_size = 200
