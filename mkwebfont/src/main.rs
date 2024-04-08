@@ -1,8 +1,9 @@
 use anyhow::*;
 use clap::Parser;
 use mkwebfont::{LoadedFont, WebfontCtxBuilder};
-use std::{fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
-use std::collections::HashSet;
+use std::{
+    collections::HashSet, fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf,
+};
 use tracing::{error, info, warn};
 
 /// Generates webfonts for a given font.
@@ -116,6 +117,19 @@ fn main_impl(args: Args) -> Result<()> {
     let mut ctx = WebfontCtxBuilder::new(&args.store.unwrap());
     for str in args.preload {
         ctx.preload(str.chars());
+    }
+    for str in args.preload_in {
+        if !str.contains(':') {
+            error!("Failed to parse `--preload-in` argumnet: {str:?}");
+            std::process::exit(1);
+        }
+
+        let mut iter = str.splitn(2, ':');
+        let family = iter.next().unwrap();
+        let chars = iter.next().unwrap();
+        assert!(iter.next().is_none());
+
+        ctx.preload_in(family, chars.chars());
     }
     if let Some(manifest) = args.subset_manifest {
         ctx.add_subset_manifest(&std::fs::read_to_string(manifest)?);

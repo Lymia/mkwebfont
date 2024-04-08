@@ -128,7 +128,12 @@ impl<'a> FontSplittingContext<'a> {
 
             if new_codepoints.len() as usize >= self.ctx.tuning.reject_subset_threshold {
                 if !self.preload_done {
-                    let new = new_codepoints.clone() | &self.ctx.preload_codepoints;
+                    let mut preload_list = self.ctx.preload_codepoints.clone();
+                    if let Some(list) = self.ctx.preload_codepoints_in.get(&self.font.font_name) {
+                        preload_list |= list;
+                    }
+
+                    let new = new_codepoints.clone() | preload_list;
                     if new != new_codepoints {
                         name = format!("{name}+pl");
                         debug!(
