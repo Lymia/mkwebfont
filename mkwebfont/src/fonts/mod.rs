@@ -76,7 +76,7 @@ impl Display for FontWeight {
 #[derive(Clone)]
 pub struct LoadedFont(Arc<LoadedFontData>);
 struct LoadedFontData {
-    font_name: String,
+    font_family: String,
     font_style: String,
     font_version: String,
     is_variable: bool,
@@ -127,7 +127,7 @@ impl LoadedFont {
         let is_variable =
             unsafe { hb_subset::sys::hb_ot_var_get_axis_count(font_face.as_raw()) != 0 };
 
-        let font_name = if is_variable {
+        let font_family = if is_variable {
             // a lot of dynamic fonts have a weight prebaked in the font_family for some reason
             let family = font_face.font_family();
             let typographic_family = font_face.typographic_family();
@@ -155,7 +155,7 @@ impl LoadedFont {
         }
 
         debug!(
-            "Loaded font: {font_name} / {font_style} / {font_version} / {} gylphs{}",
+            "Loaded font: {font_family} / {font_style} / {font_version} / {} gylphs{}",
             available_codepoints.len(),
             if is_variable { " / Variable font" } else { "" },
         );
@@ -164,7 +164,7 @@ impl LoadedFont {
         drop(font_face);
 
         Ok(Some(LoadedFont(Arc::new(LoadedFontData {
-            font_name,
+            font_family,
             font_style,
             font_version,
             is_variable,
@@ -176,14 +176,14 @@ impl LoadedFont {
         }))))
     }
 
-    pub fn codepoints_in_fault(&self, set: &RoaringBitmap) -> RoaringBitmap {
+    pub fn codepoints_in_set(&self, set: &RoaringBitmap) -> RoaringBitmap {
         self.0.available_codepoints.clone() & set
     }
     pub fn all_codepoints(&self) -> &RoaringBitmap {
         &self.0.available_codepoints
     }
-    pub fn font_name(&self) -> &str {
-        &self.0.font_name
+    pub fn font_family(&self) -> &str {
+        &self.0.font_family
     }
     pub fn font_style(&self) -> &str {
         &self.0.font_style
@@ -223,7 +223,7 @@ impl Debug for LoadedFont {
         write!(
             f,
             "[font: {} / {} / {}]",
-            self.font_name(),
+            self.font_family(),
             self.font_style(),
             self.font_version(),
         )
@@ -231,6 +231,6 @@ impl Debug for LoadedFont {
 }
 impl Display for LoadedFont {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}", self.font_name(), self.font_style())
+        write!(f, "{} {}", self.font_family(), self.font_style())
     }
 }

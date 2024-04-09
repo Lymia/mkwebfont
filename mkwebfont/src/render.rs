@@ -61,23 +61,79 @@ fn extract_version(mut str: &str) -> String {
     out.trim_matches('.').to_string()
 }
 
-struct SplitFontData {
-    store_file_name: String,
-    subset: RoaringBitmap,
+/// Contains the data needed to use a font as a webfont.
+#[derive(Debug)]
+pub struct WebfontInfo {
+    font_family: String,
+    font_style: FontStyle,
+    font_weight: FontWeight,
+    entries: Vec<SubsetInfo>,
+}
+impl WebfontInfo {
+    /// Writes the webfont files to the given directory.
+    pub fn write_to_store(&self, target: &Path) -> Result<()> {
+        let mut path = target.to_path_buf();
+        for entry in &self.entries {
+            path.push(&entry.file_name);
+            debug!("Writing {}...", path.display());
+            fs::write(&path, &entry.woff2_data)?;
+            path.pop();
+        }
+        Ok(())
+    }
+
+    /// Returns a stylesheet appropriate for using this webfont.
+    pub fn render_css<'a>(&'a self, store_uri: &str) -> impl Display + 'a {
+        FontStylesheetDisplay { store_uri: store_uri.to_string(), sheet: self }
+    }
+
+    /// Returns the number of subsets in the webfont.
+    pub fn subset_count(&self) -> usize {
+        self.entries.len()
+    }
+}
+struct UnicodeRange<'a>(&'a [RangeInclusive<char>]);
+impl<'a> Display for UnicodeRange<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut first = true;
+        for range in self.0 {
+            if first {
+                first = false;
+            } else {
+                f.write_str(", ")?;
+            }
+
+            if range.start() == range.end() {
+                write!(f, "U+{:X}", *range.start() as u32)?;
+            } else {
+                write!(f, "U+{:X}-{:X}", *range.start() as u32, *range.end() as u32)?;
+            }
+        }
+        Result::Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct SubsetInfo {
+    file_name: String,
+    subset_ranges: Vec<RangeInclusive<char>>,
     woff2_data: Vec<u8>,
 }
-impl SplitFontData {
+impl SubsetInfo {
     fn new(font: &LoadedFont, name: &str, subset: RoaringBitmap, woff2_data: Vec<u8>) -> Self {
         let blake3_hash = blake3::hash(&woff2_data);
         let hash_str = nix_base32::to_nix_base32(&*blake3_hash.as_bytes());
         let hash_str = &hash_str[1..21];
 
-        let font_name = extract_name(font.font_name());
+        let font_name = extract_name(font.font_family());
         let font_style = extract_name(font.font_style());
         let font_version = extract_version(font.font_version());
         let is_regular = font_style.to_lowercase() == "regular";
-        SplitFontData {
-            store_file_name: format!(
+
+        let subset_ranges = crate::subset_manifest::decode_range(&subset);
+
+        SubsetInfo {
+            file_name: format!(
                 "{font_name}{}{}_{font_version}_{name}_{hash_str}.woff2",
                 if !is_regular || font.is_variable() { "_" } else { "" },
                 if font.is_variable() {
@@ -88,17 +144,82 @@ impl SplitFontData {
                     ""
                 },
             ),
-            subset,
+            subset_ranges,
             woff2_data,
         }
+    }
+}
+
+struct FontStylesheetDisplay<'a> {
+    pub store_uri: String,
+    pub sheet: &'a WebfontInfo,
+}
+impl<'a> Display for FontStylesheetDisplay<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        for entry in &self.sheet.entries {
+            writeln!(f, "@font-face {{")?;
+            writeln!(f, "    font-family: {:?};", self.sheet.font_family)?;
+            if self.sheet.font_style != FontStyle::Regular {
+                writeln!(f, "    font-style: {};", self.sheet.font_style)?;
+            }
+            if self.sheet.font_weight != FontWeight::Regular {
+                writeln!(f, "    font-weight: {};", self.sheet.font_weight)?;
+            }
+            writeln!(f, "    unicode-range: {};", UnicodeRange(&entry.subset_ranges))?;
+            writeln!(
+                f,
+                "    src: url({:?}) format(\"woff2\");",
+                format!("{}{}", self.store_uri, entry.file_name)
+            )?;
+            writeln!(f, "}}")?;
+        }
+        Result::Ok(())
+    }
+}
+
+pub struct FontEncoder {
+    font: LoadedFont,
+    woff2_subsets: Vec<JoinHandle<Result<SubsetInfo>>>,
+}
+impl FontEncoder {
+    fn new(font: LoadedFont) -> Self {
+        FontEncoder { font, woff2_subsets: Vec::new() }
+    }
+
+    pub fn add_subset(&mut self, name: &str, codepoints: RoaringBitmap) {
+        let name = name.to_string();
+        let font = self.font.clone();
+        self.woff2_subsets.push(task::spawn(
+            async move {
+                debug!("Encoding subset '{name}' with {} codepoints.", codepoints.len());
+                let subset_woff2 = font.subset(&name, &codepoints)?;
+                Ok(SubsetInfo::new(&font, &name, codepoints, subset_woff2))
+            }
+            .in_current_span(),
+        ));
+    }
+
+    pub async fn produce_webfont(self) -> Result<WebfontInfo> {
+        let mut entries = Vec::new();
+        for data in self.woff2_subsets {
+            entries.push(data.await??);
+        }
+        entries.sort_by_cached_key(|x| x.file_name.to_string());
+
+        Ok(WebfontInfo {
+            font_family: self.font.font_family().to_string(),
+            font_style: self.font.parsed_font_style(),
+            font_weight: self.font.parsed_font_weight(),
+            entries,
+        })
     }
 }
 
 struct FontSplittingContext {
     ctx: Arc<WebfontCtxData>,
     font: LoadedFont,
+    encoder: FontEncoder,
     fulfilled_codepoints: RoaringBitmap,
-    woff2_subsets: Vec<JoinHandle<Result<SplitFontData>>>,
     processed_subsets: HashSet<Arc<str>>,
     processed_groups: HashSet<Arc<str>>,
     residual_id: usize,
@@ -109,26 +230,13 @@ impl FontSplittingContext {
         Ok(FontSplittingContext {
             ctx: ctx.0.clone(),
             font: font.clone(),
+            encoder: FontEncoder::new(font.clone()),
             fulfilled_codepoints: Default::default(),
-            woff2_subsets: Default::default(),
             processed_subsets: Default::default(),
             processed_groups: Default::default(),
             residual_id: 0,
             preload_done: false,
         })
-    }
-
-    fn process_subset(&mut self, name: &str, codepoints: RoaringBitmap) {
-        let name = name.to_string();
-        let font = self.font.clone();
-        self.woff2_subsets.push(task::spawn(
-            async move {
-                debug!("Generating font subset: {name} (codepoints: {})", codepoints.len());
-                let subset_woff2 = font.subset(&name, &codepoints)?;
-                Ok(SplitFontData::new(&font, &name, codepoints, subset_woff2))
-            }
-            .in_current_span(),
-        ));
     }
 
     fn do_subset(&mut self, subset: &WebfontSubset) {
@@ -137,12 +245,13 @@ impl FontSplittingContext {
 
             let mut name = subset.name.to_string();
             let mut new_codepoints =
-                self.font.codepoints_in_fault(&subset.map) - &self.fulfilled_codepoints;
+                self.font.codepoints_in_set(&subset.map) - &self.fulfilled_codepoints;
 
             if new_codepoints.len() as usize >= self.ctx.tuning.reject_subset_threshold {
                 if !self.preload_done {
                     let mut preload_list = self.ctx.preload_codepoints.clone();
-                    if let Some(list) = self.ctx.preload_codepoints_in.get(self.font.font_name()) {
+                    if let Some(list) = self.ctx.preload_codepoints_in.get(self.font.font_family())
+                    {
                         preload_list |= list;
                     }
 
@@ -159,7 +268,7 @@ impl FontSplittingContext {
                 }
 
                 self.fulfilled_codepoints.extend(new_codepoints.clone());
-                self.process_subset(&name, new_codepoints);
+                self.encoder.add_subset(&name, new_codepoints);
             } else {
                 debug!("Rejecting subset: {name} (unique codepoints: {})", new_codepoints.len())
             }
@@ -177,7 +286,7 @@ impl FontSplittingContext {
 
     fn unique_available_ratio(&self, subset: &WebfontSubset) -> f64 {
         let present_codepoints =
-            (self.font.codepoints_in_fault(&subset.map) - &self.fulfilled_codepoints).len();
+            (self.font.codepoints_in_set(&subset.map) - &self.fulfilled_codepoints).len();
         let subset_codepoints = (subset.map.clone() - &self.fulfilled_codepoints).len();
         if subset_codepoints == 0 {
             0.0
@@ -187,7 +296,7 @@ impl FontSplittingContext {
     }
     fn unique_available_count(&self, subset: &WebfontSubset) -> usize {
         let present_codepoints =
-            (self.font.codepoints_in_fault(&subset.map) - &self.fulfilled_codepoints).len();
+            (self.font.codepoints_in_set(&subset.map) - &self.fulfilled_codepoints).len();
         present_codepoints as usize
     }
     fn subset_group_ratio(&self, group: &WebfontSubsetGroup) -> f64 {
@@ -309,7 +418,7 @@ impl FontSplittingContext {
         assert!(!set.is_empty());
         let name = format!("misc{}", self.residual_id);
         self.residual_id += 1;
-        self.process_subset(&name, set);
+        self.encoder.add_subset(&name, set);
     }
     fn split_residual(&mut self) {
         let codepoints = self.font.all_codepoints() - &self.fulfilled_codepoints;
@@ -324,93 +433,6 @@ impl FontSplittingContext {
             }
         }
     }
-}
-
-struct UnicodeRange<'a>(&'a [RangeInclusive<char>]);
-impl<'a> Display for UnicodeRange<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut first = true;
-        for range in self.0 {
-            if first {
-                first = false;
-            } else {
-                f.write_str(", ")?;
-            }
-
-            if range.start() == range.end() {
-                write!(f, "U+{:X}", *range.start() as u32)?;
-            } else {
-                write!(f, "U+{:X}-{:X}", *range.start() as u32, *range.end() as u32)?;
-            }
-        }
-        Result::Ok(())
-    }
-}
-
-struct FontStylesheetDisplay<'a> {
-    pub store_uri: String,
-    pub sheet: &'a WebfontInfo,
-}
-impl<'a> Display for FontStylesheetDisplay<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for entry in &self.sheet.entries {
-            writeln!(f, "@font-face {{")?;
-            writeln!(f, "    font-family: {:?};", self.sheet.font_family)?;
-            if self.sheet.font_style != FontStyle::Regular {
-                writeln!(f, "    font-style: {};", self.sheet.font_style)?;
-            }
-            if self.sheet.font_weight != FontWeight::Regular {
-                writeln!(f, "    font-weight: {};", self.sheet.font_weight)?;
-            }
-            writeln!(f, "    unicode-range: {};", UnicodeRange(&entry.codepoints))?;
-            writeln!(
-                f,
-                "    src: url({:?}) format(\"woff2\");",
-                format!("{}{}", self.store_uri, entry.file_name)
-            )?;
-            writeln!(f, "}}")?;
-        }
-        Result::Ok(())
-    }
-}
-
-/// Contains the data needed to use a font as a webfont.
-#[derive(Debug)]
-pub struct WebfontInfo {
-    font_family: String,
-    font_style: FontStyle,
-    font_weight: FontWeight,
-    entries: Vec<WebfontRenderedSubset>,
-}
-impl WebfontInfo {
-    /// Writes the webfont files to the given directory.
-    pub fn write_to_store(&self, target: &Path) -> Result<()> {
-        let mut path = target.to_path_buf();
-        for entry in &self.entries {
-            path.push(&entry.file_name);
-            debug!("Writing {}...", path.display());
-            fs::write(&path, &entry.data)?;
-            path.pop();
-        }
-        Ok(())
-    }
-
-    /// Returns a stylesheet appropriate for using this webfont.
-    pub fn render_css<'a>(&'a self, store_uri: &str) -> impl Display + 'a {
-        FontStylesheetDisplay { store_uri: store_uri.to_string(), sheet: self }
-    }
-
-    /// Returns the number of subsets in the webfont.
-    pub fn subset_count(&self) -> usize {
-        self.entries.len()
-    }
-}
-
-#[derive(Debug)]
-struct WebfontRenderedSubset {
-    file_name: String,
-    codepoints: Vec<RangeInclusive<char>>,
-    data: Vec<u8>,
 }
 
 /// The internal function that actually splits the webfont.
@@ -429,24 +451,11 @@ pub async fn split_webfont(split_ctx: &WebfontCtx, font: &LoadedFont) -> Result<
 
     debug!("Control process done. Awaiting font data...");
 
-    let mut entries = Vec::new();
-    for data in ctx.woff2_subsets {
-        let data = data.await??;
-
-        entries.push(WebfontRenderedSubset {
-            file_name: data.store_file_name.clone(),
-            codepoints: crate::subset_manifest::decode_range(&data.subset),
-            data: data.woff2_data,
-        });
-    }
-    entries.sort_by_cached_key(|x| x.file_name.to_string());
-
-    info!("Successfully split into {} subsets!", entries.len());
-
-    Ok(WebfontInfo {
-        font_family: ctx.font.font_name().into(),
-        font_style: ctx.font.parsed_font_style(),
-        font_weight: ctx.font.parsed_font_weight(),
-        entries,
-    })
+    let info = ctx.encoder.produce_webfont().await?;
+    info!(
+        "Successfully split {} codepoints into {} subsets!",
+        font.all_codepoints().len(),
+        info.entries.len(),
+    );
+    Ok(info)
 }

@@ -182,6 +182,9 @@ async fn main_impl(args: Args) -> Result<()> {
     };
 
     // write webfonts to store and render css
+    let count: usize = styles.iter().map(|x| x.subset_count()).sum();
+    info!("Writing {count} files to store...");
+
     let mut css = String::new();
     let store = args.store.unwrap();
     for style in styles {
@@ -191,14 +194,18 @@ async fn main_impl(args: Args) -> Result<()> {
 
     // write css to output
     if let Some(target) = args.output {
+        info!("Writing CSS to '{}'...", target.display());
         std::fs::write(target, css)?;
     } else if let Some(target) = args.append {
+        info!("Appending CSS to '{}'...", target.display());
         let mut file = OpenOptions::new().write(true).append(true).open(target)?;
         file.write_all(css.as_bytes())?
     } else {
         println!("{}", css);
     }
 
+    // finalize
+    info!("Done!");
     Ok(())
 }
 fn main_sync(args: Args) -> Result<()> {

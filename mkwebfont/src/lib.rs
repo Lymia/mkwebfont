@@ -1,6 +1,7 @@
 mod contrib;
 mod fonts;
 mod render;
+mod splitter;
 mod subset_manifest;
 
 pub use render::WebfontInfo;
@@ -95,7 +96,7 @@ impl LoadedFont {
 
     /// Returns the name of the font family
     pub fn font_family(&self) -> &str {
-        self.underlying.font_name()
+        self.underlying.font_family()
     }
 
     /// Returns the font's style
