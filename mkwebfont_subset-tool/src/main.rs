@@ -1,4 +1,6 @@
+mod download_common_crawl;
 mod legacy_gfsubsets;
+mod process_common_crawl;
 
 use clap::{Parser, Subcommand};
 use std::io;
@@ -13,6 +15,8 @@ struct Args {
 #[derive(Subcommand)]
 enum Commands {
     GenerateLegacyGfsubsets,
+    DownloadCommonCrawl,
+    ProcessCommonCrawl,
 }
 
 #[tokio::main]
@@ -24,5 +28,9 @@ async fn main() {
         .init();
     match args.command {
         Commands::GenerateLegacyGfsubsets => legacy_gfsubsets::main().await,
+        Commands::DownloadCommonCrawl => download_common_crawl::download_common_crawl()
+            .await
+            .unwrap(),
+        Commands::ProcessCommonCrawl => process_common_crawl::parse_common_crawl().await.unwrap(),
     }
 }

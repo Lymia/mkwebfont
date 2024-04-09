@@ -131,11 +131,7 @@ async fn mk_gf_ranges() -> Result<()> {
         for (k, v) in parsed {
             if let Some(subset) = raw_subsets.get_mut(&k) {
                 if *subset != v {
-                    info!(
-                        "{k} - merging {} codepoints with {} codepoints",
-                        subset.len(),
-                        v.len()
-                    );
+                    info!("{k} - merging {} codepoints with {} codepoints", subset.len(), v.len());
                     subset.extend(v);
                 }
             } else {
