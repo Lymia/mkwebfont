@@ -75,7 +75,7 @@ pub struct WebfontCtx(pub(crate) std::sync::Arc<WebfontCtxData>);
 pub(crate) struct WebfontCtxData {
     pub(crate) preload_codepoints: roaring::RoaringBitmap,
     pub(crate) preload_codepoints_in: std::collections::HashMap<String, roaring::RoaringBitmap>,
-    pub(crate) tuning: render::TuningParameters,
+    pub(crate) tuning: splitter::TuningParameters,
     pub(crate) data: subset_manifest::WebfontData,
 }
 
