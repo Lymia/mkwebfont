@@ -13,7 +13,7 @@
 # Subsets in a group will only be generated together or not at all.
 # 
 # The default subset manifest here is based on Google Fonts metadata.
-# Regenerate it with `cargo run -p mkwebfont_extract-gfsubsets`.
+# Regenerate it with `cargo run -p mkwebfont_subset-tool`.
 # 
 
 

@@ -6,7 +6,8 @@
 use anyhow::*;
 use roaring::RoaringBitmap;
 use serde::*;
-use std::{borrow::Cow, collections::HashMap, fs::File, io::Write, ops::RangeInclusive};
+use std::{borrow::Cow, collections::HashMap, fs::File, io::Write};
+use tracing::info;
 use unic_ucd_category::GeneralCategory;
 
 /// Really shitty CSS parser
@@ -61,41 +62,17 @@ fn parse_css_poorly(css: &str, cjk_tag: &str) -> Result<HashMap<String, RoaringB
     Ok(ranges)
 }
 
-// TODO: I know this is code duplication. IDC.
-//noinspection DuplicatedCode
-pub fn decode_range(bitmap: &RoaringBitmap) -> Vec<RangeInclusive<char>> {
-    let mut range_start = None;
-    let mut range_last = '\u{fffff}';
-    let mut ranges = Vec::new();
-    for char in bitmap {
-        let char = char::from_u32(char).expect("Invalid char in RoaringBitmap");
-        if let Some(start) = range_start {
-            let next = char::from_u32(range_last as u32 + 1).unwrap();
-            if next != char {
-                ranges.push(start..=range_last);
-                range_start = Some(char);
-            }
-        } else {
-            range_start = Some(char);
-        }
-        range_last = char;
-    }
-    if let Some(start) = range_start {
-        ranges.push(start..=range_last);
-    }
-    ranges
-}
-
-fn mk_gf_ranges() -> Result<()> {
+async fn mk_gf_ranges() -> Result<()> {
     // download the font list
     let webfont_apikey = std::env::var("WEBFONT_APIKEY")?;
-    let client = reqwest::blocking::ClientBuilder::new()
+    let client = reqwest::ClientBuilder::new()
         .user_agent("Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0")
         .build()?;
     let font_list = client
         .get(format!("https://www.googleapis.com/webfonts/v1/webfonts?key={webfont_apikey}"))
-        .send()?;
-    let fonts: WebfontsIndex = serde_json::from_str(&font_list.text()?)?;
+        .send()
+        .await?;
+    let fonts: WebfontsIndex = serde_json::from_str(&font_list.text().await?)?;
 
     // download and parse all fonts
     #[derive(Clone, Serialize, Deserialize)]
@@ -111,7 +88,7 @@ fn mk_gf_ranges() -> Result<()> {
 
     let mut raw_subsets: HashMap<_, RoaringBitmap> = HashMap::new();
     for font in fonts.items {
-        println!("Getting CSS for {}...", font.family);
+        info!("Getting CSS for {}...", font.family);
 
         let has_chinese_simplified = font.subsets.iter().any(|x| x == "chinese-simplified");
         let has_chinese_traditional = font.subsets.iter().any(|x| x == "chinese-traditional");
@@ -147,13 +124,14 @@ fn mk_gf_ranges() -> Result<()> {
 
         let font_css = client
             .get(format!("https://fonts.googleapis.com/css2?family={}", &font.family))
-            .send()?;
-        let parsed = parse_css_poorly(&font_css.text()?, cjk_tag)?;
+            .send()
+            .await?;
+        let parsed = parse_css_poorly(&font_css.text().await?, cjk_tag)?;
 
         for (k, v) in parsed {
             if let Some(subset) = raw_subsets.get_mut(&k) {
                 if *subset != v {
-                    println!(
+                    info!(
                         "{k} - merging {} codepoints with {} codepoints",
                         subset.len(),
                         v.len()
@@ -169,7 +147,7 @@ fn mk_gf_ranges() -> Result<()> {
     // check for ranges with multiple definitions and merge them
     let mut names = Vec::new();
     for (k, v) in &raw_subsets {
-        println!("{k}: {} codepoints", v.len());
+        info!("{k}: {} codepoints", v.len());
         names.push(k.clone());
     }
     names.sort();
@@ -225,7 +203,7 @@ fn mk_gf_ranges() -> Result<()> {
     }
     let subsets = Subsets { subset: subsets };
 
-    let mut file = File::create("subset_manifest_default.toml")?;
+    let mut file = File::create("mkwebfont/src/subset_manifest_default.toml")?;
     writeln!(file, "# ")?;
     writeln!(file, "# Subset Manifest")?;
     writeln!(file, "# ===============")?;
@@ -241,7 +219,7 @@ fn mk_gf_ranges() -> Result<()> {
     writeln!(file, "# Subsets in a group will only be generated together or not at all.")?;
     writeln!(file, "# ")?;
     writeln!(file, "# The default subset manifest here is based on Google Fonts metadata.")?;
-    writeln!(file, "# Regenerate it with `cargo run -p mkwebfont_extract-gfsubsets`.")?;
+    writeln!(file, "# Regenerate it with `cargo run -p mkwebfont_subset-tool`.")?;
     writeln!(file, "# ")?;
     writeln!(file)?;
     writeln!(file)?;
@@ -249,6 +227,6 @@ fn mk_gf_ranges() -> Result<()> {
     Ok(())
 }
 
-fn main() {
-    mk_gf_ranges().unwrap();
+pub async fn main() {
+    mk_gf_ranges().await.unwrap();
 }

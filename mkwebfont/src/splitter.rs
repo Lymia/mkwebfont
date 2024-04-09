@@ -162,7 +162,7 @@ impl<'a> FontSplittingContext<'a> {
                 || *count >= self.ctx.tuning.accept_subset_count_threshold
             {
                 debug!("Selecting subset {} - count: {count}, ratio: {ratio:.4}", subset.name);
-                return Some((*subset).clone())
+                return Some((*subset).clone());
             }
         }
         for (subset, count, ratio) in top {

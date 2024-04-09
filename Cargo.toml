@@ -1,5 +1,5 @@
 [workspace]
-members = ["mkwebfont", "mkwebfont_extract-gfsubsets"]
+members = ["mkwebfont", "mkwebfont_subset-tool"]
 resolver = "2"
 
 [profile.dev]
