@@ -77,7 +77,7 @@ async fn download_uri_list(target: &str, list: &str) -> Result<()> {
     info!("Loading list for '{target}'...");
 
     let links = find_download_links(list).await?;
-    std::fs::create_dir_all(format!("run/{target}"))?;
+    fs::create_dir_all(format!("run/{target}"))?;
     for uri in links {
         let name = uri.split('/').last().unwrap();
         let target: PathBuf = format!("run/{target}/{name}").into();
@@ -86,7 +86,7 @@ async fn download_uri_list(target: &str, list: &str) -> Result<()> {
 
         if !target.exists() {
             let data = reqwest::get(uri).await?.bytes().await?.to_vec();
-            std::fs::write(target, data)?;
+            fs::write(target, data)?;
         }
     }
     Ok(())
