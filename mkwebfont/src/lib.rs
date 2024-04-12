@@ -4,7 +4,7 @@ mod render;
 mod splitter;
 mod subset_manifest;
 
-pub use render::WebfontInfo;
+pub use render::{SubsetInfo, WebfontInfo};
 
 /// A builder for making configuration for splitting webfonts.
 #[derive(Clone, Debug)]

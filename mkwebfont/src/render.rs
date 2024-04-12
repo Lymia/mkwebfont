@@ -49,6 +49,7 @@ fn extract_version(mut str: &str) -> String {
 #[derive(Debug)]
 pub struct WebfontInfo {
     font_family: String,
+    font_style_text: String,
     font_style: FontStyle,
     font_weight: FontWeight,
     entries: Vec<SubsetInfo>,
@@ -66,6 +67,14 @@ impl WebfontInfo {
         Ok(())
     }
 
+    pub fn font_family(&self) -> &str {
+        &self.font_family
+    }
+
+    pub fn font_style(&self) -> &str {
+        &self.font_style_text
+    }
+
     /// Returns a stylesheet appropriate for using this webfont.
     pub fn render_css<'a>(&'a self, store_uri: &str) -> impl Display + 'a {
         FontStylesheetDisplay { store_uri: store_uri.to_string(), sheet: self }
@@ -74,6 +83,11 @@ impl WebfontInfo {
     /// Returns the number of subsets in the webfont.
     pub fn subset_count(&self) -> usize {
         self.entries.len()
+    }
+
+    /// Returns the subsets in this webfont.
+    pub fn subsets(&self) -> &[SubsetInfo] {
+        &self.entries
     }
 }
 struct UnicodeRange<'a>(&'a [RangeInclusive<char>]);
@@ -98,8 +112,10 @@ impl<'a> Display for UnicodeRange<'a> {
 }
 
 #[derive(Debug)]
-struct SubsetInfo {
+pub struct SubsetInfo {
+    name: String,
     file_name: String,
+    subset: RoaringBitmap,
     subset_ranges: Vec<RangeInclusive<char>>,
     woff2_data: Vec<u8>,
 }
@@ -117,6 +133,7 @@ impl SubsetInfo {
         let subset_ranges = crate::subset_manifest::decode_range(&subset);
 
         SubsetInfo {
+            name: name.to_string(),
             file_name: format!(
                 "{font_name}{}{}_{font_version}_{name}_{hash_str}.woff2",
                 if !is_regular || font.is_variable() { "_" } else { "" },
@@ -128,9 +145,30 @@ impl SubsetInfo {
                     ""
                 },
             ),
+            subset,
             subset_ranges,
             woff2_data,
         }
+    }
+
+    /// Returns the name of the subset.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the file name that this subset will be saved to.
+    pub fn file_name(&self) -> &str {
+        &self.file_name
+    }
+
+    /// Returns the characters this subset applies to.
+    pub fn subset(&self) -> &RoaringBitmap {
+        &self.subset
+    }
+
+    /// Returns the .woff2 data as an array.
+    pub fn woff2_data(&self) -> &[u8] {
+        &self.woff2_data
     }
 }
 
@@ -192,6 +230,7 @@ impl FontEncoder {
 
         Ok(WebfontInfo {
             font_family: self.font.font_family().to_string(),
+            font_style_text: self.font.font_style().to_string(),
             font_style: self.font.parsed_font_style(),
             font_weight: self.font.parsed_font_weight(),
             entries,
