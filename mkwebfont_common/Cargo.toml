@@ -9,3 +9,7 @@ repository = "https://github.com/Lymia/mkwebfont"
 license = "Apache-2.0"
 
 [dependencies]
+anyhow = "1.0"
+bincode = "2.0.0-rc.3"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+zstd = "0.13"

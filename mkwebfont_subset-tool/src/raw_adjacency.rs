@@ -32,9 +32,9 @@ fn place_idx(place_a: usize, place_b: usize) -> usize {
 }
 
 pub struct RawAdjacencyInfo {
-    codepoint_list: Vec<u32>,
+    pub codepoint_list: Vec<u32>,
     places: HashMap<u32, usize>,
-    data: Vec<AtomicU32>,
+    pub data: Vec<AtomicU32>,
 }
 impl RawAdjacencyInfo {
     fn new(glyphs: RoaringBitmap) -> Self {
@@ -166,7 +166,7 @@ async fn push_to_table(
     }
 }
 
-pub async fn generate_adjacency_table() -> Result<()> {
+pub async fn generate_raw_adjacency() -> Result<()> {
     let mut all_glyphs = RoaringBitmap::new();
     let mut webpage_count = 0u64;
     {

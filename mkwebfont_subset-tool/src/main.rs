@@ -1,7 +1,7 @@
 mod download_common_crawl;
-mod generate_adjacency;
 mod legacy_gfsubsets;
-mod test_adjacency;
+mod process_adjacency;
+mod raw_adjacency;
 mod test_subsetting_quality;
 
 use clap::{Parser, Subcommand};
@@ -45,9 +45,9 @@ enum Commands {
     /// be acquired some other way.
     TestSubsettingQuality(TestSubsettingArgs),
 
-    GenerateAdjacency,
+    GenerateRawAdjacency,
 
-    TestAdjacency,
+    ProcessAdjacency,
 }
 
 #[derive(Parser)]
@@ -79,9 +79,7 @@ async fn main() {
                 .await
                 .unwrap()
         }
-        Commands::GenerateAdjacency => generate_adjacency::generate_adjacency_table()
-            .await
-            .unwrap(),
-        Commands::TestAdjacency => test_adjacency::test_adjacency().unwrap(),
+        Commands::GenerateRawAdjacency => raw_adjacency::generate_raw_adjacency().await.unwrap(),
+        Commands::ProcessAdjacency => process_adjacency::process_adjacency().unwrap(),
     }
 }
