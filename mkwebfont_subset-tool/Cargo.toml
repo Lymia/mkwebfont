@@ -22,3 +22,4 @@ warc = "0.3"
 zstd = "0.13"
 
 mkwebfont = { path = "../mkwebfont" }
+mkwebfont_common = { path = "../mkwebfont_common" }

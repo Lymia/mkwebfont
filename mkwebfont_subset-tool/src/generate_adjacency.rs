@@ -3,7 +3,8 @@ use roaring::RoaringBitmap;
 use std::{
     collections::HashMap,
     fs::File,
-    io::{BufReader, BufWriter, Write},
+    io::{BufReader, BufWriter, Read, Write},
+    path::Path,
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc,
@@ -30,12 +31,12 @@ fn place_idx(place_a: usize, place_b: usize) -> usize {
     }
 }
 
-pub struct AdjacencyInfo {
+pub struct RawAdjacencyInfo {
     codepoint_list: Vec<u32>,
     places: HashMap<u32, usize>,
     data: Vec<AtomicU32>,
 }
-impl AdjacencyInfo {
+impl RawAdjacencyInfo {
     fn new(glyphs: RoaringBitmap) -> Self {
         let mut codepoint_list = Vec::new();
         let mut places = HashMap::new();
@@ -55,7 +56,7 @@ impl AdjacencyInfo {
         }
         debug!("Allocation done...");
 
-        AdjacencyInfo { codepoint_list, places, data }
+        RawAdjacencyInfo { codepoint_list, places, data }
     }
 
     fn push_vector(&self, bitmap: &RoaringBitmap, tmp: &mut Vec<usize>) {
@@ -73,6 +74,10 @@ impl AdjacencyInfo {
         tmp.clear();
     }
 
+    pub fn codepoints(&self) -> &[u32] {
+        &self.codepoint_list
+    }
+
     pub fn get_codepoint_count(&self, ch: char) -> u32 {
         self.get_cooccurance_count(ch, ch)
     }
@@ -84,6 +89,53 @@ impl AdjacencyInfo {
             }
         }
         0
+    }
+
+    pub fn deserialize(path: impl AsRef<Path>) -> Result<RawAdjacencyInfo> {
+        debug!("Loading adjacency information from {}...", path.as_ref().display());
+
+        let path = File::open(path)?;
+        let reader = BufReader::new(path);
+        let zstd = Decoder::new(reader)?;
+        let mut zstd = BufReader::new(zstd);
+
+        let mut buffer_usize = [0; 8];
+        let mut buffer_u32 = [0; 4];
+
+        let codepoint_list = {
+            zstd.read_exact(&mut buffer_usize)?;
+            let codepoint_count = usize::from_le_bytes(buffer_usize);
+            let mut codepoint_list = Vec::with_capacity(codepoint_count as usize);
+            for _ in 0..codepoint_count {
+                zstd.read_exact(&mut buffer_u32)?;
+                codepoint_list.push(u32::from_le_bytes(buffer_u32));
+            }
+            codepoint_list
+        };
+
+        let places = {
+            let mut places = HashMap::new();
+            for glyph in &codepoint_list {
+                places.insert(*glyph, places.len());
+            }
+            places
+        };
+
+        let data = {
+            zstd.read_exact(&mut buffer_usize)?;
+            let data_count = usize::from_le_bytes(buffer_usize) as usize;
+            assert_eq!(data_count, triangle(codepoint_list.len()));
+            let mut data = Vec::with_capacity(data_count);
+            for _ in 0..data_count {
+                zstd.read_exact(&mut buffer_u32)?;
+                data.push(AtomicU32::new(u32::from_le_bytes(buffer_u32)));
+            }
+            data
+        };
+
+        debug!("Done!");
+
+        Ok(RawAdjacencyInfo { codepoint_list, places, data })
     }
 
     fn serialize(&self, into: &mut impl Write) -> Result<()> {
@@ -104,13 +156,13 @@ impl AdjacencyInfo {
 async fn push_to_table(
     i: usize,
     webpage_count: u64,
-    adjancency: Arc<AdjacencyInfo>,
+    adjacency: Arc<RawAdjacencyInfo>,
     bitmaps: Vec<RoaringBitmap>,
 ) {
     info!("Processing {} pages as of {i}/{webpage_count} bitmaps ...", bitmaps.len());
     let mut tmp = Vec::new();
     for bitmap in bitmaps {
-        adjancency.push_vector(&bitmap, &mut tmp);
+        adjacency.push_vector(&bitmap, &mut tmp);
     }
 }
 
@@ -127,6 +179,9 @@ pub async fn generate_adjacency_table() -> Result<()> {
                 all_glyphs.insert(ch);
             }
             webpage_count += 1;
+            if webpage_count % 200000 == 0 {
+                debug!("Preprocessing bitmaps as of {webpage_count}...");
+            }
         }
     }
 
@@ -143,7 +198,7 @@ pub async fn generate_adjacency_table() -> Result<()> {
     info!("Webpage count: {webpage_count}");
     info!("Filtered codepoint count: {}", filtered_glyphs.len());
 
-    let graph = Arc::new(AdjacencyInfo::new(filtered_glyphs.clone()));
+    let graph = Arc::new(RawAdjacencyInfo::new(filtered_glyphs.clone()));
     {
         let path = File::open("run/common-crawl_parsed-bitmaps.zst")?;
         let reader = BufReader::new(path);
@@ -155,20 +210,19 @@ pub async fn generate_adjacency_table() -> Result<()> {
         while let Ok(bitmap) = RoaringBitmap::deserialize_unchecked_from(&mut zstd) {
             bitmaps.push(bitmap);
 
-            let graph = graph.clone();
-            let task = tokio::spawn(push_to_table(
-                i,
-                webpage_count,
-                graph,
-                std::mem::replace(&mut bitmaps, Vec::new()),
-            ));
-            threads.push(task);
-
             i += 1;
             if i % 200000 == 0 {
                 debug!("Submitting bitmaps as of {i}/{webpage_count} for processing...");
+                let task = tokio::spawn(push_to_table(
+                    i,
+                    webpage_count,
+                    graph.clone(),
+                    std::mem::replace(&mut bitmaps, Vec::new()),
+                ));
+                threads.push(task);
             }
         }
+        push_to_table(i, webpage_count, graph.clone(), bitmaps).await;
 
         for thread in threads {
             thread.await?;

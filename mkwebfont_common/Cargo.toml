@@ -1,0 +1,11 @@
+[package]
+name = "mkwebfont_common"
+version = "0.1.0"
+authors = ["Lymia Kanokawa <lymia@lymia.moe>"]
+edition = "2021"
+
+description = "Internal crate for mkwebfont."
+repository = "https://github.com/Lymia/mkwebfont"
+license = "Apache-2.0"
+
+[dependencies]

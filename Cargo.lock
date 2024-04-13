@@ -863,6 +863,7 @@ dependencies = [
  "cc",
  "clap",
  "hb-subset",
+ "mkwebfont_common",
  "roaring",
  "serde",
  "tokio",
@@ -874,6 +875,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mkwebfont_common"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
 name = "mkwebfont_subset-tool"
 version = "0.1.0"
 dependencies = [
@@ -881,6 +889,7 @@ dependencies = [
  "clap",
  "flate2",
  "mkwebfont",
+ "mkwebfont_common",
  "reqwest",
  "roaring",
  "serde",

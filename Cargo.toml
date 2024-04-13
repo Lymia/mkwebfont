@@ -1,5 +1,5 @@
 [workspace]
-members = ["mkwebfont", "mkwebfont_subset-tool"]
+members = ["mkwebfont", "mkwebfont_common", "mkwebfont_subset-tool"]
 resolver = "2"
 
 [profile.dev]
