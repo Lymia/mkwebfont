@@ -899,6 +899,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "blake3",
  "tokio",
  "tracing",
  "xxhash-rust",
@@ -907,7 +908,7 @@ dependencies = [
 
 [[package]]
 name = "mkwebfont_subset-tool"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",

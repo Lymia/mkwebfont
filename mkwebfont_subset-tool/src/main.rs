@@ -1,6 +1,6 @@
 mod download_common_crawl;
-mod legacy_gfsubsets;
 mod generate_data;
+mod legacy_gfsubsets;
 mod raw_adjacency;
 mod test_subsetting_quality;
 
@@ -24,8 +24,9 @@ enum Commands {
     GenerateLegacyGfsubsets,
 
     /// Downloads about 260GB of common crawl data and processes it into bitsets of characters
-    /// present in each crawled page. This must be called before any of the commands in this crate
-    /// for generating subset data.
+    /// present in each crawled page.
+    ///
+    /// This must be called before any of the commands in this crate for generating subset data.
     ///
     /// This is **NOT** required for anything a user may want to do normally, and is only useful
     /// for developing mkwebfont typically.

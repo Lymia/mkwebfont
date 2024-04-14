@@ -1,15 +1,13 @@
+use crate::data_package::{DataPackage, DataPackageEncoder};
 use anyhow::Result;
-use bincode::{Decode, Encode};
+use bincode::{config, Decode, Encode};
 use std::{
     collections::HashMap,
     hash::Hash,
-    path::Path,
     sync::atomic::{AtomicU32, Ordering},
 };
 use tracing::log::debug;
 use xxhash_rust::xxh3::{Xxh3, Xxh3Builder};
-
-const FORMAT_VERSION: &str = "adjacency_format:v1";
 
 const BLOOM_FILTER_SIZE: usize = (1 << 20) * 128; // 256 MiB
 const BLOOM_FILTER_COUNT: usize = 6;
@@ -197,26 +195,20 @@ impl AdjacencyBloomFilter {
         }
     }
 
-    pub fn serialize_to_dir(&self, target: impl AsRef<Path>) -> Result<()> {
-        if target.as_ref().exists() {
-            std::fs::remove_dir_all(&target)?;
-        }
-        std::fs::create_dir_all(&target)?;
-
-        let mut path = target.as_ref().to_path_buf();
-
-        path.push("adjacency_table");
-        std::fs::write(&path, self.data.as_slice())?;
-        path.pop();
-
-        path.push("adjacency_meta");
-        std::fs::write(&path, bincode::encode_to_vec(&self.meta, bincode::config::standard())?)?;
-        path.pop();
-
-        path.push("format_version");
-        std::fs::write(&path, FORMAT_VERSION)?;
-        path.pop();
-
+    pub fn serialize(&self, data: &mut DataPackageEncoder) -> Result<()> {
+        data.insert_data("adjacency_table", self.data.as_slice().to_vec());
+        data.insert_data("adjacency_meta", bincode::encode_to_vec(&self.meta, config::standard())?);
         Ok(())
+    }
+
+    pub fn deserialize(data: &DataPackage) -> Result<AdjacencyBloomFilter> {
+        let meta = bincode::decode_from_slice::<Meta, _>(
+            data.get_data("adjacency_meta")?,
+            config::standard(),
+        )?;
+        let mut bloom = AdjacencyBloomFilter::new(meta.0.glyph_info, meta.0.filter_info);
+        let table = data.get_data("adjacency_table")?;
+        bloom.data.copy_from_slice(table);
+        Ok(bloom)
     }
 }

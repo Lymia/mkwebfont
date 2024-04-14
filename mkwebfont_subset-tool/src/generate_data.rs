@@ -2,7 +2,8 @@ use crate::raw_adjacency::RawAdjacencyInfo;
 use anyhow::Result;
 use log::info;
 use mkwebfont_common::{
-    adjacency_bloom_filter::{BloomFilterBuilder, GlyphInfo},
+    adjacency_bloom_filter::{AdjacencyBloomFilter, BloomFilterBuilder, GlyphInfo},
+    data_package::{DataPackage, DataPackageEncoder},
     join_set::JoinSet,
 };
 use rand::seq::SliceRandom;
@@ -12,7 +13,9 @@ use std::{
 };
 use tracing::debug;
 
-pub async fn generate_data() -> Result<()> {
+const VERSION: &str = "v0.1.0";
+
+async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
     let graph = Arc::new(RawAdjacencyInfo::deserialize("run/common-crawl_adjacency.zst")?);
 
     let mut edge_total = 0.0;
@@ -64,7 +67,7 @@ pub async fn generate_data() -> Result<()> {
         let mut remaining = graph.codepoints().len();
         let mut join_set = JoinSet::new();
         while remaining > 0 {
-            let chunk_size = if remaining > 1000 { 1000 } else { remaining };
+            let chunk_size = if remaining > 400 { 400 } else { remaining };
             remaining -= chunk_size;
 
             let i_range = remaining..remaining + chunk_size;
@@ -97,7 +100,7 @@ pub async fn generate_data() -> Result<()> {
         join_set.join().await?;
     }
     let bloom = bloom.finish();
-    bloom.serialize_to_dir("run/adjacency")?;
+    bloom.serialize(data_encoder)?;
 
     info!("Checking accuracy...");
     let mut rng = rand::thread_rng();
@@ -120,6 +123,30 @@ pub async fn generate_data() -> Result<()> {
     }
     info!("Average error: +{:.4}", diff_absolute / test_count as f64);
     info!("Maximum error: {:.4}, +{:.2}%", maximum_error, maximum_error_ratio * 100.0);
+
+    Ok(())
+}
+
+async fn check_packages() -> Result<()> {
+    info!("Checking generated packages...");
+
+    let data = std::fs::read(format!("run/mkwebfont_data-{VERSION}"))?;
+    let data = DataPackage::deserialize(&data)?;
+
+    debug!("Testing adjacency filter decoding...");
+    AdjacencyBloomFilter::deserialize(&data)?;
+
+    Ok(())
+}
+
+pub async fn generate_data() -> Result<()> {
+    let mut data_encoder = DataPackageEncoder::new(&format!("mkwebfont_data-{VERSION}"));
+    encode_adjacency(&mut data_encoder).await?;
+
+    let data = data_encoder.build();
+    std::fs::write(format!("run/mkwebfont_data-{VERSION}"), data.encode()?)?;
+
+    check_packages().await?;
 
     Ok(())
 }
