@@ -11,7 +11,7 @@ usually based on the languages used.
 
 To install it, simply run the following command:
 ```bash
-cargo install mkwebfont
+cargo +nightly install mkwebfont
 ```
 
 Then, run the following command to create a webfont:

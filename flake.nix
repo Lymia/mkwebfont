@@ -4,12 +4,20 @@
     inputs = {
         nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
         flake-utils.url = "github:numtide/flake-utils";
+        nixpkgs-mozilla.url = "github:mozilla/nixpkgs-mozilla";
     };
 
     outputs = inputs: with inputs; flake-utils.lib.eachDefaultSystem (system:
         let
-            pkgs = nixpkgs.legacyPackages.${system};
-            mkwebfont = pkgs.rustPlatform.buildRustPackage {
+            pkgs = import nixpkgs {
+                system = "x86_64-linux";
+                overlays = [ nixpkgs-mozilla.overlay ];
+            };
+            nightlyRustPlatform = pkgs.makeRustPlatform {
+                rustc = pkgs.latest.rustChannels.nightly.rust;
+                cargo = pkgs.latest.rustChannels.nightly.rust;
+            };
+            mkwebfont = nightlyRustPlatform.buildRustPackage {
                 pname = "mkwebfont";
                 version = "0.1.0";
                 src = ./.;
@@ -26,7 +34,7 @@
                 ];
                 nativeBuildInputs = [
                     pkgs.pkg-config
-                    pkgs.rustPlatform.bindgenHook
+                    nightlyRustPlatform.bindgenHook
                 ];
             };
         in rec {

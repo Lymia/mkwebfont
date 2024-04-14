@@ -1,6 +1,6 @@
 mod download_common_crawl;
 mod legacy_gfsubsets;
-mod process_adjacency;
+mod generate_data;
 mod raw_adjacency;
 mod test_subsetting_quality;
 
@@ -41,13 +41,18 @@ enum Commands {
 
     /// Tests the final download size of a given set of fonts on a set of website data.
     ///
-    /// Requires that `download-common-crawl` is run first, or the appropriate bitmap data should
-    /// be acquired some other way.
+    /// Requires that `download-common-crawl` is run first.
     TestSubsettingQuality(TestSubsettingArgs),
 
+    /// Generates the raw adjacency tables from common crawl data.
+    ///
+    /// Requires that `download-common-crawl` is run first.
     GenerateRawAdjacency,
 
-    ProcessAdjacency,
+    /// Encodes the common crawl data into the final form used by the binary.
+    ///
+    /// Requires that `download-common-crawl` and `generate-raw-adjacency` are run first.
+    GenerateData,
 }
 
 #[derive(Parser)]
@@ -80,6 +85,6 @@ async fn main() {
                 .unwrap()
         }
         Commands::GenerateRawAdjacency => raw_adjacency::generate_raw_adjacency().await.unwrap(),
-        Commands::ProcessAdjacency => process_adjacency::process_adjacency().unwrap(),
+        Commands::GenerateData => generate_data::generate_data().await.unwrap(),
     }
 }

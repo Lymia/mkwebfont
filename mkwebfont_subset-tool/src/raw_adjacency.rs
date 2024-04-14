@@ -14,16 +14,18 @@ use tracing::{debug, info};
 use unic_ucd_category::GeneralCategory;
 use zstd::{Decoder, Encoder};
 
-fn triangle(n: usize) -> usize {
+pub fn triangle(n: usize) -> usize {
     n.checked_mul(n.checked_add(1).unwrap())
         .unwrap()
         .checked_div(2)
         .unwrap()
 }
-fn triangle_unchecked(n: usize) -> usize {
+
+pub fn triangle_unchecked(n: usize) -> usize {
     (n * (n + 1)) / 2
 }
-fn place_idx(place_a: usize, place_b: usize) -> usize {
+
+pub fn place_idx(place_a: usize, place_b: usize) -> usize {
     if place_a < place_b {
         place_idx(place_b, place_a)
     } else {
