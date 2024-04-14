@@ -13,7 +13,7 @@ use std::{
 };
 use tracing::debug;
 
-const VERSION: &str = "v0.1.0";
+pub const VERSION: &str = "v0.1.0";
 
 async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
     let graph = Arc::new(RawAdjacencyInfo::deserialize("run/common-crawl_adjacency.zst")?);

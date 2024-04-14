@@ -94,6 +94,11 @@ impl LoadedFont {
             .collect())
     }
 
+    /// Returns the list of codepoints in the loaded font.
+    pub fn codepoints(&self) -> roaring::RoaringBitmap {
+        self.underlying.all_codepoints().clone()
+    }
+
     /// Returns the name of the font family
     pub fn font_family(&self) -> &str {
         self.underlying.font_family()

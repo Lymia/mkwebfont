@@ -2,6 +2,7 @@ mod download_common_crawl;
 mod generate_data;
 mod legacy_gfsubsets;
 mod raw_adjacency;
+mod test_subsetting;
 mod test_subsetting_quality;
 
 use clap::{Parser, Subcommand};
@@ -43,7 +44,7 @@ enum Commands {
     /// Tests the final download size of a given set of fonts on a set of website data.
     ///
     /// Requires that `download-common-crawl` is run first.
-    TestSubsettingQuality(TestSubsettingArgs),
+    TestSubsettingQuality(FileArgs),
 
     /// Generates the raw adjacency tables from common crawl data.
     ///
@@ -54,11 +55,13 @@ enum Commands {
     ///
     /// Requires that `download-common-crawl` and `generate-raw-adjacency` are run first.
     GenerateData,
+
+    TestSubsetting(FileArgs),
 }
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
-struct TestSubsettingArgs {
+struct FileArgs {
     files: Vec<PathBuf>,
 }
 
@@ -87,5 +90,6 @@ async fn main() {
         }
         Commands::GenerateRawAdjacency => raw_adjacency::generate_raw_adjacency().await.unwrap(),
         Commands::GenerateData => generate_data::generate_data().await.unwrap(),
+        Commands::TestSubsetting(path) => test_subsetting::test_subsetting(&path.files).unwrap(),
     }
 }

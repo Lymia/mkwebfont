@@ -182,16 +182,22 @@ impl AdjacencyBloomFilter {
         self.meta.glyph_info.get(&glyph)
     }
 
+    pub fn get_character_frequency(&self, ch: u32) -> u32 {
+        if let Some(x) = self.meta.glyph_info.get(&char::from_u32(ch).unwrap()) {
+            x.count
+        } else {
+            0
+        }
+    }
+
     pub fn load_pairing(&self, a: u32, b: u32) -> u32 {
         if a != b {
             let value = (a.min(b), a.max(b));
             let mut min = u8::MAX;
             do_hash(value, |i| min = min.min(self.data[i]));
             self.meta.filter_info.decode(min)
-        } else if let Some(x) = self.meta.glyph_info.get(&char::from_u32(a).unwrap()) {
-            x.count
         } else {
-            0
+            self.get_character_frequency(a)
         }
     }
 
@@ -210,5 +216,35 @@ impl AdjacencyBloomFilter {
         let table = data.get_data("adjacency_table")?;
         bloom.data.copy_from_slice(table);
         Ok(bloom)
+    }
+
+    fn modularity_expectation(&self, chars: &[char]) -> f64 {
+        let mut total = 0.0;
+        for i in 0..chars.len() {
+            for j in i + 1..chars.len() {
+                let ea = self.meta.glyph_info.get(&chars[i]).unwrap().edge_total;
+                let eb = self.meta.glyph_info.get(&chars[j]).unwrap().edge_total;
+                total += (ea * eb) / (2.0 * self.meta.filter_info.edge_total);
+            }
+        }
+        total
+    }
+    fn modularity_actual(&self, chars: &[char]) -> f64 {
+        let mut total = 0.0;
+        for i in 0..chars.len() {
+            for j in i + 1..chars.len() {
+                total += self.load_pairing(chars[i] as u32, chars[j] as u32) as f64;
+            }
+        }
+        total
+    }
+    pub fn modularity(&self, chars: &[char]) -> f64 {
+        self.modularity_actual(chars)
+    }
+
+    /// Very slow!!! For testing only.
+    pub fn str_modularity(&self, s: &str) -> f64 {
+        let s: Vec<_> = s.chars().collect();
+        self.modularity(&s)
     }
 }
