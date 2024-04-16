@@ -8,12 +8,12 @@ use mkwebfont_common::{
 };
 use rand::seq::SliceRandom;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{atomic::Ordering, Arc},
 };
 use tracing::debug;
 
-pub const VERSION: &str = "v0.1.0";
+pub const VERSION: &str = "v0.1.1-xxh64";
 
 async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
     let graph = Arc::new(RawAdjacencyInfo::deserialize("run/common-crawl_adjacency.zst")?);
@@ -53,7 +53,8 @@ async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
             }
             i += j + 1;
 
-            glyphs.insert(ch, GlyphInfo { count: graph.get_codepoint_count(ch), edge_total });
+            let count = graph.get_codepoint_count(ch);
+            glyphs.insert(ch, GlyphInfo { count, edge_total });
         }
     }
 
@@ -84,12 +85,13 @@ async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
                 for i in i_range {
                     for j in (0..=i).into_iter().rev() {
                         if i != j {
+                            let a = graph.codepoint_list[i];
+                            let b = graph.codepoint_list[j];
+
                             let cooccurance = graph.data[idx].load(Ordering::Relaxed);
-                            bloom.insert_pairing(
-                                graph.codepoint_list[i],
-                                graph.codepoint_list[j],
-                                cooccurance,
-                            );
+                            if cooccurance != 0 {
+                                bloom.insert_pairing(a, b, cooccurance);
+                            }
                         }
                         idx += 1;
                     }

@@ -1,3 +1,4 @@
+use crate::wyhash::WyHashBuilder;
 use anyhow::{bail, ensure, Result};
 use bincode::{config, Decode, Encode};
 use std::{
@@ -6,7 +7,6 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use tracing::{debug, info};
-use xxhash_rust::xxh3::Xxh3Builder;
 use zstd::Encoder;
 
 const MAGIC: &[u8; 8] = b"mkwbfont";
@@ -47,8 +47,8 @@ impl DataPackageEncoder {
 pub struct DataPackage {
     package_id: String,
     timestamp: u64,
-    meta_num: HashMap<String, i64, Xxh3Builder>,
-    files: HashMap<String, Vec<u8>, Xxh3Builder>,
+    meta_num: HashMap<String, i64, WyHashBuilder>,
+    files: HashMap<String, Vec<u8>, WyHashBuilder>,
 }
 impl DataPackage {
     pub fn package_id(&self) -> &str {

@@ -902,7 +902,7 @@ dependencies = [
  "blake3",
  "tokio",
  "tracing",
- "xxhash-rust",
+ "wyrand",
  "zstd",
 ]
 
@@ -2163,10 +2163,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "xxhash-rust"
-version = "0.8.10"
+name = "wyrand"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "927da81e25be1e1a2901d59b81b37dd2efd1fc9c9345a55007f09bf5a2d3ee03"
+checksum = "1f3ee2fb243e75b43652f8b5ef347547bc82f10513dd7dacde806eb59d5ac5e7"
+dependencies = [
+ "rand_core",
+]
 
 [[package]]
 name = "zeroize"

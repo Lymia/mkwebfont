@@ -14,5 +14,5 @@ bincode = "2.0.0-rc.3"
 blake3 = { version = "1.5", features = ["pure"] }
 tokio = { version = "1.37", features = ["rt-multi-thread"] }
 tracing = "0.1"
-xxhash-rust = { version = "0.8", features = ["xxh3"] }
+wyrand = { version = "=0.1.6", features = ["wyhash", "v4_2"] } # low-usage crate, pin reviewed version
 zstd = { version = "0.13", features = ["zstdmt"] }

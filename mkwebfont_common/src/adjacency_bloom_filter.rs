@@ -1,18 +1,35 @@
-use crate::data_package::{DataPackage, DataPackageEncoder};
+use crate::{
+    data_package::{DataPackage, DataPackageEncoder},
+    wyhash::{wyhash, WyHashBuilder},
+};
 use anyhow::Result;
 use bincode::{config, Decode, Encode};
 use std::{
     collections::HashMap,
-    hash::Hash,
+    hash::{Hash, Hasher},
     sync::atomic::{AtomicU32, Ordering},
 };
 use tracing::log::debug;
-use xxhash_rust::xxh3::{Xxh3, Xxh3Builder};
 
-const BLOOM_FILTER_SIZE: usize = (1 << 20) * 128; // 256 MiB
+const BLOOM_FILTER_SIZE: usize = (1 << 20) * 256; // 256 MiB
 const BLOOM_FILTER_COUNT: usize = 6;
 const XXH_SEED_A: u64 = 0xde66789c738d6e58;
 const XXH_SEED_B: u64 = 0x99c33e4ae16946a0;
+
+pub struct FilterParams {
+    size: usize,
+    mask: usize,
+    hash_count: usize,
+    seed_a: u64,
+    seed_b: u64,
+}
+impl FilterParams {
+    pub fn new(size: usize, hash_count: usize, seed_a: u64, seed_b: u64) -> Self {
+        assert!(size.is_power_of_two());
+        let mask = size - 1;
+        FilterParams { size, mask, hash_count, seed_a, seed_b }
+    }
+}
 
 #[derive(Copy, Clone, Decode, Encode, Debug)]
 struct FilterInfo {
@@ -54,15 +71,9 @@ impl FilterInfo {
     pub fn decode(&self, value: u8) -> u32 {
         let value = value as f64 / (u8::MAX as f64);
         let value = value * (self.log_max_value - self.log_min_value) + self.log_min_value;
-        let value = value.powf(self.exponent);
+        let value = self.exponent.powf(value);
         value.round() as u32
     }
-}
-
-fn xxh3_seed(seed: u64, data: impl Hash) -> u64 {
-    let mut xxh = Xxh3::with_seed(seed);
-    data.hash(&mut xxh);
-    xxh.digest()
 }
 
 #[derive(Copy, Clone, Decode, Encode, Debug)]
@@ -74,12 +85,17 @@ pub struct GlyphInfo {
 #[derive(Clone, Decode, Encode, Debug)]
 struct Meta {
     filter_info: FilterInfo,
-    glyph_info: HashMap<char, GlyphInfo, Xxh3Builder>,
+    glyph_info: HashMap<char, GlyphInfo, WyHashBuilder>,
 }
 
 fn do_hash(value: (u32, u32), mut func: impl FnMut(usize)) {
-    let mut hash_a = xxh3_seed(XXH_SEED_A, value);
-    let mut hash_b = xxh3_seed(XXH_SEED_B, value);
+    let mut buffer = [0; 8];
+    buffer[0..4].copy_from_slice(&value.0.to_le_bytes());
+    buffer[4..8].copy_from_slice(&value.1.to_le_bytes());
+
+    let mut hash_a = wyhash(XXH_SEED_A, &buffer);
+    let mut hash_b = wyhash(XXH_SEED_B, &buffer);
+
     for i in 0..BLOOM_FILTER_COUNT {
         hash_b = hash_b.wrapping_add(i as u64);
         func((hash_a % BLOOM_FILTER_SIZE as u64) as usize);
@@ -91,7 +107,7 @@ pub struct BloomFilterBuilder {
     exponent: f64,
     edge_total: f64,
     edge_count: f64,
-    glyphs: HashMap<char, GlyphInfo, Xxh3Builder>,
+    glyphs: HashMap<char, GlyphInfo, WyHashBuilder>,
     data: Box<[AtomicU32; BLOOM_FILTER_SIZE]>,
 }
 impl BloomFilterBuilder {
@@ -160,7 +176,7 @@ pub struct AdjacencyBloomFilter {
     data: Box<[u8; BLOOM_FILTER_SIZE]>,
 }
 impl AdjacencyBloomFilter {
-    fn new(glyph_info: HashMap<char, GlyphInfo, Xxh3Builder>, filter_info: FilterInfo) -> Self {
+    fn new(glyph_info: HashMap<char, GlyphInfo, WyHashBuilder>, filter_info: FilterInfo) -> Self {
         let mut glyphs = Vec::new();
         for (ch, _) in &glyph_info {
             glyphs.push(*ch);
@@ -190,6 +206,7 @@ impl AdjacencyBloomFilter {
         }
     }
 
+    #[inline(never)]
     pub fn load_pairing(&self, a: u32, b: u32) -> u32 {
         if a != b {
             let value = (a.min(b), a.max(b));
@@ -218,6 +235,15 @@ impl AdjacencyBloomFilter {
         Ok(bloom)
     }
 
+    fn modularity_actual(&self, chars: &[char]) -> f64 {
+        let mut total = 0.0;
+        for i in 0..chars.len() {
+            for j in i + 1..chars.len() {
+                total += self.load_pairing(chars[i] as u32, chars[j] as u32) as f64;
+            }
+        }
+        total
+    }
     fn modularity_expectation(&self, chars: &[char]) -> f64 {
         let mut total = 0.0;
         for i in 0..chars.len() {
@@ -229,17 +255,9 @@ impl AdjacencyBloomFilter {
         }
         total
     }
-    fn modularity_actual(&self, chars: &[char]) -> f64 {
-        let mut total = 0.0;
-        for i in 0..chars.len() {
-            for j in i + 1..chars.len() {
-                total += self.load_pairing(chars[i] as u32, chars[j] as u32) as f64;
-            }
-        }
-        total
-    }
     pub fn modularity(&self, chars: &[char]) -> f64 {
-        self.modularity_actual(chars)
+        (self.modularity_actual(chars) - self.modularity_expectation(chars))
+            / (2.0 * self.meta.filter_info.edge_total)
     }
 
     /// Very slow!!! For testing only.

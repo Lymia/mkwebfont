@@ -2,8 +2,8 @@ use crate::generate_data::VERSION;
 use anyhow::Result;
 use mkwebfont::LoadedFont;
 use mkwebfont_common::{adjacency_bloom_filter::AdjacencyBloomFilter, data_package::DataPackage};
-use std::path::PathBuf;
 use roaring::RoaringBitmap;
+use std::path::PathBuf;
 use tracing::{debug, info};
 
 fn subset(font: &LoadedFont) -> Result<()> {
@@ -23,7 +23,7 @@ fn subset(font: &LoadedFont) -> Result<()> {
     for &ch in bloom.glyph_list() {
         if characters.contains(&ch) {
             frequency_order.push((ch, bloom.get_character_frequency(ch as u32)));
-            }
+        }
     }
     frequency_order.sort_by_key(|x| x.1);
     frequency_order.reverse();
@@ -40,7 +40,7 @@ fn subset(font: &LoadedFont) -> Result<()> {
             fulfilled.insert(seed_ch as u32);
             remaining.remove(seed_ch as u32);
 
-            let mut last_modularity = 0.0;
+            let mut last_modularity = f64::MIN;
             while subset.len() < 25 && !remaining.is_empty() {
                 let mut best_modularity = last_modularity;
                 let mut best_ch = None;
@@ -58,7 +58,7 @@ fn subset(font: &LoadedFont) -> Result<()> {
                 }
 
                 if best_ch.is_none() {
-                    break
+                    break;
                 }
 
                 let best_ch = best_ch.unwrap();
@@ -66,7 +66,7 @@ fn subset(font: &LoadedFont) -> Result<()> {
                 fulfilled.insert(best_ch as u32);
                 remaining.remove(best_ch as u32);
 
-                last_modularity  = best_modularity;
+                last_modularity = best_modularity;
             }
 
             let mut str = String::new();
