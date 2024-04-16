@@ -89,12 +89,8 @@ struct Meta {
 }
 
 fn do_hash(value: (u32, u32), mut func: impl FnMut(usize)) {
-    let mut buffer = [0; 8];
-    buffer[0..4].copy_from_slice(&value.0.to_le_bytes());
-    buffer[4..8].copy_from_slice(&value.1.to_le_bytes());
-
-    let mut hash_a = wyhash(XXH_SEED_A, &buffer);
-    let mut hash_b = wyhash(XXH_SEED_B, &buffer);
+    let mut hash_a = wyhash(XXH_SEED_A, &value);
+    let mut hash_b = wyhash(XXH_SEED_B, &value);
 
     for i in 0..BLOOM_FILTER_COUNT {
         hash_b = hash_b.wrapping_add(i as u64);
@@ -206,8 +202,7 @@ impl AdjacencyBloomFilter {
         }
     }
 
-    #[inline(never)]
-    pub fn load_pairing(&self, a: u32, b: u32) -> u32 {
+    pub fn get_pairing(&self, a: u32, b: u32) -> u32 {
         if a != b {
             let value = (a.min(b), a.max(b));
             let mut min = u8::MAX;
@@ -239,7 +234,7 @@ impl AdjacencyBloomFilter {
         let mut total = 0.0;
         for i in 0..chars.len() {
             for j in i + 1..chars.len() {
-                total += self.load_pairing(chars[i] as u32, chars[j] as u32) as f64;
+                total += self.get_pairing(chars[i] as u32, chars[j] as u32) as f64;
             }
         }
         total

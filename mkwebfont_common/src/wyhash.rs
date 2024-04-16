@@ -13,8 +13,10 @@ impl BuildHasher for WyHashBuilder {
     }
 }
 
-pub fn wyhash(seed: u64, data: &[u8]) -> u64 {
+pub fn wyhash(seed: u64, data: &impl Hash) -> u64 {
     let mut wyh = WyHash::new_with_default_secret(seed);
     data.hash(&mut wyh);
     wyh.finish()
 }
+
+pub use wyrand::WyRand;

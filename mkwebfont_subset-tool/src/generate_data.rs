@@ -12,8 +12,9 @@ use std::{
     sync::{atomic::Ordering, Arc},
 };
 use tracing::debug;
+use mkwebfont_common::wyhash::WyRand;
 
-pub const VERSION: &str = "v0.1.1-xxh64";
+pub const VERSION: &str = "v0.1.1";
 
 async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
     let graph = Arc::new(RawAdjacencyInfo::deserialize("run/common-crawl_adjacency.zst")?);
@@ -105,17 +106,18 @@ async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
     bloom.serialize(data_encoder)?;
 
     info!("Checking accuracy...");
-    let mut rng = rand::thread_rng();
+    let mut rng = WyRand::new(10000);
     let test_count = 10000000;
     let mut diff_absolute = 0.0;
     let mut maximum_error = 0.0f64;
     let mut maximum_error_ratio = 0.0f64;
     for _ in 0..test_count {
-        let g1 = char::from_u32(*graph.codepoint_list.choose(&mut rng).unwrap()).unwrap();
-        let g2 = char::from_u32(*graph.codepoint_list.choose(&mut rng).unwrap()).unwrap();
+        let cpl = &graph.codepoint_list;
+        let g1 = char::from_u32(cpl[rng.rand() as usize % cpl.len()]).unwrap();
+        let g2 = char::from_u32(cpl[rng.rand() as usize % cpl.len()]).unwrap();
 
         let cor = graph.get_cooccurance_count(g1, g2) as f64;
-        let blo = bloom.load_pairing(g1 as u32, g2 as u32) as f64;
+        let blo = bloom.get_pairing(g1 as u32, g2 as u32) as f64;
 
         diff_absolute += (cor - blo).abs();
         maximum_error = maximum_error.max((cor - blo).abs());
