@@ -5,16 +5,15 @@ use mkwebfont_common::{
     adjacency_bloom_filter::{AdjacencyBloomFilter, BloomFilterBuilder, GlyphInfo},
     data_package::{DataPackage, DataPackageEncoder},
     join_set::JoinSet,
+    wyhash::WyRand,
 };
-use rand::seq::SliceRandom;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::{atomic::Ordering, Arc},
 };
 use tracing::debug;
-use mkwebfont_common::wyhash::WyRand;
 
-pub const VERSION: &str = "v0.1.1";
+pub const VERSION: &str = "v0.1.2";
 
 async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
     let graph = Arc::new(RawAdjacencyInfo::deserialize("run/common-crawl_adjacency.zst")?);
@@ -45,6 +44,7 @@ async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
     let mut glyphs = HashMap::new();
     {
         let mut i = 0;
+        let mut block_ids = HashMap::new();
         for (j, glyph) in graph.codepoint_list.iter().enumerate() {
             let ch = char::from_u32(*glyph).unwrap();
 
@@ -55,15 +55,27 @@ async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
             i += j + 1;
 
             let count = graph.get_codepoint_count(ch);
-            glyphs.insert(ch, GlyphInfo { count, edge_total });
+            let block = unic_ucd_block::Block::of(ch).unwrap();
+            let block_id = if let Some(id) = block_ids.get(block.name) {
+                *id
+            } else {
+                let id = block_ids.len() as u32;
+                block_ids.insert(block.name, id);
+                id
+            };
+            glyphs.insert(ch as u32, GlyphInfo { count: count as u64, edge_total, block_id });
         }
     }
 
     let bloom = Arc::new(BloomFilterBuilder::new(
+        VERSION,
+        (1 << 20) * 512,
+        8,
         glyphs,
         1.5,
         edge_total,
         (graph.data.len() - graph.codepoint_list.len()) as f64,
+        0.25,
     ));
     {
         let mut remaining = graph.codepoints().len();
@@ -91,7 +103,7 @@ async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
 
                             let cooccurance = graph.data[idx].load(Ordering::Relaxed);
                             if cooccurance != 0 {
-                                bloom.insert_pairing(a, b, cooccurance);
+                                bloom.insert_pairing(a, b, cooccurance as u64);
                             }
                         }
                         idx += 1;
@@ -103,7 +115,7 @@ async fn encode_adjacency(data_encoder: &mut DataPackageEncoder) -> Result<()> {
         join_set.join().await?;
     }
     let bloom = bloom.finish();
-    bloom.serialize(data_encoder)?;
+    bloom.serialize(data_encoder, "main")?;
 
     info!("Checking accuracy...");
     let mut rng = WyRand::new(10000);
@@ -138,7 +150,7 @@ async fn check_packages() -> Result<()> {
     let data = DataPackage::deserialize(&data)?;
 
     debug!("Testing adjacency filter decoding...");
-    AdjacencyBloomFilter::deserialize(&data)?;
+    AdjacencyBloomFilter::deserialize(&data, "main")?;
 
     Ok(())
 }

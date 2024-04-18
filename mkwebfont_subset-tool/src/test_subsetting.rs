@@ -4,13 +4,13 @@ use mkwebfont::LoadedFont;
 use mkwebfont_common::{adjacency_bloom_filter::AdjacencyBloomFilter, data_package::DataPackage};
 use roaring::RoaringBitmap;
 use std::path::PathBuf;
-use tracing::{debug, info};
+use tracing::info;
 
 fn subset(font: &LoadedFont) -> Result<()> {
     info!("Loading data...");
     let data = std::fs::read(format!("run/mkwebfont_data-{VERSION}"))?;
     let data = DataPackage::deserialize(&data)?;
-    let bloom = AdjacencyBloomFilter::deserialize(&data)?;
+    let bloom = AdjacencyBloomFilter::deserialize(&data, "main")?;
 
     info!("Font: {} {}", font.font_family(), font.font_style());
 
