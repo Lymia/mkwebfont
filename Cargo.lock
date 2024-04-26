@@ -900,6 +900,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "blake3",
+ "roaring",
  "tokio",
  "tracing",
  "wyrand",

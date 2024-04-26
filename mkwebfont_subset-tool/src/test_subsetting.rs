@@ -40,21 +40,17 @@ fn subset(font: &LoadedFont) -> Result<()> {
             fulfilled.insert(seed_ch as u32);
             remaining.remove(seed_ch as u32);
 
-            let mut last_modularity = f64::MIN;
-            while subset.len() < 25 && !remaining.is_empty() {
-                let mut best_modularity = last_modularity;
+            while subset.len() < 50 && !remaining.is_empty() {
+                let mut best_modularity = 0.0;
                 let mut best_ch = None;
                 for ch in &remaining {
                     let ch = char::from_u32(ch).unwrap();
-                    subset.push(ch);
 
-                    let modularity = bloom.modularity(&subset);
+                    let modularity = bloom.delta_modularity(ch, &subset);
                     if modularity > best_modularity {
                         best_modularity = modularity;
                         best_ch = Some(ch);
                     }
-
-                    subset.pop();
                 }
 
                 if best_ch.is_none() {
@@ -65,8 +61,6 @@ fn subset(font: &LoadedFont) -> Result<()> {
                 subset.push(best_ch);
                 fulfilled.insert(best_ch as u32);
                 remaining.remove(best_ch as u32);
-
-                last_modularity = best_modularity;
             }
 
             let mut str = String::new();

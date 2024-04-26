@@ -55,18 +55,12 @@ struct ByteEncoder {
     log_min_value: f64,
     log_max_value: f64,
     exponent: f64,
-    median: u64,
 }
 impl ByteEncoder {
-    fn init_for_min_max(exponent: f64, min: u64, max: u64, median: u64) -> Self {
+    fn init_for_min_max(exponent: f64, min: u64, max: u64) -> Self {
         let min = min.max(1) as f64;
         let max = max.max(1) as f64;
-        ByteEncoder {
-            log_min_value: min.log(exponent),
-            log_max_value: max.log(exponent),
-            exponent,
-            median,
-        }
+        ByteEncoder { log_min_value: min.log(exponent), log_max_value: max.log(exponent), exponent }
     }
 
     pub fn encode(&self, value: u64) -> u8 {
@@ -85,9 +79,11 @@ impl ByteEncoder {
 }
 
 #[derive(Copy, Clone, Decode, Encode, Debug)]
-pub struct GlyphInfo {
+pub struct CodepointInfo {
     pub count: u64,
     pub edge_total: f64,
+    pub edge_median: u64,
+    pub edge_maximum: u64,
     pub block_id: u32,
 }
 
@@ -97,25 +93,24 @@ struct Meta {
     params: FilterParams,
     edge_total: f64,
     edge_count: f64,
-    glyphs: HashMap<u32, GlyphInfo, WyHashBuilder>,
+    codepoints: HashMap<u32, CodepointInfo, WyHashBuilder>,
+    average_error: f64,
 }
 
 pub struct BloomFilterBuilder {
     meta: Meta,
     exponent: f64,
     data: Vec<AtomicU64>,
-    median_threshold: f64,
 }
 impl BloomFilterBuilder {
     pub fn new(
         name: &str,
         size: usize,
         hash_count: usize,
-        glyph_info: HashMap<u32, GlyphInfo>,
+        codepoints: HashMap<u32, CodepointInfo>,
         exponent: f64,
         edge_total: f64,
         edge_count: f64,
-        median_threshold: f64,
     ) -> Self {
         let mut data = Vec::with_capacity(size);
         for _ in 0..size {
@@ -128,33 +123,32 @@ impl BloomFilterBuilder {
                 params: FilterParams::new(name, size, hash_count),
                 edge_total,
                 edge_count,
-                glyphs: glyph_info.into_iter().collect(),
+                codepoints: codepoints.into_iter().collect(),
+                average_error: 0.0,
             },
             exponent,
             data,
-            median_threshold,
         }
     }
 
     pub fn insert_pairing(&self, a: u32, b: u32, count: u64) {
-        let value = (a.min(b), a.max(b));
-        self.meta.params.do_hash(value, |i| {
-            self.data[i].fetch_max(count, Ordering::Relaxed);
-        });
+        let Some(ac) = self.meta.codepoints.get(&a) else {
+            return;
+        };
+        let Some(bc) = self.meta.codepoints.get(&b) else {
+            return;
+        };
+
+        let median = ac.edge_median.max(bc.edge_median);
+        if count >= median {
+            let value = (a.min(b), a.max(b));
+            self.meta.params.do_hash(value, |i| {
+                self.data[i].fetch_max(count, Ordering::Relaxed);
+            });
+        }
     }
 
     pub fn finish(&self) -> AdjacencyBloomFilter {
-        let median = {
-            let mut median_tmp: Vec<_> = self
-                .data
-                .as_slice()
-                .iter()
-                .map(|x| x.load(Ordering::Relaxed))
-                .collect();
-            let target = (median_tmp.len() as f64 * self.median_threshold) as usize;
-            *median_tmp.select_nth_unstable(target).1
-        };
-
         let mut min = u64::MAX;
         let mut max = u64::MIN;
         for v in self.data.as_slice() {
@@ -163,12 +157,7 @@ impl BloomFilterBuilder {
         }
         debug!("Raw min/max: {min}-{max}");
 
-        if min < median {
-            min = median;
-        }
-        debug!("Filtered min/max: {min}-{max}");
-
-        let encoder = ByteEncoder::init_for_min_max(self.exponent, min, max, median);
+        let encoder = ByteEncoder::init_for_min_max(self.exponent, min, max);
         debug!("Encoder: {encoder:?}");
 
         let mut bloom = AdjacencyBloomFilter::new(self.meta.clone(), encoder);
@@ -190,7 +179,7 @@ impl AdjacencyBloomFilter {
         meta.params.validate();
 
         let mut glyphs = Vec::new();
-        for (ch, _) in &meta.glyphs {
+        for (ch, _) in &meta.codepoints {
             glyphs.push(char::from_u32(*ch).unwrap());
         }
         glyphs.sort();
@@ -204,24 +193,22 @@ impl AdjacencyBloomFilter {
     }
 
     pub fn get_character_frequency(&self, ch: u32) -> u64 {
-        if let Some(x) = self.meta.glyphs.get(&ch) {
+        if let Some(x) = self.meta.codepoints.get(&ch) {
             x.count
         } else {
             0
         }
     }
 
-    fn get_block_id(&self, ch: u32) -> u32 {
-        if let Some(x) = self.meta.glyphs.get(&ch) {
-            x.block_id
-        } else {
-            0
-        }
-    }
-
-    #[inline(never)]
     pub fn get_pairing(&self, a: u32, b: u32) -> u64 {
         if a != b {
+            let Some(ac) = self.meta.codepoints.get(&a) else {
+                return 0;
+            };
+            let Some(bc) = self.meta.codepoints.get(&b) else {
+                return 0;
+            };
+
             let value = (a.min(b), a.max(b));
             let mut min = u8::MAX;
             // SAFETY: `FilterParams` is validated in `AdjacencyBloomFilter::new`
@@ -229,17 +216,31 @@ impl AdjacencyBloomFilter {
                 .params
                 .do_hash(value, |i| min = min.min(unsafe { *self.data.get_unchecked(i) }));
 
+            let median = ac.edge_median.max(bc.edge_median);
+            let maximum = ac.edge_maximum.max(bc.edge_maximum);
+
             let value = self.encoder.decode(min);
-            if value > self.encoder.median {
+            if value > maximum {
+                maximum
+            } else if value > median {
                 value
-            } else if self.get_block_id(a) == self.get_block_id(b) {
-                self.encoder.median
+            } else if ac.block_id == bc.block_id {
+                median
             } else {
                 0
             }
         } else {
             self.get_character_frequency(a)
         }
+    }
+
+    pub fn get_adjusted_pairing(&self, a: u32, b: u32) -> f64 {
+        self.get_pairing(a, b) as f64 - self.meta.average_error * 2.0
+    }
+
+    pub fn with_average_error(mut self, error: f64) -> Self {
+        self.meta.average_error = error;
+        self
     }
 
     pub fn serialize(&self, data: &mut DataPackageEncoder, name: &str) -> Result<()> {
@@ -271,34 +272,32 @@ impl AdjacencyBloomFilter {
         Ok(bloom)
     }
 
-    fn modularity_actual(&self, chars: &[char]) -> f64 {
+    /// Returns the change in modularity if a character would be added to a set of characters.
+    pub fn delta_modularity(&self, target: char, set: &[char]) -> f64 {
         let mut total = 0.0;
-        for i in 0..chars.len() {
-            for j in i + 1..chars.len() {
-                total += self.get_pairing(chars[i] as u32, chars[j] as u32) as f64;
-            }
-        }
-        total
-    }
-    fn modularity_expectation(&self, chars: &[char]) -> f64 {
-        let mut total = 0.0;
-        for i in 0..chars.len() {
-            for j in i + 1..chars.len() {
-                let ea = self.meta.glyphs.get(&(chars[i] as u32)).unwrap().edge_total;
-                let eb = self.meta.glyphs.get(&(chars[j] as u32)).unwrap().edge_total;
-                total += (ea * eb) / (2.0 * self.meta.edge_total);
-            }
-        }
-        total
-    }
-    pub fn modularity(&self, chars: &[char]) -> f64 {
-        (self.modularity_actual(chars) - self.modularity_expectation(chars))
-            / (2.0 * self.meta.edge_total)
-    }
 
-    /// Very slow!!! For testing only.
-    pub fn str_modularity(&self, s: &str) -> f64 {
-        let s: Vec<_> = s.chars().collect();
-        self.modularity(&s)
+        // calculate modularity expectation
+        let ea = self
+            .meta
+            .codepoints
+            .get(&(target as u32))
+            .unwrap()
+            .edge_total;
+        for char in set {
+            let eb = self
+                .meta
+                .codepoints
+                .get(&(*char as u32))
+                .unwrap()
+                .edge_total;
+            total -= eb;
+        }
+        total *= ea / (2.0 * self.meta.edge_total);
+
+        // calculate actual modularity
+        for char in set {
+            total += self.get_adjusted_pairing(target as u32, *char as u32);
+        }
+        total
     }
 }
