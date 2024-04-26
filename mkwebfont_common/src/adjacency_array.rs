@@ -7,7 +7,7 @@ use bincode::{config, Decode, Encode};
 use roaring::RoaringBitmap;
 use std::{
     collections::HashMap,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{AtomicU32, Ordering},
 };
 use tracing::{debug, info};
 
@@ -22,6 +22,10 @@ fn triangle(n: usize) -> usize {
 
 fn triangle_unchecked(n: usize) -> usize {
     (n * (n + 1)) / 2
+}
+
+fn place_idx_unchecked(place_a: usize, place_b: usize) -> usize {
+    triangle_unchecked(place_a + 1) - (place_b + 1)
 }
 
 fn place_idx(place_a: usize, place_b: usize) -> usize {
@@ -110,7 +114,7 @@ pub struct AdjacencyArrayBuilder {
     name: String,
     codepoint_list: Vec<u32>,
     places: HashMap<u32, usize, WyHashBuilder>,
-    data: Vec<AtomicU64>,
+    data: Vec<AtomicU32>,
 }
 impl AdjacencyArrayBuilder {
     pub fn new(name: &str, glyphs: &RoaringBitmap) -> Self {
@@ -128,7 +132,7 @@ impl AdjacencyArrayBuilder {
         );
         let mut data = Vec::with_capacity(triangle_ct);
         for _ in 0..triangle_ct {
-            data.push(AtomicU64::new(0));
+            data.push(AtomicU32::new(0));
         }
         debug!("Allocation done...");
 
@@ -145,50 +149,21 @@ impl AdjacencyArrayBuilder {
 
         for (i, place_a) in tmp.iter().enumerate() {
             for place_b in tmp.iter().skip(i) {
-                self.data[place_idx(*place_a, *place_b)].fetch_add(1, Ordering::Relaxed);
+                self.data[place_idx_unchecked(*place_b, *place_a)].fetch_add(1, Ordering::Relaxed);
             }
         }
-    }
-
-    pub fn filtered(&self, func: impl Fn(char) -> bool) -> AdjacencyArrayBuilder {
-        debug!("Filtering uncompressed adjacency map...");
-
-        let mut bitmap = RoaringBitmap::new();
-        let mut vec = Vec::new();
-        for &point in &self.codepoint_list {
-            if func(char::from_u32(point).unwrap()) {
-                bitmap.push(point);
-                vec.push(point);
-            }
-        }
-
-        let mut builder = AdjacencyArrayBuilder::new(&self.name, &bitmap);
-        for (i, ch_a) in vec.iter().enumerate() {
-            for ch_b in vec.iter().skip(i) {
-                let place_a_old = *self.places.get(&ch_a).unwrap();
-                let place_b_old = *self.places.get(&ch_b).unwrap();
-                let place_a_new = *builder.places.get(&ch_a).unwrap();
-                let place_b_new = *builder.places.get(&ch_b).unwrap();
-                let idx_old = place_idx(place_a_old, place_b_old);
-                let idx_new = place_idx(place_a_new, place_b_new);
-
-                builder.data[idx_new]
-                    .store(self.data[idx_old].load(Ordering::Relaxed), Ordering::Relaxed);
-            }
-        }
-        builder
     }
 
     pub fn build(
-        self,
+        &self,
         resolution: usize,
         exponent: f64,
         get_block_id: impl Fn(char) -> Option<&'static str>,
-    ) -> AdjacencyInfo {
+    ) -> AdjacencyArray {
         // Find maximum, minimum.
         debug!("Adjacency array metadata: min, max");
-        let mut min = u64::MAX;
-        let mut max = u64::MIN;
+        let mut min = u32::MAX;
+        let mut max = u32::MIN;
         for bit in &self.data {
             let val = bit.load(Ordering::Relaxed);
             if val != 0 {
@@ -200,7 +175,7 @@ impl AdjacencyArrayBuilder {
         // Find edge count.
         debug!("Adjacency array metadata: edge_total");
         let mut count: f64 = 0.0;
-        for i in 0..self.data.len() {
+        for i in 0..self.codepoint_list.len() {
             count += self.data[place_idx(i, i)].load(Ordering::Relaxed) as f64;
         }
 
@@ -232,7 +207,7 @@ impl AdjacencyArrayBuilder {
         debug!("Adjacency array metadata: chars (edge_total)");
         for a in 0..self.codepoint_list.len() {
             let mut edge_total = 0.0;
-            for b in a..self.codepoint_list.len() {
+            for b in 0..self.codepoint_list.len() {
                 if a != b {
                     edge_total += self.data[place_idx(a, b)].load(Ordering::Relaxed) as f64;
                 }
@@ -245,11 +220,12 @@ impl AdjacencyArrayBuilder {
 
         // Encode final data vector
         debug!("Adjacency array metadata: encoder, final_data");
-        let encoder = ByteEncoder::init_for_min_max(resolution as u8, exponent, min, max);
+        let encoder =
+            ByteEncoder::init_for_min_max(resolution as u8, exponent, min as u64, max as u64);
         debug!("Encoder: {encoder:?}");
         let mut final_data = Vec::with_capacity(self.data.len());
         for val in &self.data {
-            final_data.push(encoder.encode(val.load(Ordering::Relaxed)));
+            final_data.push(encoder.encode(val.load(Ordering::Relaxed) as u64));
         }
 
         // Build final map
@@ -264,7 +240,7 @@ impl AdjacencyArrayBuilder {
                 .collect(),
             edge_total: count,
         };
-        AdjacencyInfo { meta, data: final_data }
+        AdjacencyArray { meta, data: final_data }
     }
 }
 
@@ -293,11 +269,11 @@ struct Meta {
 }
 
 #[derive(Clone, Decode, Encode)]
-pub struct AdjacencyInfo {
+pub struct AdjacencyArray {
     meta: Meta,
     data: Vec<u8>,
 }
-impl AdjacencyInfo {
+impl AdjacencyArray {
     pub fn glyph_list(&self) -> &[char] {
         &self.meta.codepoint_list
     }
@@ -358,13 +334,13 @@ impl AdjacencyInfo {
         Ok(())
     }
 
-    pub fn deserialize(name: &str, data: &DataPackage) -> Result<AdjacencyInfo> {
+    pub fn deserialize(name: &str, data: &DataPackage) -> Result<AdjacencyArray> {
         let meta = bincode::decode_from_slice::<Meta, _>(
             data.get_data(&format!("{name}:adjacency_array_meta"))?,
             config::standard(),
         )?;
         let data = data.get_data(&format!("{name}:adjacency_array"))?;
-        Ok(AdjacencyInfo { meta: meta.0, data: data.to_vec() })
+        Ok(AdjacencyArray { meta: meta.0, data: data.to_vec() })
     }
 
     pub fn transfer(

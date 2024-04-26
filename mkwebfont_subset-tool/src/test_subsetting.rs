@@ -1,16 +1,15 @@
-use crate::generate_data::VERSION;
 use anyhow::Result;
 use mkwebfont::LoadedFont;
-use mkwebfont_common::{adjacency_bloom_filter::AdjacencyBloomFilter, data_package::DataPackage};
+use mkwebfont_common::{adjacency_array::AdjacencyArray, data_package::DataPackage};
 use roaring::RoaringBitmap;
 use std::path::PathBuf;
 use tracing::info;
 
 fn subset(font: &LoadedFont) -> Result<()> {
     info!("Loading data...");
-    let data = std::fs::read(format!("run/mkwebfont_data-{VERSION}"))?;
+    let data = std::fs::read(crate::generate_raw_adjacency::RAW_ADJACENCY_PATH)?;
     let data = DataPackage::deserialize(&data)?;
-    let bloom = AdjacencyBloomFilter::deserialize(&data, "main")?;
+    let bloom = AdjacencyArray::deserialize("raw_adjacency", &data)?;
 
     info!("Font: {} {}", font.font_family(), font.font_style());
 

@@ -1,7 +1,6 @@
 mod download_common_crawl;
-mod generate_data;
+mod generate_raw_adjacency;
 mod legacy_gfsubsets;
-mod raw_adjacency;
 mod test_subsetting;
 mod test_subsetting_quality;
 
@@ -51,11 +50,6 @@ enum Commands {
     /// Requires that `download-common-crawl` is run first.
     GenerateRawAdjacency,
 
-    /// Encodes the common crawl data into the final form used by the binary.
-    ///
-    /// Requires that `download-common-crawl` and `generate-raw-adjacency` are run first.
-    GenerateData,
-
     TestSubsetting(FileArgs),
 }
 
@@ -88,8 +82,9 @@ async fn main() {
                 .await
                 .unwrap()
         }
-        Commands::GenerateRawAdjacency => raw_adjacency::generate_raw_adjacency().await.unwrap(),
-        Commands::GenerateData => generate_data::generate_data().await.unwrap(),
+        Commands::GenerateRawAdjacency => generate_raw_adjacency::generate_raw_adjacency()
+            .await
+            .unwrap(),
         Commands::TestSubsetting(path) => test_subsetting::test_subsetting(&path.files).unwrap(),
     }
 }
