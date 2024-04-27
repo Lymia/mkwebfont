@@ -6,6 +6,7 @@ use anyhow::Result;
 use bincode::{config, Decode, Encode};
 use roaring::RoaringBitmap;
 use std::{collections::HashMap, io::Cursor, sync::Arc};
+use tracing::debug;
 
 pub struct BitsetListBuilder {
     source: String,
@@ -16,6 +17,7 @@ pub struct BitsetListBuilder {
 
     used_cd_idx: u16,
     used_cd: Box<[u16; 0x110000]>,
+    filtered: Box<[bool; 0x110000]>,
 }
 impl BitsetListBuilder {
     pub fn new(source: &str) -> Self {
@@ -27,6 +29,19 @@ impl BitsetListBuilder {
             data: vec![],
             used_cd_idx: 0,
             used_cd: Box::new([0; 0x110000]),
+            filtered: Box::new([false; 0x110000]),
+        }
+    }
+
+    pub fn filter_chars(&mut self, filter: impl Fn(char) -> bool) {
+        for i in 0..self.filtered.len() {
+            if let Some(ch) = char::from_u32(i as u32) {
+                if !filter(ch) {
+                    self.filtered[i] = true;
+                }
+            } else {
+                self.filtered[i] = true;
+            }
         }
     }
 
@@ -41,7 +56,7 @@ impl BitsetListBuilder {
         }
     }
 
-    pub fn push_sample(&mut self, str: &str, filter: impl Fn(char) -> bool) {
+    pub fn push_sample(&mut self, str: &str) {
         let idx = self.used_cd_idx;
         if idx == u16::MAX {
             self.used_cd_idx = 0;
@@ -55,8 +70,11 @@ impl BitsetListBuilder {
             if (ch as u32) < 0x110000 {
                 if self.used_cd[ch as usize] != idx {
                     self.used_cd[ch as usize] = idx;
+                } else {
+                    continue;
                 }
-                if filter(ch) {
+
+                if !self.filtered[ch as usize] {
                     bitset.insert(self.map_ch(ch as u32));
                 }
             }
@@ -64,6 +82,57 @@ impl BitsetListBuilder {
 
         self.index.push(self.data.len());
         bitset.serialize_into(Cursor::new(&mut self.data)).unwrap();
+    }
+
+    fn push_sample_from_bitset(&mut self, list: &[u32], src: RoaringBitmap) {
+        let mut bitset = RoaringBitmap::new();
+        for ch in src {
+            bitset.insert(self.map_ch(list[ch as usize]));
+        }
+        self.index.push(self.data.len());
+        bitset.serialize_into(Cursor::new(&mut self.data)).unwrap();
+    }
+
+    pub fn mapping(&self) -> &[u32] {
+        &self.codepoint_list
+    }
+
+    fn iter<'a>(&'a self) -> impl Iterator<Item = RoaringBitmap> + 'a {
+        self.index
+            .iter()
+            .map(|x| RoaringBitmap::deserialize_from(Cursor::new(&self.data[*x..])).unwrap())
+    }
+
+    pub fn optimize(&self) -> BitsetListBuilder {
+        debug!("Optimizing bitset section: {}", self.source);
+
+        let mut optimzied = BitsetListBuilder::new(&self.source);
+
+        // Calculate the frequency of each character
+        let mut frequency = vec![0usize; self.codepoint_list.len()];
+        for bitset in self.iter() {
+            for bit in bitset {
+                frequency[bit as usize] += 1;
+            }
+        }
+
+        // Map characters in frequency order
+        let mut frequency_sort = Vec::new();
+        for (i, ch) in self.mapping().iter().enumerate() {
+            frequency_sort.push((*ch, frequency[i]));
+        }
+        frequency_sort.sort_by_key(|x| x.1);
+        frequency_sort.reverse();
+        for (ch, _) in frequency_sort {
+            optimzied.map_ch(ch);
+        }
+
+        // Reencode the bitsets
+        for bitset in self.iter() {
+            optimzied.push_sample_from_bitset(&self.codepoint_list, bitset);
+        }
+
+        optimzied
     }
 }
 

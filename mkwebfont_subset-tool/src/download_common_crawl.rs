@@ -26,6 +26,7 @@ use std::{
     io::{Cursor, Read},
     path::PathBuf,
 };
+use tokio::task::JoinHandle;
 use tracing::{debug, info};
 use unic_ucd_category::GeneralCategory;
 use warc::WarcReader;
@@ -95,15 +96,26 @@ async fn download_uri_list(target: &str, list: &str) -> Result<()> {
 
     let links = find_download_links(list).await?;
     fs::create_dir_all(format!("run/{target}"))?;
+
+    let mut downloads: Vec<JoinHandle<Result<()>>> = Vec::new();
     for uri in links {
-        let name = uri.split('/').last().unwrap();
-        let target: PathBuf = format!("run/{target}/{name}").into();
+        let target = target.to_string();
+        downloads.push(tokio::spawn(async move {
+            let name = uri.split('/').last().unwrap();
+            let target: PathBuf = format!("run/{target}/{name}").into();
 
-        debug!("{uri} -> {}", target.display());
+            debug!("{uri} -> {}", target.display());
 
-        if !target.exists() {
-            let data = reqwest::get(uri).await?.bytes().await?.to_vec();
-            fs::write(target, data)?;
+            if !target.exists() {
+                let data = reqwest::get(uri).await?.bytes().await?.to_vec();
+                fs::write(target, data)?;
+            }
+
+            Ok(())
+        }));
+
+        if downloads.len() == 5 {
+            downloads.pop().unwrap().await??;
         }
     }
     Ok(())
@@ -118,15 +130,16 @@ pub async fn process_list_to_bitmaps(target: &str, list: &str) -> Result<DataPac
             info!("Processing {}...", path.display());
             let warc = WarcReader::from_path_gzip(&path)?;
             let mut builder = BitsetListBuilder::new(&path.file_name().unwrap().to_string_lossy());
+            builder.filter_chars(|x| {
+                let category = GeneralCategory::of(x);
+                !category.is_other() && !category.is_separator()
+            });
             for record in warc.iter_records() {
                 let record = record?;
                 let str = std::str::from_utf8(record.body())?;
-                builder.push_sample(str, |x| {
-                    let category = GeneralCategory::of(x);
-                    !category.is_other() && !category.is_separator()
-                });
+                builder.push_sample(str);
             }
-            Ok(builder)
+            Ok(builder.optimize())
         })
     }
 
@@ -137,8 +150,10 @@ pub async fn process_list_to_bitmaps(target: &str, list: &str) -> Result<DataPac
 }
 
 pub async fn download_common_crawl() -> Result<()> {
-    download_uri_list("common-crawl", TRAINING_FILES_LIST).await?;
-    download_uri_list("common-crawl-validation", VALIDATION_FILES_LIST).await?;
+    let mut joins = JoinSet::new();
+    joins.spawn(download_uri_list("common-crawl", TRAINING_FILES_LIST));
+    joins.spawn(download_uri_list("common-crawl-validation", VALIDATION_FILES_LIST));
+    joins.join().await?;
 
     let bs_train = tokio::spawn(process_list_to_bitmaps("common-crawl", TRAINING_FILES_LIST));
     let bs_valid =

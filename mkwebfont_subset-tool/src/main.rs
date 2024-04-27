@@ -23,7 +23,7 @@ struct Args {
 enum Commands {
     GenerateLegacyGfsubsets,
 
-    /// Downloads about 260GB of common crawl data and processes it into bitsets of characters
+    /// Downloads about 500GiB of common crawl data and processes it into bitsets of characters
     /// present in each crawled page.
     ///
     /// This must be called before any of the commands in this crate for generating subset data.
@@ -31,13 +31,13 @@ enum Commands {
     /// This is **NOT** required for anything a user may want to do normally, and is only useful
     /// for developing mkwebfont typically.
     ///
-    /// This takes about 270 gigabytes of disk space (as it caches Common Crawl data to disk) and
-    /// a relatively large amount of memory as it stores the generated bitset data uncompressed in
-    /// memory while waiting to compress it (on the order of 10-20GB from testing).
+    /// This takes about 500GiB of disk space (as it caches Common Crawl data to disk) and a
+    /// relatively large amount of memory as it stores the generated bitset data uncompressed in
+    /// memory while waiting to compress it.
     ///
     /// The Common Crawl raw dumps are not required for any other commands. They may be deleted
-    /// after `common-crawl_parsed-bitmaps.zst` and `common-crawl-validation_parsed-bitmaps.zst`
-    /// are generated. These files should total to about 4 GB.
+    /// after `common-crawl_bitsets-training` and `common-crawl_bitsets-validation` are generated.
+    /// These files should total to about 150 MiB.
     DownloadCommonCrawl,
 
     /// Tests the final download size of a given set of fonts on a set of website data.
