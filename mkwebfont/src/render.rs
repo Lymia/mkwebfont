@@ -180,17 +180,17 @@ impl<'a> Display for FontStylesheetDisplay<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for entry in &self.sheet.entries {
             writeln!(f, "@font-face {{")?;
-            writeln!(f, "    font-family: {:?};", self.sheet.font_family)?;
+            writeln!(f, "\tfont-family: {:?};", self.sheet.font_family)?;
             if self.sheet.font_style != FontStyle::Regular {
-                writeln!(f, "    font-style: {};", self.sheet.font_style)?;
+                writeln!(f, "\tfont-style: {};", self.sheet.font_style)?;
             }
             if self.sheet.font_weight != FontWeight::Regular {
-                writeln!(f, "    font-weight: {};", self.sheet.font_weight)?;
+                writeln!(f, "\tfont-weight: {};", self.sheet.font_weight)?;
             }
-            writeln!(f, "    unicode-range: {};", UnicodeRange(&entry.subset_ranges))?;
+            writeln!(f, "\tunicode-range: {};", UnicodeRange(&entry.subset_ranges))?;
             writeln!(
                 f,
-                "    src: url({:?}) format(\"woff2\");",
+                "\tsrc: url({:?}) format(\"woff2\");",
                 format!("{}{}", self.store_uri, entry.file_name)
             )?;
             writeln!(f, "}}")?;

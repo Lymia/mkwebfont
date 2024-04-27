@@ -215,7 +215,7 @@ impl LoadedFont {
         let font = FontFace::new_with_index(blob, self.0.font_index)?;
         let new_font = subset_input.subset_font(&font)?;
         let new_font = new_font.underlying_blob().to_vec();
-        Ok(woff2::compress(&new_font, name.to_string(), 9, true).unwrap())
+        Ok(woff2::compress(&new_font, name.to_string(), 11, true).unwrap())
     }
 }
 impl Debug for LoadedFont {
