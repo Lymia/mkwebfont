@@ -2,12 +2,12 @@
 //! encrapified the internet.
 //!
 //! For our 'training' dataset, we have the following numbers:
-//!  * 1000 archives from 2024.
-//!  * 200 archives from 2019.
-//!  * 200 archives from 2018.
-//!  * 200 archives from 2017.
-//!  * 200 archives from 2016.
-//!  * 200 archives from 2015.
+//!  * 2000 archives from 2023-2024.
+//!  * 400 archives from 2019.
+//!  * 400 archives from 2018.
+//!  * 400 archives from 2017.
+//!  * 400 archives from 2016.
+//!  * 400 archives from 2015.
 //!
 //! For validation, we have 10% of that amount from the same sources.
 //!
@@ -43,6 +43,7 @@ const PATH_URLS: &[&str] = &[
     "https://data.commoncrawl.org/crawl-data/CC-MAIN-2018-51/wet.paths.gz",
     "https://data.commoncrawl.org/crawl-data/CC-MAIN-2019-26/wet.paths.gz",
     "https://data.commoncrawl.org/crawl-data/CC-MAIN-2019-51/wet.paths.gz",
+    "https://data.commoncrawl.org/crawl-data/CC-MAIN-2023-50/wet.paths.gz",
     "https://data.commoncrawl.org/crawl-data/CC-MAIN-2024-10/wet.paths.gz",
 ];
 
@@ -50,13 +51,27 @@ const TRAINING_FILES_LIST: &str = include_str!("cc-training-files.txt");
 const VALIDATION_FILES_LIST: &str = include_str!("cc-validation-files.txt");
 
 async fn find_download_links(list: &str) -> Result<Vec<String>> {
+    fs::create_dir_all("run/common-crawl-indexes")?;
+
     let mut uris = HashMap::new();
     for path in PATH_URLS {
-        let gz_data = reqwest::get(*path).await?.bytes().await?.to_vec();
-        let mut data = Vec::new();
-        GzDecoder::new(Cursor::new(gz_data)).read_to_end(&mut data)?;
-        let data = String::from_utf8(data)?;
+        let components: Vec<_> = path.split("/").collect();
+        let target = components[components.len() - 2];
+        let target: PathBuf =
+            PathBuf::from(format!("run/common-crawl-indexes/{target}_wet.paths.txt"));
 
+        if !target.exists() {
+            debug!("Downloading index from {path}...");
+            let gz_data = reqwest::get(*path).await?.bytes().await?.to_vec();
+            let mut data = Vec::new();
+            GzDecoder::new(Cursor::new(gz_data)).read_to_end(&mut data)?;
+            let data = String::from_utf8(data)?;
+            fs::write(&target, data)?;
+        } else {
+            debug!("Using cached index from {}...", target.display());
+        }
+
+        let data = fs::read_to_string(&target)?;
         for line in data.trim().split('\n') {
             uris.insert(
                 line.split('/').last().unwrap().to_string(),
@@ -101,8 +116,8 @@ pub async fn process_list_to_bitmaps(target: &str, list: &str) -> Result<DataPac
         assert!(path.exists());
         joins.spawn(async move {
             info!("Processing {}...", path.display());
-            let warc = WarcReader::from_path_gzip(path)?;
-            let mut builder = BitsetListBuilder::new();
+            let warc = WarcReader::from_path_gzip(&path)?;
+            let mut builder = BitsetListBuilder::new(&path.file_name().unwrap().to_string_lossy());
             for record in warc.iter_records() {
                 let record = record?;
                 let str = std::str::from_utf8(record.body())?;
@@ -130,7 +145,9 @@ pub async fn download_common_crawl() -> Result<()> {
         tokio::spawn(process_list_to_bitmaps("common-crawl-validation", VALIDATION_FILES_LIST));
 
     bs_train.await??.save("run/common-crawl_bitsets-training")?;
-    bs_valid.await??.save("run/common-crawl_bitsets-validation")?;
+    bs_valid
+        .await??
+        .save("run/common-crawl_bitsets-validation")?;
 
     Ok(())
 }

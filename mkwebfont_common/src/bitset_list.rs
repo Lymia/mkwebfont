@@ -5,9 +5,10 @@ use crate::{
 use anyhow::Result;
 use bincode::{config, Decode, Encode};
 use roaring::RoaringBitmap;
-use std::{collections::HashMap, io::Cursor};
+use std::{collections::HashMap, io::Cursor, sync::Arc};
 
 pub struct BitsetListBuilder {
+    source: String,
     codepoint_list: Vec<u32>,
     glyph_mapping: HashMap<u32, u32, WyHashBuilder>,
     index: Vec<usize>,
@@ -17,8 +18,9 @@ pub struct BitsetListBuilder {
     used_cd: Box<[u16; 0x110000]>,
 }
 impl BitsetListBuilder {
-    pub fn new() -> Self {
+    pub fn new(source: &str) -> Self {
         BitsetListBuilder {
+            source: source.to_string(),
             codepoint_list: vec![],
             glyph_mapping: Default::default(),
             index: vec![],
@@ -68,17 +70,19 @@ impl BitsetListBuilder {
 pub fn build(raw_sections: Vec<BitsetListBuilder>) -> BitsetList {
     let mut sections = Vec::new();
     for section in raw_sections {
-        sections.push(BitsetSection {
+        sections.push(Arc::new(BitsetSection {
+            source: section.source,
             index: section.index,
             codepoint_list: section.codepoint_list,
             data: section.data,
-        });
+        }));
     }
     BitsetList { sections }
 }
 
 #[derive(Clone, Decode, Encode)]
 struct BitsetSection {
+    source: String,
     index: Vec<usize>,
     codepoint_list: Vec<u32>,
     data: Vec<u8>,
@@ -86,7 +90,7 @@ struct BitsetSection {
 
 #[derive(Clone, Decode, Encode)]
 pub struct BitsetList {
-    sections: Vec<BitsetSection>,
+    sections: Vec<Arc<BitsetSection>>,
 }
 impl BitsetList {
     pub fn len(&self) -> u64 {
