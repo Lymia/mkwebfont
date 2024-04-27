@@ -15,31 +15,33 @@
 
 use anyhow::Result;
 use flate2::read::GzDecoder;
-use roaring::RoaringBitmap;
+use mkwebfont_common::{
+    bitset_list::BitsetListBuilder,
+    data_package::{DataPackage, DataPackageEncoder},
+    join_set::JoinSet,
+};
 use std::{
     collections::HashMap,
     fs,
-    fs::File,
-    io::{Cursor, Read, Write},
+    io::{Cursor, Read},
     path::PathBuf,
 };
-use tokio::task::JoinHandle;
 use tracing::{debug, info};
+use unic_ucd_category::GeneralCategory;
 use warc::WarcReader;
-use zstd::Encoder;
 
 const STORE_PREFIX: &str = "https://data.commoncrawl.org";
 
 const PATH_URLS: &[&str] = &[
     "https://data.commoncrawl.org/crawl-data/CC-MAIN-2015-40/wet.paths.gz",
-    "https://data.commoncrawl.org/crawl-data/CC-MAIN-2016-26/wet.paths.gz",
-    "https://data.commoncrawl.org/crawl-data/CC-MAIN-2017-26/wet.paths.gz",
-    "https://data.commoncrawl.org/crawl-data/CC-MAIN-2018-26/wet.paths.gz",
-    "https://data.commoncrawl.org/crawl-data/CC-MAIN-2019-26/wet.paths.gz",
     "https://data.commoncrawl.org/crawl-data/CC-MAIN-2015-48/wet.paths.gz",
+    "https://data.commoncrawl.org/crawl-data/CC-MAIN-2016-26/wet.paths.gz",
     "https://data.commoncrawl.org/crawl-data/CC-MAIN-2016-50/wet.paths.gz",
+    "https://data.commoncrawl.org/crawl-data/CC-MAIN-2017-26/wet.paths.gz",
     "https://data.commoncrawl.org/crawl-data/CC-MAIN-2017-51/wet.paths.gz",
+    "https://data.commoncrawl.org/crawl-data/CC-MAIN-2018-26/wet.paths.gz",
     "https://data.commoncrawl.org/crawl-data/CC-MAIN-2018-51/wet.paths.gz",
+    "https://data.commoncrawl.org/crawl-data/CC-MAIN-2019-26/wet.paths.gz",
     "https://data.commoncrawl.org/crawl-data/CC-MAIN-2019-51/wet.paths.gz",
     "https://data.commoncrawl.org/crawl-data/CC-MAIN-2024-10/wet.paths.gz",
 ];
@@ -92,49 +94,43 @@ async fn download_uri_list(target: &str, list: &str) -> Result<()> {
     Ok(())
 }
 
-pub async fn process_list_to_bitmaps(target: &str, list: &str) -> Result<()> {
-    let mut joins: Vec<JoinHandle<Result<Vec<u8>>>> = Vec::new();
+pub async fn process_list_to_bitmaps(target: &str, list: &str) -> Result<DataPackage> {
+    let mut joins = JoinSet::new();
     for file in list.trim().split('\n') {
         let path = PathBuf::from(format!("run/{target}/{file}"));
         assert!(path.exists());
-
-        joins.push(tokio::spawn(async move {
+        joins.spawn(async move {
             info!("Processing {}...", path.display());
             let warc = WarcReader::from_path_gzip(path)?;
-
-            let mut file = Cursor::new(Vec::<u8>::new());
+            let mut builder = BitsetListBuilder::new();
             for record in warc.iter_records() {
                 let record = record?;
                 let str = std::str::from_utf8(record.body())?;
-
-                let mut chars = RoaringBitmap::new();
-                for ch in str.chars() {
-                    chars.insert(ch as u32);
-                }
-                chars.serialize_into(&mut file)?;
+                builder.push_sample(str, |x| {
+                    let category = GeneralCategory::of(x);
+                    !category.is_other() && !category.is_separator()
+                });
             }
-
-            Ok(file.into_inner())
-        }));
+            Ok(builder)
+        })
     }
 
-    let file = File::create(format!("run/{target}_parsed-bitmaps.zst"))?;
-    let mut zip = Encoder::new(file, 10)?;
-    for join in joins {
-        zip.write_all(&join.await??)?;
-    }
-    zip.finish()?;
-    Ok(())
+    let list = mkwebfont_common::bitset_list::build(joins.join().await?);
+    let mut encoder = DataPackageEncoder::new(target);
+    list.serialize("bitset_list", &mut encoder)?;
+    Ok(encoder.build())
 }
 
 pub async fn download_common_crawl() -> Result<()> {
     download_uri_list("common-crawl", TRAINING_FILES_LIST).await?;
     download_uri_list("common-crawl-validation", VALIDATION_FILES_LIST).await?;
 
-    let a = tokio::spawn(process_list_to_bitmaps("common-crawl", TRAINING_FILES_LIST));
-    let b = tokio::spawn(process_list_to_bitmaps("common-crawl-validation", VALIDATION_FILES_LIST));
-    a.await??;
-    b.await??;
+    let bs_train = tokio::spawn(process_list_to_bitmaps("common-crawl", TRAINING_FILES_LIST));
+    let bs_valid =
+        tokio::spawn(process_list_to_bitmaps("common-crawl-validation", VALIDATION_FILES_LIST));
+
+    bs_train.await??.save("run/common-crawl_bitsets-training")?;
+    bs_valid.await??.save("run/common-crawl_bitsets-validation")?;
 
     Ok(())
 }

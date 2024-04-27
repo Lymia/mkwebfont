@@ -325,6 +325,38 @@ impl AdjacencyArray {
         }
     }
 
+    /// Returns the change in modularity if a character would be added to a set of characters.
+    pub fn delta_modularity(&self, target: char, set: &[char]) -> f64 {
+        let mut total = 0.0;
+
+        // calculate modularity expectation
+        let ea = self
+            .meta
+            .codepoints
+            .get(&(target as u32))
+            .unwrap()
+            .edge_total;
+        for char in set {
+            let eb = self
+                .meta
+                .codepoints
+                .get(&(*char as u32))
+                .unwrap()
+                .edge_total;
+            total -= eb;
+        }
+        total *= ea / (2.0 * self.meta.edge_total);
+
+        // calculate actual modularity
+        for char in set {
+            total += self.get_pairing(target as u32, *char as u32) as f64;
+        }
+        total
+    }
+}
+
+/// Serialization code
+impl AdjacencyArray {
     pub fn serialize(&self, name: &str, data: &mut DataPackageEncoder) -> Result<()> {
         data.insert_data(
             &format!("{name}:adjacency_array_meta"),
@@ -353,34 +385,5 @@ impl AdjacencyArray {
         encoder.insert_data(&meta_name, data.get_data(&meta_name)?.to_vec());
         encoder.insert_data(&array_name, data.get_data(&array_name)?.to_vec());
         Ok(())
-    }
-
-    /// Returns the change in modularity if a character would be added to a set of characters.
-    pub fn delta_modularity(&self, target: char, set: &[char]) -> f64 {
-        let mut total = 0.0;
-
-        // calculate modularity expectation
-        let ea = self
-            .meta
-            .codepoints
-            .get(&(target as u32))
-            .unwrap()
-            .edge_total;
-        for char in set {
-            let eb = self
-                .meta
-                .codepoints
-                .get(&(*char as u32))
-                .unwrap()
-                .edge_total;
-            total -= eb;
-        }
-        total *= ea / (2.0 * self.meta.edge_total);
-
-        // calculate actual modularity
-        for char in set {
-            total += self.get_pairing(target as u32, *char as u32) as f64;
-        }
-        total
     }
 }

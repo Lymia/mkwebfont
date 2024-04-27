@@ -4,6 +4,7 @@ use bincode::{config, Decode, Encode};
 use std::{
     collections::HashMap,
     io::{Cursor, Write},
+    path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
 use tracing::{debug, info};
@@ -101,6 +102,11 @@ impl DataPackage {
         encoded.extend(compressed);
 
         Ok(encoded)
+    }
+
+    pub fn save(&self, target: impl AsRef<Path>) -> Result<()> {
+        std::fs::write(target, self.encode()?)?;
+        Ok(())
     }
 
     pub fn deserialize(data: &[u8]) -> Result<Self> {

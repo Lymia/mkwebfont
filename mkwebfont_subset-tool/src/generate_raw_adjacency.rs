@@ -72,7 +72,7 @@ pub async fn generate_raw_adjacency() -> Result<()> {
     for glyph in &all_glyphs {
         let ch = char::from_u32(glyph).unwrap();
         let cat = GeneralCategory::of(ch);
-        if !cat.is_other() && !cat.is_separator() && cat != GeneralCategory::PrivateUse {
+        if !cat.is_other() && !cat.is_separator() {
             if count[glyph as usize] >= MIN_COUNT {
                 filtered_glyphs.insert(glyph);
             } else {
