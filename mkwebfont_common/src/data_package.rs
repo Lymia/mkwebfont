@@ -77,7 +77,7 @@ impl DataPackage {
     }
 
     pub fn encode(&self) -> Result<Vec<u8>> {
-        info!("Encoding data package...");
+        info!("Encoding data package: {}...", self.package_id);
         let data = bincode::encode_to_vec(self, config::standard())?;
 
         debug!("Compressing data package...");
@@ -123,5 +123,9 @@ impl DataPackage {
         ensure!(blake3::hash(&data).as_bytes().as_slice() == data_hash);
 
         Ok(bincode::decode_from_slice(&data, config::standard())?.0)
+    }
+
+    pub fn load(target: impl AsRef<Path>) -> Result<Self> {
+        Self::deserialize(&std::fs::read(target)?)
     }
 }

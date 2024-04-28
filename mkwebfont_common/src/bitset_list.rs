@@ -5,7 +5,11 @@ use crate::{
 use anyhow::Result;
 use bincode::{config, Decode, Encode};
 use roaring::RoaringBitmap;
-use std::{collections::HashMap, io::Cursor, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::{Cursor, Seek, SeekFrom},
+    sync::Arc,
+};
 use tracing::debug;
 
 pub struct BitsetListBuilder {
@@ -56,6 +60,12 @@ impl BitsetListBuilder {
         }
     }
 
+    fn cursor(&mut self) -> Cursor<&mut Vec<u8>> {
+        let mut cursor = Cursor::new(&mut self.data);
+        cursor.seek(SeekFrom::End(0)).unwrap();
+        cursor
+    }
+
     pub fn push_sample(&mut self, str: &str) {
         let idx = self.used_cd_idx;
         if idx == u16::MAX {
@@ -81,7 +91,7 @@ impl BitsetListBuilder {
         }
 
         self.index.push(self.data.len());
-        bitset.serialize_into(Cursor::new(&mut self.data)).unwrap();
+        bitset.serialize_into(self.cursor()).unwrap();
     }
 
     fn push_sample_from_bitset(&mut self, list: &[u32], src: RoaringBitmap) {
@@ -90,7 +100,7 @@ impl BitsetListBuilder {
             bitset.insert(self.map_ch(list[ch as usize]));
         }
         self.index.push(self.data.len());
-        bitset.serialize_into(Cursor::new(&mut self.data)).unwrap();
+        bitset.serialize_into(self.cursor()).unwrap();
     }
 
     pub fn mapping(&self) -> &[u32] {
@@ -132,6 +142,11 @@ impl BitsetListBuilder {
             optimzied.push_sample_from_bitset(&self.codepoint_list, bitset);
         }
 
+        debug!(
+            "Optimized size: {} = {:.2} MiB",
+            self.source,
+            (self.data.len() as f64) / 1024.0 / 1024.0,
+        );
         optimzied
     }
 }
@@ -150,11 +165,30 @@ pub fn build(raw_sections: Vec<BitsetListBuilder>) -> BitsetList {
 }
 
 #[derive(Clone, Decode, Encode)]
-struct BitsetSection {
+pub struct BitsetSection {
     source: String,
     index: Vec<usize>,
     codepoint_list: Vec<u32>,
     data: Vec<u8>,
+}
+impl BitsetSection {
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
+    pub fn len(&self) -> usize {
+        self.index.len()
+    }
+
+    pub fn chars(&self) -> &[u32] {
+        &self.codepoint_list
+    }
+
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = RoaringBitmap> + 'a {
+        self.index
+            .iter()
+            .map(|x| RoaringBitmap::deserialize_from(Cursor::new(&self.data[*x..])).unwrap())
+    }
 }
 
 #[derive(Clone, Decode, Encode)]
@@ -170,6 +204,14 @@ impl BitsetList {
         count
     }
 
+    pub fn sections(&self) -> &[Arc<BitsetSection>] {
+        &self.sections
+    }
+
+    pub fn take_sections(self) -> Vec<Arc<BitsetSection>> {
+        self.sections
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (RoaringBitmap, &[u32])> {
         self.sections.iter().flat_map(|x| {
             x.index.iter().map(|&i| {
@@ -178,6 +220,17 @@ impl BitsetList {
                 (bitmap, x.codepoint_list.as_slice())
             })
         })
+    }
+
+    pub fn split(&self, count: usize) -> Vec<BitsetList> {
+        let mut sections = vec![Vec::new(); count];
+        for (i, section) in self.sections.iter().enumerate() {
+            sections[i % count].push(section.clone());
+        }
+        sections
+            .into_iter()
+            .map(|x| BitsetList { sections: x })
+            .collect()
     }
 }
 

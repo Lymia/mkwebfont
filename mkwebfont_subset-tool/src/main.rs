@@ -1,6 +1,7 @@
 mod download_common_crawl;
 mod generate_raw_adjacency;
 mod legacy_gfsubsets;
+mod split_common_crawl;
 mod test_subsetting;
 mod test_subsetting_quality;
 
@@ -31,14 +32,21 @@ enum Commands {
     /// This is **NOT** required for anything a user may want to do normally, and is only useful
     /// for developing mkwebfont typically.
     ///
-    /// This takes about 500GiB of disk space (as it caches Common Crawl data to disk) and a
-    /// relatively large amount of memory as it stores the generated bitset data uncompressed in
-    /// memory while waiting to compress it.
+    /// This takes about 500GiB of disk space (as it caches Common Crawl data to disk) and an
+    /// extremely large amount of memory (to the order of 100-150GB) as it stores the generated
+    /// bitset data uncompressed in memory while waiting to compress it.
     ///
     /// The Common Crawl raw dumps are not required for any other commands. They may be deleted
     /// after `common-crawl_bitsets-training` and `common-crawl_bitsets-validation` are generated.
-    /// These files should total to about 150 MiB.
+    /// These files should total to about 7 GiB.
     DownloadCommonCrawl,
+
+    /// Splits the monolithic training files for common crawl. This helps later steps.
+    ///
+    /// This takes about 7 GiB of disk, and an extremely large amount of memory.
+    ///
+    /// Requires that `download-common-crawl` is run first.
+    SplitCommonCrawl,
 
     /// Tests the final download size of a given set of fonts on a set of website data.
     ///
@@ -47,7 +55,11 @@ enum Commands {
 
     /// Generates the raw adjacency tables from common crawl data.
     ///
-    /// Requires that `download-common-crawl` is run first.
+    /// This takes an extremely large amount of memory (to the order of 100-150GB) as it stores the
+    /// bitset data uncompressed in memory in addition to multiple instances of large tables for
+    /// the purpose of multithreading.
+    ///
+    /// Requires that `split-common-crawl` is run first.
     GenerateRawAdjacency,
 
     TestSubsetting(FileArgs),
@@ -86,5 +98,6 @@ async fn main() {
             .await
             .unwrap(),
         Commands::TestSubsetting(path) => test_subsetting::test_subsetting(&path.files).unwrap(),
+        Commands::SplitCommonCrawl => split_common_crawl::split_common_crawl().await.unwrap(),
     }
 }

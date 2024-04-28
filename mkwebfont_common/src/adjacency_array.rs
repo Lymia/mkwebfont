@@ -5,10 +5,7 @@ use crate::{
 use anyhow::Result;
 use bincode::{config, Decode, Encode};
 use roaring::RoaringBitmap;
-use std::{
-    collections::HashMap,
-    sync::atomic::{AtomicU32, Ordering},
-};
+use std::collections::HashMap;
 use tracing::{debug, info};
 
 const PLACE_SENTINEL: u32 = u32::MAX;
@@ -24,10 +21,6 @@ fn triangle_unchecked(n: usize) -> usize {
     (n * (n + 1)) / 2
 }
 
-fn place_idx_unchecked(place_a: usize, place_b: usize) -> usize {
-    triangle_unchecked(place_a + 1) - (place_b + 1)
-}
-
 fn place_idx(place_a: usize, place_b: usize) -> usize {
     if place_a < place_b {
         place_idx(place_b, place_a)
@@ -38,22 +31,15 @@ fn place_idx(place_a: usize, place_b: usize) -> usize {
 
 #[derive(Copy, Clone, Decode, Encode, Debug)]
 struct ByteEncoder {
-    resolution: f64,
     log_min_value: f64,
     log_max_value: f64,
     exponent: f64,
 }
 impl ByteEncoder {
-    fn init_for_min_max(resolution: u8, exponent: f64, min: u64, max: u64) -> Self {
-        assert!(resolution <= 254);
+    fn init_for_min_max(exponent: f64, min: u64, max: u64) -> Self {
         let min = min.max(1) as f64;
         let max = max.max(1) as f64;
-        ByteEncoder {
-            resolution: resolution as f64,
-            log_min_value: min.log(exponent),
-            log_max_value: max.log(exponent),
-            exponent,
-        }
+        ByteEncoder { log_min_value: min.log(exponent), log_max_value: max.log(exponent), exponent }
     }
 
     pub fn encode(&self, value: u64) -> u8 {
@@ -63,7 +49,7 @@ impl ByteEncoder {
             let value = (value as f64).log(self.exponent);
             let value = value.min(self.log_max_value).max(self.log_min_value);
             let value = (value - self.log_min_value) / (self.log_max_value - self.log_min_value);
-            1 + (value * self.resolution).round() as u8
+            1 + value.round() as u8
         }
     }
 
@@ -71,7 +57,7 @@ impl ByteEncoder {
         if value == 0 {
             0
         } else {
-            let value = (value - 1) as f64 / self.resolution;
+            let value = (value - 1) as f64;
             let value = value * (self.log_max_value - self.log_min_value) + self.log_min_value;
             let value = self.exponent.powf(value);
             value.round() as u64
@@ -114,7 +100,7 @@ pub struct AdjacencyArrayBuilder {
     name: String,
     codepoint_list: Vec<u32>,
     places: HashMap<u32, usize, WyHashBuilder>,
-    data: Vec<AtomicU32>,
+    data: Vec<u32>,
 }
 impl AdjacencyArrayBuilder {
     pub fn new(name: &str, glyphs: &RoaringBitmap) -> Self {
@@ -132,31 +118,39 @@ impl AdjacencyArrayBuilder {
         );
         let mut data = Vec::with_capacity(triangle_ct);
         for _ in 0..triangle_ct {
-            data.push(AtomicU32::new(0));
+            data.push(0);
         }
         debug!("Allocation done...");
 
         AdjacencyArrayBuilder { name: name.to_string(), codepoint_list, places, data }
     }
 
-    pub fn push_vector(&self, bitmap: &RoaringBitmap, tmp: &mut Vec<usize>) {
+    pub fn push_vector(&mut self, bitmap: &RoaringBitmap, chars: &[u32], tmp: &mut Vec<usize>) {
         tmp.clear();
         for glyph in bitmap {
-            if let Some(glyph) = self.places.get(&glyph) {
+            if let Some(glyph) = self.places.get(&chars[glyph as usize]) {
                 tmp.push(*glyph);
             }
         }
 
         for (i, place_a) in tmp.iter().enumerate() {
             for place_b in tmp.iter().skip(i) {
-                self.data[place_idx_unchecked(*place_b, *place_a)].fetch_add(1, Ordering::Relaxed);
+                self.data[place_idx(*place_b, *place_a)] += 1;
             }
+        }
+    }
+
+    pub fn join(&mut self, other: AdjacencyArrayBuilder) {
+        assert_eq!(&self.codepoint_list, &other.codepoint_list);
+        assert_eq!(&self.places, &other.places);
+        assert_eq!(self.data.len(), other.data.len());
+        for i in 0..self.data.len() {
+            self.data[i] += other.data[i];
         }
     }
 
     pub fn build(
         &self,
-        resolution: usize,
         exponent: f64,
         get_block_id: impl Fn(char) -> Option<&'static str>,
     ) -> AdjacencyArray {
@@ -164,19 +158,11 @@ impl AdjacencyArrayBuilder {
         debug!("Adjacency array metadata: min, max");
         let mut min = u32::MAX;
         let mut max = u32::MIN;
-        for bit in &self.data {
-            let val = bit.load(Ordering::Relaxed);
+        for &val in &self.data {
             if val != 0 {
                 min = min.min(val);
                 max = max.max(val);
             }
-        }
-
-        // Find edge count.
-        debug!("Adjacency array metadata: edge_total");
-        let mut count: f64 = 0.0;
-        for i in 0..self.codepoint_list.len() {
-            count += self.data[place_idx(i, i)].load(Ordering::Relaxed) as f64;
         }
 
         // Initialize hashmap with all characters.
@@ -204,12 +190,17 @@ impl AdjacencyArrayBuilder {
         }
 
         // Finding edge maximum data.
-        debug!("Adjacency array metadata: chars (edge_total)");
+        debug!("Adjacency array metadata: chars (edge_total), edge_total");
+        let mut count: f64 = 0.0;
         for a in 0..self.codepoint_list.len() {
             let mut edge_total = 0.0;
             for b in 0..self.codepoint_list.len() {
                 if a != b {
-                    edge_total += self.data[place_idx(a, b)].load(Ordering::Relaxed) as f64;
+                    let value = self.data[place_idx(a, b)] as f64;
+                    edge_total += value;
+                    if a < b {
+                        count += value;
+                    }
                 }
             }
             char_data
@@ -220,12 +211,11 @@ impl AdjacencyArrayBuilder {
 
         // Encode final data vector
         debug!("Adjacency array metadata: encoder, final_data");
-        let encoder =
-            ByteEncoder::init_for_min_max(resolution as u8, exponent, min as u64, max as u64);
+        let encoder = ByteEncoder::init_for_min_max(exponent, min as u64, max as u64);
         debug!("Encoder: {encoder:?}");
         let mut final_data = Vec::with_capacity(self.data.len());
-        for val in &self.data {
-            final_data.push(encoder.encode(val.load(Ordering::Relaxed) as u64));
+        for &val in &self.data {
+            final_data.push(encoder.encode(val as u64));
         }
 
         // Build final map
@@ -371,6 +361,7 @@ impl AdjacencyArray {
             data.get_data(&format!("{name}:adjacency_array_meta"))?,
             config::standard(),
         )?;
+        debug!("{:?}", meta.0.encoder);
         let data = data.get_data(&format!("{name}:adjacency_array"))?;
         Ok(AdjacencyArray { meta: meta.0, data: data.to_vec() })
     }

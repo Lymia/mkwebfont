@@ -46,6 +46,7 @@ fn subset(font: &LoadedFont) -> Result<()> {
                     let ch = char::from_u32(ch).unwrap();
 
                     let modularity = bloom.delta_modularity(ch, &subset);
+                    //println!("{subset:?} {ch:?} {modularity}");
                     if modularity > best_modularity {
                         best_modularity = modularity;
                         best_ch = Some(ch);
