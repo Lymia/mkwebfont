@@ -31,15 +31,11 @@ fn place_idx(place_a: usize, place_b: usize) -> usize {
 
 #[derive(Copy, Clone, Decode, Encode, Debug)]
 struct ByteEncoder {
-    log_min_value: f64,
-    log_max_value: f64,
     exponent: f64,
 }
 impl ByteEncoder {
-    fn init_for_min_max(exponent: f64, min: u64, max: u64) -> Self {
-        let min = min.max(1) as f64;
-        let max = max.max(1) as f64;
-        ByteEncoder { log_min_value: min.log(exponent), log_max_value: max.log(exponent), exponent }
+    fn new(exponent: f64) -> Self {
+        ByteEncoder { exponent }
     }
 
     pub fn encode(&self, value: u64) -> u8 {
@@ -47,8 +43,6 @@ impl ByteEncoder {
             0
         } else {
             let value = (value as f64).log(self.exponent);
-            let value = value.min(self.log_max_value).max(self.log_min_value);
-            let value = (value - self.log_min_value) / (self.log_max_value - self.log_min_value);
             1 + value.round() as u8
         }
     }
@@ -57,9 +51,7 @@ impl ByteEncoder {
         if value == 0 {
             0
         } else {
-            let value = (value - 1) as f64;
-            let value = value * (self.log_max_value - self.log_min_value) + self.log_min_value;
-            let value = self.exponent.powf(value);
+            let value = self.exponent.powf((value - 1) as f64);
             value.round() as u64
         }
     }
@@ -154,17 +146,6 @@ impl AdjacencyArrayBuilder {
         exponent: f64,
         get_block_id: impl Fn(char) -> Option<&'static str>,
     ) -> AdjacencyArray {
-        // Find maximum, minimum.
-        debug!("Adjacency array metadata: min, max");
-        let mut min = u32::MAX;
-        let mut max = u32::MIN;
-        for &val in &self.data {
-            if val != 0 {
-                min = min.min(val);
-                max = max.max(val);
-            }
-        }
-
         // Initialize hashmap with all characters.
         debug!("Adjacency array metadata: chars (blocks)");
         let mut char_data = HashMap::default();
@@ -211,8 +192,7 @@ impl AdjacencyArrayBuilder {
 
         // Encode final data vector
         debug!("Adjacency array metadata: encoder, final_data");
-        let encoder = ByteEncoder::init_for_min_max(exponent, min as u64, max as u64);
-        debug!("Encoder: {encoder:?}");
+        let encoder = ByteEncoder::new(exponent);
         let mut final_data = Vec::with_capacity(self.data.len());
         for &val in &self.data {
             final_data.push(encoder.encode(val as u64));

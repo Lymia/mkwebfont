@@ -7,9 +7,12 @@ use mkwebfont_common::{
     join_set::JoinSet,
 };
 use roaring::RoaringBitmap;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 use tokio::sync::Mutex;
-use tracing::{debug, info};
+use tracing::{debug, info, info_span};
 use unic_ucd_block::Block;
 use unic_ucd_category::GeneralCategory;
 
@@ -18,8 +21,18 @@ use unic_ucd_category::GeneralCategory;
 pub const RAW_ADJACENCY_PATH: &str = "run/common_crawl-raw_adjacency";
 const ADJACENCY_ARRAY_NAME: &str = "common_crawl-adjacency";
 
-async fn push_to_table(adjacency: &mut AdjacencyArrayBuilder, section: &BitsetSection) {
-    info!("Processing {} pages from {}...", section.len(), section.source());
+async fn push_to_table(
+    adjacency: &mut AdjacencyArrayBuilder,
+    section: &BitsetSection,
+    i: &AtomicUsize,
+    j: usize,
+) {
+    info!(
+        "Processing {} pages from {}... ({}/{j})",
+        section.len(),
+        section.source(),
+        i.fetch_add(1, Ordering::Relaxed),
+    );
     let mut tmp = Vec::new();
     for bitmap in section.iter() {
         if bitmap.len() > MAX_CHARACTERS {
@@ -42,7 +55,7 @@ const MAX_CHARACTERS: u64 = 1750;
 /// The minimum number of samples for a character for it to not be excluded.
 ///
 /// This prevents groupings based on extremely small numbers of websites.
-const MIN_COUNT: u8 = 5;
+const MIN_COUNT: u8 = 50;
 
 fn load_section(i: usize) -> Result<BitsetList> {
     let path = format!("{SECTION_DIR}/section_{i}");
@@ -54,17 +67,23 @@ pub async fn generate_raw_adjacency() -> Result<()> {
     let mut all_glyphs = RoaringBitmap::new();
     let mut webpage_count = 0u64;
     let mut omitted_count = 0u64;
-    let mut count: [u8; 0x110000] = [0; 0x110000];
+    let mut count = Box::new([0u8; 0x110000]);
+    let mut sections = 0;
     {
         let mut joins = JoinSet::new();
         for i in 0..SECTION_COUNT {
+            let span = info_span!("count", section = i);
+            let _enter = span.enter();
+
             joins.spawn(async move {
+                debug!("Begin count...");
+
                 let bitsets = load_section(i)?;
 
                 let mut all_glyphs = RoaringBitmap::new();
                 let mut webpage_count = 0u64;
                 let mut omitted_count = 0u64;
-                let mut count: [u8; 0x110000] = [0; 0x110000];
+                let mut count = Box::new([0u8; 0x110000]);
 
                 for (bitmap, chars) in bitsets.iter() {
                     webpage_count += 1;
@@ -78,21 +97,22 @@ pub async fn generate_raw_adjacency() -> Result<()> {
                         all_glyphs.insert(ch);
                         count[ch as usize] = count[ch as usize].saturating_add(1);
                     }
-                    if webpage_count % 200000 == 0 {
-                        debug!("Preprocessing bitmaps as of {webpage_count}...");
-                    }
                 }
 
-                Ok((all_glyphs, webpage_count, omitted_count, count))
+                debug!("End count...");
+                Ok((all_glyphs, webpage_count, omitted_count, count, bitsets.sections().len()))
             })
         }
-        for (all_glyphs_n, webpage_count_n, omitted_count_n, count_n) in joins.join()? {
+        for (all_glyphs_n, webpage_count_n, omitted_count_n, count_n, sections_n) in
+            joins.join().await?
+        {
             all_glyphs.extend(all_glyphs_n);
             webpage_count += webpage_count_n;
             omitted_count += omitted_count_n;
             for i in 0..0x110000 {
                 count[i] += count_n[i];
             }
+            sections += sections_n;
         }
     }
 
@@ -117,14 +137,21 @@ pub async fn generate_raw_adjacency() -> Result<()> {
         filtered_glyphs.len()
     );
 
-    let mut graph = AdjacencyArrayBuilder::new(ADJACENCY_ARRAY_NAME, &filtered_glyphs);
+    let mut graph;
     {
         let remaining: Vec<_> = (0..SECTION_COUNT).collect();
         let remaining = Arc::new(Mutex::new(remaining));
 
         let mut joins = JoinSet::new();
+        let atomic = Arc::new(AtomicUsize::new(1));
         for i in 0..16 {
+            let span = info_span!("build_array", thread = i);
+            let _enter = span.enter();
+
+            let filtered_glyphs = filtered_glyphs.clone();
             let remaining = remaining.clone();
+            let atomic = atomic.clone();
+
             joins.spawn(async move {
                 let mut target = AdjacencyArrayBuilder::new(ADJACENCY_ARRAY_NAME, &filtered_glyphs);
                 loop {
@@ -132,7 +159,7 @@ pub async fn generate_raw_adjacency() -> Result<()> {
                     if let Some(i) = section {
                         let chunk = load_section(i)?;
                         for section in chunk.take_sections() {
-                            push_to_table(&mut target, &section).await;
+                            push_to_table(&mut target, &section, &atomic, sections).await;
                         }
                     } else {
                         break;
@@ -141,7 +168,10 @@ pub async fn generate_raw_adjacency() -> Result<()> {
                 Ok(target)
             });
         }
-        for section in joins.join().await? {
+
+        let joins = joins.join().await?;
+        graph = AdjacencyArrayBuilder::new(ADJACENCY_ARRAY_NAME, &filtered_glyphs);
+        for section in joins {
             graph.join(section);
         }
     }
