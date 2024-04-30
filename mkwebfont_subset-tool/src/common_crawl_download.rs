@@ -28,6 +28,10 @@ use std::{
     fs,
     io::{Cursor, Read},
     path::PathBuf,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 use tokio::task::JoinHandle;
 use tracing::{debug, info};
@@ -126,11 +130,22 @@ async fn download_uri_list(target: &str, list: &str) -> Result<()> {
 
 pub async fn process_list_to_bitmaps(target: &str, list: &str) -> Result<DataPackage> {
     let mut joins = JoinSet::new();
+    let processed = Arc::new(AtomicUsize::new(1));
+    let found = Arc::new(AtomicUsize::new(0));
     for file in list.trim().split('\n') {
         let path = PathBuf::from(format!("run/{target}/{file}"));
         assert!(path.exists());
+
+        let processed = processed.clone();
+        let found = found.clone();
+        found.fetch_add(1, Ordering::Relaxed);
         joins.spawn(async move {
-            info!("Processing {}...", path.display());
+            info!(
+                "Processing {}... ({}/{})",
+                path.display(),
+                processed.fetch_add(1, Ordering::Relaxed),
+                found.load(Ordering::Relaxed),
+            );
             let warc = WarcReader::from_path_gzip(&path)?;
             let mut builder = BitsetListBuilder::new(&path.file_name().unwrap().to_string_lossy());
             builder.filter_chars(|x| {
