@@ -1,6 +1,6 @@
+use crate::model::data_package::{DataSection, DataSectionEncoder};
 use bincode::{Decode, Encode};
 use roaring::RoaringBitmap;
-use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone, Debug)]
@@ -22,11 +22,16 @@ pub struct WebfontSubset {
     pub map: RoaringBitmap,
 }
 
-#[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct RawSubset {
     pub name: String,
     pub group: Option<String>,
     pub chars: String,
+}
+
+#[derive(Clone, Debug, Encode, Decode)]
+pub struct RawSubsets {
+    pub subsets: Vec<RawSubset>,
 }
 
 fn convert_subset(name: &str, chars: &str) -> Arc<WebfontSubset> {
@@ -64,20 +69,6 @@ fn split_groups(
     (no_group, groups)
 }
 
-pub fn build_from_raw(subsets: &[RawSubset]) -> WebfontData {
-    let groups: HashMap<_, _> = subsets
-        .iter()
-        .flat_map(|v| v.group.as_ref().map(|g| (v.name.clone(), g.clone())))
-        .collect();
-    let subsets: Vec<_> = subsets
-        .iter()
-        .map(|v| convert_subset(&v.name, &v.chars))
-        .collect();
-    let by_name = build_by_name(&subsets);
-    let (subsets, groups) = split_groups(&groups, subsets);
-    WebfontData { by_name, subsets, groups }
-}
-
 pub fn build_from_table(table: HashMap<String, String>) -> WebfontData {
     let subsets: Vec<_> = table
         .into_iter()
@@ -85,4 +76,38 @@ pub fn build_from_table(table: HashMap<String, String>) -> WebfontData {
         .collect();
     let by_name = build_by_name(&subsets);
     WebfontData { by_name, subsets, groups: vec![] }
+}
+
+impl RawSubsets {
+    pub fn build(&self) -> WebfontData {
+        let groups: HashMap<_, _> = self
+            .subsets
+            .iter()
+            .flat_map(|v| v.group.as_ref().map(|g| (v.name.clone(), g.clone())))
+            .collect();
+        let subsets: Vec<_> = self
+            .subsets
+            .iter()
+            .map(|v| convert_subset(&v.name, &v.chars))
+            .collect();
+        let by_name = build_by_name(&subsets);
+        let (subsets, groups) = split_groups(&groups, subsets);
+        WebfontData { by_name, subsets, groups }
+    }
+}
+
+/// Serialization code
+impl RawSubsets {
+    const TYPE_TAG: &'static str = "RawSubsets";
+
+    pub fn serialize(self, tag: &str) -> anyhow::Result<DataSection> {
+        let mut encoder = DataSectionEncoder::new(tag, Self::TYPE_TAG);
+        encoder.insert_bincode("*", &self);
+        Ok(encoder.build())
+    }
+
+    pub fn deserialize(mut section: DataSection) -> anyhow::Result<Self> {
+        section.type_check(Self::TYPE_TAG)?;
+        Ok(section.take_bincode("*")?)
+    }
 }

@@ -8,8 +8,7 @@ use tracing::{info, warn};
 
 fn subset(font: &LoadedFont) -> Result<()> {
     info!("Loading data...");
-    let data = std::fs::read(RAW_ADJACENCY_PATH)?;
-    let mut data = DataPackage::deserialize(&data)?;
+    let mut data = DataPackage::load(RAW_ADJACENCY_PATH)?;
     let adjacency = AdjacencyArray::deserialize(RAW_ADJACENCY_TAG, &mut data)?;
 
     info!("Font: {} {}", font.font_family(), font.font_style());

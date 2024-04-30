@@ -1,11 +1,11 @@
-use crate::wyhash::WyHashBuilder;
 use anyhow::{bail, ensure, Result};
 use bincode::{config, Decode, Encode};
 use blake3::Hasher;
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
+    fmt::{Debug, Formatter},
     fs::File,
-    io::{BufReader, Cursor, Read, Write},
+    io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -15,12 +15,13 @@ use zstd::{Decoder, Encoder};
 const MAGIC: &[u8; 8] = b"mkwbfont";
 const VERSION_TAG: &[u8; 4] = b"v0.2";
 
-pub struct DataPackageEncoder(DataPackage);
-impl DataPackageEncoder {
-    pub fn new(id: &str) -> Self {
+pub struct DataSectionEncoder(DataSection);
+impl DataSectionEncoder {
+    pub fn new(tag: &str, tp: &str) -> Self {
         let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-        DataPackageEncoder(DataPackage {
-            package_id: id.to_string(),
+        DataSectionEncoder(DataSection {
+            tag: tag.to_string(),
+            tp: tp.to_string(),
             timestamp: unix_time.as_secs(),
             meta_num: Default::default(),
             files: Default::default(),
@@ -45,21 +46,26 @@ impl DataPackageEncoder {
         self.insert_data(key, bincode::encode_to_vec(data, config::standard()).unwrap());
     }
 
-    pub fn build(self) -> DataPackage {
+    pub fn build(self) -> DataSection {
         self.0
     }
 }
 
 #[derive(Encode, Decode)]
-pub struct DataPackage {
-    package_id: String,
+pub struct DataSection {
+    tag: String,
+    tp: String,
     timestamp: u64,
-    meta_num: HashMap<String, i64, WyHashBuilder>,
-    files: HashMap<String, Vec<u8>, WyHashBuilder>,
+    meta_num: BTreeMap<String, i64>,
+    files: BTreeMap<String, Vec<u8>>,
 }
-impl DataPackage {
-    pub fn package_id(&self) -> &str {
-        &self.package_id
+impl DataSection {
+    pub fn type_check(&self, tp: &str) -> Result<()> {
+        if tp == self.tp {
+            bail!("DataSection type mismatch: {tp:?} != {:?}", self.tp);
+        } else {
+            Ok(())
+        }
     }
 
     pub fn get_i64(&self, key: &str) -> Result<i64> {
@@ -74,14 +80,6 @@ impl DataPackage {
         self.get_i64(key).map(|x| x as u64)
     }
 
-    pub fn get_data(&self, key: &str) -> Result<&[u8]> {
-        if let Some(x) = self.files.get(key) {
-            Ok(x.as_slice())
-        } else {
-            bail!("No data package section {key}");
-        }
-    }
-
     pub fn take_data(&mut self, key: &str) -> Result<Vec<u8>> {
         if let Some(x) = self.files.remove(key) {
             Ok(x)
@@ -90,48 +88,83 @@ impl DataPackage {
         }
     }
 
-    pub fn get_bincode<T: Decode>(&self, key: &str) -> Result<T> {
-        let bytes = self.get_data(key)?;
-        let (value, count) = bincode::decode_from_slice(bytes, config::standard())?;
-        assert_eq!(count, bytes.len());
-        Ok(value)
-    }
-
     pub fn take_bincode<T: Decode>(&mut self, key: &str) -> Result<T> {
         let bytes = self.take_data(key)?;
         let (value, count) = bincode::decode_from_slice(&bytes, config::standard())?;
         assert_eq!(count, bytes.len());
         Ok(value)
     }
+}
+impl Debug for DataSection {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[DataSection {:?}, timestamp {}]", self.tag, self.timestamp)
+    }
+}
 
-    pub fn encode(&self) -> Result<Vec<u8>> {
-        info!("Encoding data package: {}...", self.package_id);
-        let data = bincode::encode_to_vec(self, config::standard())?;
+pub struct DataPackageEncoder(DataPackage);
+impl DataPackageEncoder {
+    pub fn new(id: &str) -> Self {
+        let unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        DataPackageEncoder(DataPackage {
+            package_id: id.to_string(),
+            timestamp: unix_time.as_secs(),
+            packages: Default::default(),
+        })
+    }
 
-        debug!("Compressing data package...");
-        let compressed = {
-            let cursor = Cursor::new(Vec::<u8>::new());
-            let mut zstd = Encoder::new(cursor, 20)?;
-            zstd.multithread(8)?;
-            zstd.set_pledged_src_size(Some(data.len() as u64))?;
-            zstd.write_all(&data)?;
-            zstd.finish()?.into_inner()
-        };
+    pub fn insert_section(&mut self, key: &str, section: DataSection) {
+        self.0.packages.insert(key.to_string(), section);
+    }
 
-        debug!("Building data package...");
-        let compressed_hash = blake3::hash(&compressed);
+    pub fn build(self) -> DataPackage {
+        self.0
+    }
+}
 
-        let mut encoded = Vec::new();
-        encoded.extend(MAGIC.as_slice());
-        encoded.extend(VERSION_TAG.as_slice());
-        encoded.extend(compressed_hash.as_bytes().as_slice());
-        encoded.extend(compressed);
+#[derive(Encode, Decode)]
+pub struct DataPackage {
+    package_id: String,
+    timestamp: u64,
+    packages: BTreeMap<String, DataSection>,
+}
+impl DataPackage {
+    pub fn package_id(&self) -> &str {
+        &self.package_id
+    }
 
-        Ok(encoded)
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp
     }
 
     pub fn save(&self, target: impl AsRef<Path>) -> Result<()> {
-        std::fs::write(target, self.encode()?)?;
+        info!("Serializing data package to '{}'...", target.as_ref().display());
+
+        let mut writer = File::create(target)?;
+
+        // write headers
+        writer.write_all(MAGIC)?;
+        writer.write_all(VERSION_TAG)?;
+        writer.write_all(&[0; 32])?; // temporary
+
+        // compress main body
+        let hash = {
+            let mut hash = Blake3Writer::new(&mut writer);
+
+            let mut zstd = Encoder::new(&mut hash, 22)?;
+            zstd.multithread(16)?;
+            bincode::encode_into_std_write(
+                self,
+                &mut BufWriter::new(&mut zstd),
+                config::standard(),
+            )?;
+            zstd.finish()?;
+
+            *hash.hash.finalize().as_bytes()
+        };
+
+        // write the final hash
+        writer.seek(SeekFrom::Start((MAGIC.len() + VERSION_TAG.len()) as u64))?;
+        writer.write_all(&hash)?;
         Ok(())
     }
 
@@ -158,11 +191,8 @@ impl DataPackage {
         Ok(val)
     }
 
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
-        Self::deserialize_stream(Cursor::new(data))
-    }
-
     pub fn load(target: impl AsRef<Path>) -> Result<Self> {
+        debug!("Deserializing data package from '{}'...", target.as_ref().display());
         Self::deserialize_stream(File::open(target)?)
     }
 }
@@ -181,5 +211,25 @@ impl<R: Read> Read for Blake3Reader<R> {
         let result = self.underlying.read(buf)?;
         self.hash.write_all(&buf[..result])?;
         Ok(result)
+    }
+}
+
+struct Blake3Writer<W: Write> {
+    hash: Hasher,
+    underlying: W,
+}
+impl<W: Write> Blake3Writer<W> {
+    pub fn new(underlying: W) -> Self {
+        Blake3Writer { hash: Hasher::new(), underlying }
+    }
+}
+impl<W: Write> Write for Blake3Writer<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let result = self.underlying.write(buf)?;
+        self.hash.write_all(&buf[..result])?;
+        Ok(result)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.underlying.flush()
     }
 }

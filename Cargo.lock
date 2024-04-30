@@ -895,7 +895,6 @@ dependencies = [
  "bincode",
  "blake3",
  "roaring",
- "serde",
  "tokio",
  "toml",
  "tracing",

@@ -182,7 +182,7 @@ pub async fn generate_raw_adjacency() -> Result<()> {
     let graph = graph.build(1.5, |ch| find_unicode_block(ch).map(|x| x.name()));
     graph.serialize(RAW_ADJACENCY_TAG, &mut package)?;
     let package = package.build();
-    std::fs::write(RAW_ADJACENCY_PATH, package.encode()?)?;
+    package.save(RAW_ADJACENCY_PATH)?;
 
     Ok(())
 }

@@ -1,9 +1,9 @@
 use crate::{
-    model::data_package::{DataPackage, DataPackageEncoder},
+    model::data_package::{DataSection, DataSectionEncoder},
     wyhash::WyHashBuilder,
 };
 use anyhow::Result;
-use bincode::{config, Decode, Encode};
+use bincode::{Decode, Encode};
 use roaring::RoaringBitmap;
 use std::collections::HashMap;
 use tracing::{debug, info};
@@ -347,18 +347,19 @@ impl AdjacencyArray {
 
 /// Serialization code
 impl AdjacencyArray {
-    pub fn serialize(&self, name: &str, data: &mut DataPackageEncoder) -> Result<()> {
-        data.insert_data(
-            &format!("{name}:adjacency_array_meta"),
-            bincode::encode_to_vec(&self.meta, config::standard())?,
-        );
-        data.insert_data(&format!("{name}:adjacency_array"), self.data.clone());
-        Ok(())
+    const TYPE_TAG: &'static str = "AdjacencyArray";
+
+    pub fn serialize(self, tag: &str) -> Result<DataSection> {
+        let mut encoder = DataSectionEncoder::new(tag, Self::TYPE_TAG);
+        encoder.insert_bincode("meta", &self.meta);
+        encoder.insert_data("data", self.data);
+        Ok(encoder.build())
     }
 
-    pub fn deserialize(name: &str, data: &mut DataPackage) -> Result<AdjacencyArray> {
-        let meta: Meta = data.take_bincode(&format!("{name}:adjacency_array_meta"))?;
-        let data = data.take_data(&format!("{name}:adjacency_array"))?;
+    pub fn deserialize(mut section: DataSection) -> Result<Self> {
+        section.type_check(Self::TYPE_TAG)?;
+        let meta: Meta = section.take_bincode("meta")?;
+        let data = section.take_data("data")?;
         Ok(AdjacencyArray { meta, data })
     }
 }

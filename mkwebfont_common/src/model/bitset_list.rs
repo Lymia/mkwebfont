@@ -1,9 +1,9 @@
 use crate::{
-    model::data_package::{DataPackage, DataPackageEncoder},
+    model::data_package::{DataSection, DataSectionEncoder},
     wyhash::WyHashBuilder,
 };
 use anyhow::Result;
-use bincode::{config, Decode, Encode};
+use bincode::{Decode, Encode};
 use roaring::RoaringBitmap;
 use std::{
     collections::HashMap,
@@ -236,19 +236,16 @@ impl BitsetList {
 
 /// Serialization code
 impl BitsetList {
-    pub fn serialize(&self, name: &str, data: &mut DataPackageEncoder) -> Result<()> {
-        data.insert_data(
-            &format!("{name}:bitset_list"),
-            bincode::encode_to_vec(&self, config::standard())?,
-        );
-        Ok(())
+    const TYPE_TAG: &'static str = "BitsetList";
+
+    pub fn serialize(self, tag: &str) -> Result<DataSection> {
+        let mut encoder = DataSectionEncoder::new(tag, Self::TYPE_TAG);
+        encoder.insert_bincode("*", &self);
+        Ok(encoder.build())
     }
 
-    pub fn deserialize(name: &str, data: &DataPackage) -> Result<BitsetList> {
-        let bitset_list = bincode::decode_from_slice::<Self, _>(
-            data.get_data(&format!("{name}:bitset_list"))?,
-            config::standard(),
-        )?;
-        Ok(bitset_list.0)
+    pub fn deserialize(mut section: DataSection) -> Result<Self> {
+        section.type_check(Self::TYPE_TAG)?;
+        Ok(section.take_bincode("*")?)
     }
 }
