@@ -13,7 +13,7 @@ use tracing::{debug, info};
 use zstd::{Decoder, Encoder};
 
 const MAGIC: &[u8; 8] = b"mkwbfont";
-const VERSION_TAG: &[u8; 4] = b"v0.1";
+const VERSION_TAG: &[u8; 4] = b"v0.2";
 
 pub struct DataPackageEncoder(DataPackage);
 impl DataPackageEncoder {
@@ -119,13 +119,11 @@ impl DataPackage {
         };
 
         debug!("Building data package...");
-        let data_hash = blake3::hash(&data);
         let compressed_hash = blake3::hash(&compressed);
 
         let mut encoded = Vec::new();
         encoded.extend(MAGIC.as_slice());
         encoded.extend(VERSION_TAG.as_slice());
-        encoded.extend(data_hash.as_bytes().as_slice());
         encoded.extend(compressed_hash.as_bytes().as_slice());
         encoded.extend(compressed);
 
@@ -138,14 +136,12 @@ impl DataPackage {
     }
 
     fn deserialize_stream(mut r: impl Read) -> Result<Self> {
-        let mut header = [0u8; 76];
+        let mut header = [0u8; 44];
         r.read_exact(&mut header)?;
 
         ensure!(&header[0..8] == MAGIC);
         ensure!(&header[8..12] == VERSION_TAG);
-
-        let data_hash = &header[12..44];
-        let compressed_hash = &header[44..76];
+        let compressed_hash = &header[12..44];
 
         // construct the reader chain
         let blake3_r0 = Blake3Reader::new(r);
@@ -156,9 +152,7 @@ impl DataPackage {
 
         let val: Self = bincode::decode_from_reader(&mut buf_r3, config::standard())?;
 
-        let blake3_r2 = buf_r3.into_inner();
-        assert_eq!(blake3_r2.hash.finalize().as_bytes(), data_hash);
-        drop(blake3_r2);
+        drop(buf_r3);
         assert_eq!(buf_r1.into_inner().hash.finalize().as_bytes(), compressed_hash);
 
         Ok(val)
