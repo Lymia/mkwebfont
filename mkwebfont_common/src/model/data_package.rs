@@ -64,6 +64,7 @@ impl DataSection {
         if tp == self.tp {
             bail!("DataSection type mismatch: {tp:?} != {:?}", self.tp);
         } else {
+            debug!("Deserializing {tp} from {self:?}...");
             Ok(())
         }
     }
@@ -72,7 +73,7 @@ impl DataSection {
         if let Some(x) = self.meta_num.get(key) {
             Ok(*x)
         } else {
-            bail!("No data package section {key}");
+            bail!("No data section num: {key}");
         }
     }
 
@@ -84,7 +85,7 @@ impl DataSection {
         if let Some(x) = self.files.remove(key) {
             Ok(x)
         } else {
-            bail!("No data package section {key}");
+            bail!("No data section file: {key}");
         }
     }
 
@@ -134,6 +135,14 @@ impl DataPackage {
 
     pub fn timestamp(&self) -> u64 {
         self.timestamp
+    }
+
+    pub fn take_section(&mut self, key: &str) -> Result<DataSection> {
+        if let Some(x) = self.packages.remove(key) {
+            Ok(x)
+        } else {
+            bail!("No data section: {key}");
+        }
     }
 
     pub fn save(&self, target: impl AsRef<Path>) -> Result<()> {

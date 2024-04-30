@@ -6,6 +6,7 @@ mod generate_gfsubsets;
 mod test_subsetting;
 mod test_subsetting_quality;
 
+use async_recursion::async_recursion;
 use clap::{Parser, Subcommand};
 use std::{io, path::PathBuf};
 
@@ -35,16 +36,15 @@ enum Commands {
     /// extremely large amount of memory (to the order of 100-150GB) as it stores the generated
     /// bitset data uncompressed in memory while waiting to compress it.
     ///
-    /// The Common Crawl raw dumps are not required for any other commands. They may be deleted
-    /// after `common-crawl_bitsets-training` and `common-crawl_bitsets-validation` are generated.
-    /// These files should total to about 7 GiB.
+    /// The Common Crawl raw data is not required for any other commands. They may be safely
+    /// deleted after this command completes.
     CommonCrawlDownload,
 
     /// Splits the monolithic training files for common crawl. This helps later steps.
     ///
     /// This takes about 7 GiB of disk, and an extremely large amount of memory.
     ///
-    /// Requires that `download-common-crawl` is run first.
+    /// Requires that `common-crawl-download` is run first.
     CommonCrawlSplit,
 
     /// Generates the raw adjacency tables from split common crawl data.
@@ -53,7 +53,7 @@ enum Commands {
     /// data uncompressed in memory in addition to multiple instances of large tables for the
     /// purpose of multithreading.
     ///
-    /// Requires that `split-common-crawl` is run first.
+    /// Requires that `common-crawl-split` is run first.
     GenerateAdjacencyTable,
 
     /// Generates the Google Font subsets tables.
@@ -65,6 +65,15 @@ enum Commands {
     ///
     /// Requires that `generate-adjacency-table` and `generate-gfsubsets` are run first.
     GenerateData,
+
+    /// A function that runs the following commands in order:
+    ///
+    /// * `common-crawl-download`
+    /// * `common-crawl-split`
+    /// * `generate-adjacency-table`
+    /// * `generate-gfsubsets`
+    /// * `generate-data`
+    RunAll,
 
     TestSubsetting(FileArgs),
 
@@ -80,20 +89,9 @@ struct FileArgs {
     files: Vec<PathBuf>,
 }
 
-#[tokio::main]
-async fn main() {
-    let args = Args::parse();
-    let filter = if args.verbose {
-        "debug,h2=info,hyper_util=info,reqwest=info,rustls=info"
-    } else {
-        "info"
-    };
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_writer(io::stderr)
-        .init();
-
-    match args.command {
+#[async_recursion]
+async fn run(command: Commands) {
+    match command {
         Commands::CommonCrawlDownload => common_crawl_download::download_common_crawl()
             .await
             .unwrap(),
@@ -109,5 +107,27 @@ async fn main() {
                 .unwrap()
         }
         Commands::TestSubsetting(path) => test_subsetting::test_subsetting(&path.files).unwrap(),
+        Commands::RunAll => {
+            run(Commands::CommonCrawlDownload).await;
+            run(Commands::CommonCrawlSplit).await;
+            run(Commands::GenerateAdjacencyTable).await;
+            run(Commands::GenerateGfsubsets).await;
+            run(Commands::GenerateData).await;
+        }
     }
+}
+
+#[tokio::main]
+async fn main() {
+    let args = Args::parse();
+    let filter = if args.verbose {
+        "debug,h2=info,hyper_util=info,reqwest=info,rustls=info"
+    } else {
+        "info"
+    };
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(io::stderr)
+        .init();
+    run(args.command).await
 }

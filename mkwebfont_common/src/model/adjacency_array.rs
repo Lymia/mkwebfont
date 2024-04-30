@@ -89,13 +89,12 @@ impl BlockIdAssigner {
 }
 
 pub struct AdjacencyArrayBuilder {
-    name: String,
     codepoint_list: Vec<u32>,
     places: HashMap<u32, usize, WyHashBuilder>,
     data: Vec<u32>,
 }
 impl AdjacencyArrayBuilder {
-    pub fn new(name: &str, glyphs: &RoaringBitmap) -> Self {
+    pub fn new(glyphs: &RoaringBitmap) -> Self {
         let mut codepoint_list = Vec::new();
         let mut places = HashMap::default();
         for glyph in glyphs {
@@ -114,7 +113,7 @@ impl AdjacencyArrayBuilder {
         }
         debug!("Allocation done...");
 
-        AdjacencyArrayBuilder { name: name.to_string(), codepoint_list, places, data }
+        AdjacencyArrayBuilder { codepoint_list, places, data }
     }
 
     pub fn push_vector(&mut self, bitmap: &RoaringBitmap, chars: &[u32], tmp: &mut Vec<usize>) {
@@ -200,7 +199,6 @@ impl AdjacencyArrayBuilder {
 
         // Build final map
         let meta = Meta {
-            name: self.name.clone(),
             encoder,
             codepoints: char_data,
             codepoint_list: self
@@ -231,7 +229,6 @@ impl CodepointInfo {
 
 #[derive(Clone, Decode, Encode)]
 struct Meta {
-    name: String,
     encoder: ByteEncoder,
     codepoints: HashMap<u32, CodepointInfo, WyHashBuilder>,
     codepoint_list: Vec<char>,
@@ -302,11 +299,6 @@ impl AdjacencyArray {
             //tracing::warn!("Unknown character {ch:?}");
             0.0
         }
-    }
-
-    pub fn with_name(mut self, name: &str) -> Self {
-        self.meta.name = name.to_string();
-        self
     }
 
     /// Returns the modularity of a set of characters

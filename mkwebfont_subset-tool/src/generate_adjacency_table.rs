@@ -1,4 +1,4 @@
-use crate::common_crawl_split::{SECTION_COUNT, SECTION_DIR, SECTION_TABLE};
+use crate::common_crawl_split::{SPLIT_SECTION_COUNT, SPLIT_SECTION_DIR, SPLIT_SECTION_TAG};
 use anyhow::Result;
 use mkwebfont_common::{
     join_set::JoinSet,
@@ -18,9 +18,9 @@ use tracing::{debug, info, info_span};
 use unicode_blocks::find_unicode_block;
 use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
 
-pub const RAW_ADJACENCY_PATH: &str = "run/common_crawl-raw_adjacency";
-pub const RAW_ADJACENCY_TAG: &str = "raw_adjacency";
-const ADJACENCY_ARRAY_NAME: &str = "raw_adjacency";
+pub const ADJACENCY_PATH: &str = "run/common_crawl-adjacency";
+pub const ADJACENCY_TAG: &str = "adjacency";
+const ADJACENCY_VERSION: &str = "v0.1.0";
 
 async fn push_to_table(
     adjacency: &mut AdjacencyArrayBuilder,
@@ -59,9 +59,9 @@ const MAX_CHARACTERS: u64 = 1750;
 const MIN_COUNT: u8 = 50;
 
 fn load_section(i: usize) -> Result<BitsetList> {
-    let path = format!("{SECTION_DIR}/section_{i}");
-    let data = DataPackage::load(path)?;
-    BitsetList::deserialize(SECTION_TABLE, &data)
+    let path = format!("{SPLIT_SECTION_DIR}/section_{i}");
+    let mut data = DataPackage::load(path)?;
+    BitsetList::deserialize(data.take_section(SPLIT_SECTION_TAG)?)
 }
 
 pub async fn generate_raw_adjacency() -> Result<()> {
@@ -72,7 +72,7 @@ pub async fn generate_raw_adjacency() -> Result<()> {
     let mut sections = 0;
     {
         let mut joins = JoinSet::new();
-        for i in 0..SECTION_COUNT {
+        for i in 0..SPLIT_SECTION_COUNT {
             let span = info_span!("count", section = i);
             let _enter = span.enter();
 
@@ -140,7 +140,7 @@ pub async fn generate_raw_adjacency() -> Result<()> {
 
     let mut graph;
     {
-        let remaining: Vec<_> = (0..SECTION_COUNT).collect();
+        let remaining: Vec<_> = (0..SPLIT_SECTION_COUNT).collect();
         let remaining = Arc::new(Mutex::new(remaining));
 
         let mut joins = JoinSet::new();
@@ -154,7 +154,7 @@ pub async fn generate_raw_adjacency() -> Result<()> {
             let atomic = atomic.clone();
 
             joins.spawn(async move {
-                let mut target = AdjacencyArrayBuilder::new(ADJACENCY_ARRAY_NAME, &filtered_glyphs);
+                let mut target = AdjacencyArrayBuilder::new(&filtered_glyphs);
                 loop {
                     let section = remaining.lock().await.pop();
                     if let Some(i) = section {
@@ -171,18 +171,18 @@ pub async fn generate_raw_adjacency() -> Result<()> {
         }
 
         let joins = joins.join().await?;
-        graph = AdjacencyArrayBuilder::new(ADJACENCY_ARRAY_NAME, &filtered_glyphs);
+        graph = AdjacencyArrayBuilder::new(&filtered_glyphs);
         for section in joins {
             graph.join(section);
         }
     }
 
-    info!("Outputting raw adjacency data...");
-    let mut package = DataPackageEncoder::new(ADJACENCY_ARRAY_NAME);
     let graph = graph.build(1.5, |ch| find_unicode_block(ch).map(|x| x.name()));
-    graph.serialize(RAW_ADJACENCY_TAG, &mut package)?;
-    let package = package.build();
-    package.save(RAW_ADJACENCY_PATH)?;
+
+    let name = format!("{ADJACENCY_TAG}/{ADJACENCY_VERSION}");
+    let mut package = DataPackageEncoder::new(&name);
+    package.insert_section(ADJACENCY_TAG, graph.serialize(&name)?);
+    package.build().save(ADJACENCY_PATH)?;
 
     Ok(())
 }

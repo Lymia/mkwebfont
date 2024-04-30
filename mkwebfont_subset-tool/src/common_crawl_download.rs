@@ -58,6 +58,9 @@ const PATH_URLS: &[&str] = &[
 const TRAINING_FILES_LIST: &str = include_str!("cc-training-files.txt");
 const VALIDATION_FILES_LIST: &str = include_str!("cc-validation-files.txt");
 
+pub const COMMON_CRAWL_TAG: &str = "common_crawl-bitsets";
+const COMMON_CRAWL_VERSION: &str = "v0.1.0";
+
 async fn find_download_links(list: &str) -> Result<Vec<String>> {
     fs::create_dir_all("run/common-crawl-indexes")?;
 
@@ -162,8 +165,9 @@ pub async fn process_list_to_bitmaps(target: &str, list: &str) -> Result<DataPac
     }
 
     let list = bitset_list::build(joins.join().await?);
-    let mut encoder = DataPackageEncoder::new(target);
-    list.serialize("bitset_list", &mut encoder)?;
+    let name = format!("{COMMON_CRAWL_TAG}/{target}/{COMMON_CRAWL_VERSION}");
+    let mut encoder = DataPackageEncoder::new(&name);
+    encoder.insert_section(COMMON_CRAWL_TAG, list.serialize(&name)?);
     Ok(encoder.build())
 }
 

@@ -4,7 +4,10 @@
 //! Code quality is very bad, but this needs to be run very rarely, so... it shouldn't matter much.
 
 use anyhow::*;
-use mkwebfont_common::model::{data_package::DataPackageEncoder, subset_data::RawSubset};
+use mkwebfont_common::model::{
+    data_package::DataPackageEncoder,
+    subset_data::{RawSubset, RawSubsets},
+};
 use roaring::RoaringBitmap;
 use serde::*;
 use std::{borrow::Cow, collections::HashMap};
@@ -12,7 +15,7 @@ use tracing::info;
 
 pub const GFSUBSETS_PATH: &str = "run/raw_gfsubsets";
 pub const GFSUBSETS_TAG: &str = "gfsubsets";
-const GFSUBSETS_NAME: &str = "gfsubsets";
+const GFSUBSETS_VERSION: &str = "v0.1.0";
 
 /// Really shitty CSS parser
 fn parse_css_poorly(css: &str, cjk_tag: &str) -> Result<HashMap<String, RoaringBitmap>> {
@@ -169,10 +172,11 @@ async fn mk_gf_ranges() -> Result<()> {
 
         subsets.push(subset);
     }
+    let subsets = RawSubsets { subsets };
 
-    info!("Outputting Google Fonts subset data...");
-    let mut package = DataPackageEncoder::new(GFSUBSETS_NAME);
-    package.insert_bincode(GFSUBSETS_TAG, &subsets);
+    let name = format!("{GFSUBSETS_TAG}/{GFSUBSETS_VERSION}");
+    let mut package = DataPackageEncoder::new(&name);
+    package.insert_section(GFSUBSETS_TAG, subsets.serialize(&name)?);
     package.build().save(GFSUBSETS_PATH)?;
     Ok(())
 }
