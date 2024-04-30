@@ -16,12 +16,13 @@ toml = "0.8"
 tracing = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-unic-emoji-char = "0.9"
-unic-ucd-block = "0.9"
-unic-ucd-category = "0.9"
 warc = "0.3"
 zstd = "0.13"
 
+# Unicode data
+unicode-blocks = "0.1"
+unicode-properties = "0.1"
+
+# Subcrates
 mkwebfont = { path = "../mkwebfont" }
 mkwebfont_common = { path = "../mkwebfont_common" }
-log = "0.4.21"

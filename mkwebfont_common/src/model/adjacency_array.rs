@@ -296,7 +296,12 @@ impl AdjacencyArray {
     }
 
     fn get_edge_total(&self, ch: char) -> f64 {
-        self.meta.codepoints.get(&(ch as u32)).unwrap().edge_total
+        if let Some(info) = self.meta.codepoints.get(&(ch as u32)) {
+            info.edge_total
+        } else {
+            //tracing::warn!("Unknown character {ch:?}");
+            0.0
+        }
     }
 
     pub fn with_name(mut self, name: &str) -> Self {

@@ -4,7 +4,7 @@ use mkwebfont::LoadedFont;
 use mkwebfont_common::model::{adjacency_array::AdjacencyArray, data_package::DataPackage};
 use roaring::RoaringBitmap;
 use std::path::PathBuf;
-use tracing::info;
+use tracing::{info, warn};
 
 fn subset(font: &LoadedFont) -> Result<()> {
     info!("Loading data...");
@@ -16,7 +16,11 @@ fn subset(font: &LoadedFont) -> Result<()> {
 
     let mut raw_chars = Vec::new();
     for glyph in font.codepoints() {
-        raw_chars.push((char::from_u32(glyph).unwrap(), adjacency.get_character_frequency(glyph)));
+        if let Some(glyph) = char::from_u32(glyph) {
+            raw_chars.push((glyph, adjacency.get_character_frequency(glyph as u32)));
+        } else {
+            warn!("Not character? {glyph}");
+        }
     }
     raw_chars.sort_by_key(|x| x.1);
     raw_chars.reverse();
