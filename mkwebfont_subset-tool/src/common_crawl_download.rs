@@ -16,9 +16,12 @@
 use anyhow::Result;
 use flate2::read::GzDecoder;
 use mkwebfont_common::{
-    bitset_list::BitsetListBuilder,
-    data_package::{DataPackage, DataPackageEncoder},
     join_set::JoinSet,
+    model::{
+        bitset_list,
+        bitset_list::BitsetListBuilder,
+        data_package::{DataPackage, DataPackageEncoder},
+    },
 };
 use std::{
     collections::HashMap,
@@ -143,7 +146,7 @@ pub async fn process_list_to_bitmaps(target: &str, list: &str) -> Result<DataPac
         })
     }
 
-    let list = mkwebfont_common::bitset_list::build(joins.join().await?);
+    let list = bitset_list::build(joins.join().await?);
     let mut encoder = DataPackageEncoder::new(target);
     list.serialize("bitset_list", &mut encoder)?;
     Ok(encoder.build())

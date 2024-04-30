@@ -13,7 +13,9 @@ anyhow = "1.0"
 bincode = "2.0.0-rc.3"
 blake3 = { version = "1.5", features = ["pure"] }
 roaring = "0.10"
+serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.37", features = ["rt-multi-thread"] }
+toml = "0.8"
 tracing = "0.1"
 wyrand = { git = "https://github.com/Lymia/wyrand-rs.git", features = ["wyhash", "v4_2"] } # low-usage crate, pin reviewed version
 zstd = { version = "0.13", features = ["zstdmt"] }

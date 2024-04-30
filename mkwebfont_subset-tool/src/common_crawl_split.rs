@@ -1,8 +1,10 @@
 use anyhow::Result;
 use mkwebfont_common::{
-    bitset_list::BitsetList,
-    data_package::{DataPackage, DataPackageEncoder},
     join_set::JoinSet,
+    model::{
+        bitset_list::BitsetList,
+        data_package::{DataPackage, DataPackageEncoder},
+    },
 };
 use tracing::info;
 

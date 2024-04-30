@@ -1,10 +1,12 @@
-use crate::split_common_crawl::{SECTION_COUNT, SECTION_DIR, SECTION_TABLE};
+use crate::common_crawl_split::{SECTION_COUNT, SECTION_DIR, SECTION_TABLE};
 use anyhow::Result;
 use mkwebfont_common::{
-    adjacency_array::AdjacencyArrayBuilder,
-    bitset_list::{BitsetList, BitsetSection},
-    data_package::{DataPackage, DataPackageEncoder},
     join_set::JoinSet,
+    model::{
+        adjacency_array::AdjacencyArrayBuilder,
+        bitset_list::{BitsetList, BitsetSection},
+        data_package::{DataPackage, DataPackageEncoder},
+    },
 };
 use roaring::RoaringBitmap;
 use std::sync::{

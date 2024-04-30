@@ -1,14 +1,16 @@
 use crate::wyhash::WyHashBuilder;
 use anyhow::{bail, ensure, Result};
 use bincode::{config, Decode, Encode};
+use blake3::Hasher;
 use std::{
     collections::HashMap,
-    io::{Cursor, Write},
+    fs::File,
+    io::{BufReader, Cursor, Read, Write},
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
 use tracing::{debug, info};
-use zstd::Encoder;
+use zstd::{Decoder, Encoder};
 
 const MAGIC: &[u8; 8] = b"mkwbfont";
 const VERSION_TAG: &[u8; 4] = b"v0.1";
@@ -37,6 +39,10 @@ impl DataPackageEncoder {
     pub fn insert_data(&mut self, key: &str, data: Vec<u8>) {
         assert!(!self.0.files.contains_key(key), "Duplicate data package section {key}!");
         self.0.files.insert(key.to_string(), data);
+    }
+
+    pub fn insert_bincode<T: Encode>(&mut self, key: &str, data: &T) {
+        self.insert_data(key, bincode::encode_to_vec(data, config::standard()).unwrap());
     }
 
     pub fn build(self) -> DataPackage {
@@ -76,6 +82,28 @@ impl DataPackage {
         }
     }
 
+    pub fn take_data(&mut self, key: &str) -> Result<Vec<u8>> {
+        if let Some(x) = self.files.remove(key) {
+            Ok(x)
+        } else {
+            bail!("No data package section {key}");
+        }
+    }
+
+    pub fn get_bincode<T: Decode>(&self, key: &str) -> Result<T> {
+        let bytes = self.get_data(key)?;
+        let (value, count) = bincode::decode_from_slice(bytes, config::standard())?;
+        assert_eq!(count, bytes.len());
+        Ok(value)
+    }
+
+    pub fn take_bincode<T: Decode>(&mut self, key: &str) -> Result<T> {
+        let bytes = self.take_data(key)?;
+        let (value, count) = bincode::decode_from_slice(&bytes, config::standard())?;
+        assert_eq!(count, bytes.len());
+        Ok(value)
+    }
+
     pub fn encode(&self) -> Result<Vec<u8>> {
         info!("Encoding data package: {}...", self.package_id);
         let data = bincode::encode_to_vec(self, config::standard())?;
@@ -109,23 +137,55 @@ impl DataPackage {
         Ok(())
     }
 
+    fn deserialize_stream(mut r: impl Read) -> Result<Self> {
+        let mut header = [0u8; 76];
+        r.read_exact(&mut header)?;
+
+        ensure!(&header[0..8] == MAGIC);
+        ensure!(&header[8..12] == VERSION_TAG);
+
+        let data_hash = &header[12..44];
+        let compressed_hash = &header[44..76];
+
+        // construct the reader chain
+        let blake3_r0 = Blake3Reader::new(r);
+        let mut buf_r1 = BufReader::new(blake3_r0);
+        let zstd = Decoder::with_buffer(&mut buf_r1)?;
+        let blake3_r2 = Blake3Reader::new(zstd);
+        let mut buf_r3 = BufReader::new(blake3_r2);
+
+        let val: Self = bincode::decode_from_reader(&mut buf_r3, config::standard())?;
+
+        let blake3_r2 = buf_r3.into_inner();
+        assert_eq!(blake3_r2.hash.finalize().as_bytes(), data_hash);
+        drop(blake3_r2);
+        assert_eq!(buf_r1.into_inner().hash.finalize().as_bytes(), compressed_hash);
+
+        Ok(val)
+    }
+
     pub fn deserialize(data: &[u8]) -> Result<Self> {
-        ensure!(data.len() > 76);
-        ensure!(&data[0..8] == MAGIC);
-        ensure!(&data[8..12] == VERSION_TAG);
-
-        let data_hash = &data[12..44];
-        let compressed_hash = &data[44..76];
-        let compressed = &data[76..];
-
-        ensure!(blake3::hash(compressed).as_bytes().as_slice() == compressed_hash);
-        let data = zstd::decode_all(Cursor::new(compressed))?;
-        ensure!(blake3::hash(&data).as_bytes().as_slice() == data_hash);
-
-        Ok(bincode::decode_from_slice(&data, config::standard())?.0)
+        Self::deserialize_stream(Cursor::new(data))
     }
 
     pub fn load(target: impl AsRef<Path>) -> Result<Self> {
-        Self::deserialize(&std::fs::read(target)?)
+        Self::deserialize_stream(File::open(target)?)
+    }
+}
+
+struct Blake3Reader<R: Read> {
+    hash: Hasher,
+    underlying: R,
+}
+impl<R: Read> Blake3Reader<R> {
+    pub fn new(underlying: R) -> Self {
+        Blake3Reader { hash: Hasher::new(), underlying }
+    }
+}
+impl<R: Read> Read for Blake3Reader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let result = self.underlying.read(buf)?;
+        self.hash.write_all(&buf[..result])?;
+        Ok(result)
     }
 }

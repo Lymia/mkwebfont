@@ -1,38 +1,36 @@
 use anyhow::Result;
 use mkwebfont::LoadedFont;
-use mkwebfont_common::{adjacency_array::AdjacencyArray, data_package::DataPackage};
+use mkwebfont_common::model::{adjacency_array::AdjacencyArray, data_package::DataPackage};
 use roaring::RoaringBitmap;
 use std::path::PathBuf;
 use tracing::info;
 
 fn subset(font: &LoadedFont) -> Result<()> {
     info!("Loading data...");
-    let data = std::fs::read(crate::generate_raw_adjacency::RAW_ADJACENCY_PATH)?;
-    let data = DataPackage::deserialize(&data)?;
-    let bloom = AdjacencyArray::deserialize("raw_adjacency", &data)?;
+    let data = std::fs::read(crate::generate_adjacency_table::RAW_ADJACENCY_PATH)?;
+    let mut data = DataPackage::deserialize(&data)?;
+    let adjacency = AdjacencyArray::deserialize("raw_adjacency", &mut data)?;
 
     info!("Font: {} {}", font.font_family(), font.font_style());
 
-    let mut characters = Vec::new();
+    let mut raw_chars = Vec::new();
     for glyph in font.codepoints() {
-        characters.push(char::from_u32(glyph).unwrap());
+        raw_chars.push((char::from_u32(glyph).unwrap(), adjacency.get_character_frequency(glyph)));
     }
+    raw_chars.sort_by_key(|x| x.1);
+    raw_chars.reverse();
 
-    let mut frequency_order = Vec::new();
-    for &ch in bloom.glyph_list() {
-        if characters.contains(&ch) {
-            frequency_order.push((ch, bloom.get_character_frequency(ch as u32)));
-        }
+    let mut chars = Vec::new();
+    for (glyph, _) in raw_chars {
+        chars.push(glyph);
     }
-    frequency_order.sort_by_key(|x| x.1);
-    frequency_order.reverse();
 
     let mut fulfilled = RoaringBitmap::new();
     let mut remaining = RoaringBitmap::new();
-    for &(seed_ch, _) in &frequency_order {
+    for &seed_ch in &chars {
         remaining.insert(seed_ch as u32);
     }
-    for &(seed_ch, _) in &frequency_order {
+    for &seed_ch in &chars {
         if !fulfilled.contains(seed_ch as u32) {
             let mut subset = Vec::new();
             subset.push(seed_ch);
@@ -45,8 +43,7 @@ fn subset(font: &LoadedFont) -> Result<()> {
                 for ch in &remaining {
                     let ch = char::from_u32(ch).unwrap();
 
-                    let modularity = bloom.delta_modularity(ch, &subset);
-                    //println!("{subset:?} {ch:?} {modularity}");
+                    let modularity = adjacency.delta_modularity(ch, &subset);
                     if modularity > best_modularity {
                         best_modularity = modularity;
                         best_ch = Some(ch);
@@ -63,11 +60,12 @@ fn subset(font: &LoadedFont) -> Result<()> {
                 remaining.remove(best_ch as u32);
             }
 
+            let modularity = adjacency.modularity(&subset);
             let mut str = String::new();
             for ch in subset {
                 str.push(ch);
             }
-            println!("{str:?}");
+            println!("{str:?} {modularity}");
         }
     }
 

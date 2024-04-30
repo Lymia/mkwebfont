@@ -1,5 +1,5 @@
 use crate::{
-    data_package::{DataPackage, DataPackageEncoder},
+    model::data_package::{DataPackage, DataPackageEncoder},
     wyhash::WyHashBuilder,
 };
 use anyhow::Result;
@@ -283,16 +283,36 @@ impl AdjacencyArray {
             let Some(data_b) = self.meta.codepoints.get(&b) else {
                 return 0;
             };
-            if !data_a.has_place() || !data_b.has_place() {
-                return 0;
-            }
 
-            self.meta
-                .encoder
-                .decode(self.data[place_idx(data_a.place(), data_b.place())])
+            let is_same_block = (data_a.block_id == data_b.block_id) as u64;
+            if !data_a.has_place() || !data_b.has_place() {
+                return is_same_block;
+            }
+            let data = self.data[place_idx(data_a.place(), data_b.place())];
+            self.meta.encoder.decode(data) + is_same_block
         } else {
             self.get_character_frequency(a)
         }
+    }
+
+    fn get_edge_total(&self, ch: char) -> f64 {
+        self.meta.codepoints.get(&(ch as u32)).unwrap().edge_total
+    }
+
+    /// Returns the modularity of a set of characters
+    pub fn modularity(&self, set: &[char]) -> f64 {
+        let mut modularity = 0.0;
+        for a in 0..set.len() {
+            for b in a + 1..set.len() {
+                let ca = set[a];
+                let cb = set[b];
+                modularity += self.get_pairing(ca as u32, cb as u32) as f64;
+                let ea = self.get_edge_total(ca).max(1.0);
+                let eb = self.get_edge_total(cb).max(1.0);
+                modularity -= (ea * eb) / (2.0 * self.meta.edge_total);
+            }
+        }
+        modularity / (2.0 * self.meta.edge_total)
     }
 
     /// Returns the change in modularity if a character would be added to a set of characters.
@@ -300,20 +320,10 @@ impl AdjacencyArray {
         let mut total = 0.0;
 
         // calculate modularity expectation
-        let ea = self
-            .meta
-            .codepoints
-            .get(&(target as u32))
-            .unwrap()
-            .edge_total;
-        for char in set {
-            let eb = self
-                .meta
-                .codepoints
-                .get(&(*char as u32))
-                .unwrap()
-                .edge_total;
-            total -= eb;
+        let ea = self.get_edge_total(target);
+        for &char in set {
+            let eb = self.get_edge_total(char);
+            total -= eb.max(1.0); // always expect at least one edge
         }
         total *= ea / (2.0 * self.meta.edge_total);
 
@@ -336,14 +346,10 @@ impl AdjacencyArray {
         Ok(())
     }
 
-    pub fn deserialize(name: &str, data: &DataPackage) -> Result<AdjacencyArray> {
-        let meta = bincode::decode_from_slice::<Meta, _>(
-            data.get_data(&format!("{name}:adjacency_array_meta"))?,
-            config::standard(),
-        )?;
-        debug!("{:?}", meta.0.encoder);
-        let data = data.get_data(&format!("{name}:adjacency_array"))?;
-        Ok(AdjacencyArray { meta: meta.0, data: data.to_vec() })
+    pub fn deserialize(name: &str, data: &mut DataPackage) -> Result<AdjacencyArray> {
+        let meta: Meta = data.take_bincode(&format!("{name}:adjacency_array_meta"))?;
+        let data = data.take_data(&format!("{name}:adjacency_array"))?;
+        Ok(AdjacencyArray { meta, data })
     }
 
     pub fn transfer(

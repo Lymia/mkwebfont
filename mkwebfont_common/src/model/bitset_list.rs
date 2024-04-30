@@ -1,5 +1,5 @@
 use crate::{
-    data_package::{DataPackage, DataPackageEncoder},
+    model::data_package::{DataPackage, DataPackageEncoder},
     wyhash::WyHashBuilder,
 };
 use anyhow::Result;

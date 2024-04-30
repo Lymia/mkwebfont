@@ -1,7 +1,7 @@
-mod download_common_crawl;
-mod generate_raw_adjacency;
-mod legacy_gfsubsets;
-mod split_common_crawl;
+mod common_crawl_download;
+mod common_crawl_split;
+mod generate_adjacency_table;
+mod generate_gfsubsets;
 mod test_subsetting;
 mod test_subsetting_quality;
 
@@ -39,30 +39,30 @@ enum Commands {
     /// The Common Crawl raw dumps are not required for any other commands. They may be deleted
     /// after `common-crawl_bitsets-training` and `common-crawl_bitsets-validation` are generated.
     /// These files should total to about 7 GiB.
-    DownloadCommonCrawl,
+    CommonCrawlDownload,
 
     /// Splits the monolithic training files for common crawl. This helps later steps.
     ///
     /// This takes about 7 GiB of disk, and an extremely large amount of memory.
     ///
     /// Requires that `download-common-crawl` is run first.
-    SplitCommonCrawl,
+    CommonCrawlSplit,
+
+    /// Generates the raw adjacency tables from split common crawl data.
+    ///
+    /// This takes an large amount of memory (to the order of 40-60GB) as it stores the bitset
+    /// data uncompressed in memory in addition to multiple instances of large tables for the
+    /// purpose of multithreading.
+    ///
+    /// Requires that `split-common-crawl` is run first.
+    GenerateAdjacencyTable,
+
+    TestSubsetting(FileArgs),
 
     /// Tests the final download size of a given set of fonts on a set of website data.
     ///
     /// Requires that `download-common-crawl` is run first.
     TestSubsettingQuality(FileArgs),
-
-    /// Generates the raw adjacency tables from common crawl data.
-    ///
-    /// This takes an extremely large amount of memory (to the order of 100-150GB) as it stores the
-    /// bitset data uncompressed in memory in addition to multiple instances of large tables for
-    /// the purpose of multithreading.
-    ///
-    /// Requires that `split-common-crawl` is run first.
-    GenerateRawAdjacency,
-
-    TestSubsetting(FileArgs),
 }
 
 #[derive(Parser)]
@@ -85,19 +85,19 @@ async fn main() {
         .init();
 
     match args.command {
-        Commands::GenerateLegacyGfsubsets => legacy_gfsubsets::main().await,
-        Commands::DownloadCommonCrawl => download_common_crawl::download_common_crawl()
+        Commands::CommonCrawlDownload => common_crawl_download::download_common_crawl()
             .await
             .unwrap(),
+        Commands::CommonCrawlSplit => common_crawl_split::split_common_crawl().await.unwrap(),
+        Commands::GenerateAdjacencyTable => generate_adjacency_table::generate_raw_adjacency()
+            .await
+            .unwrap(),
+        Commands::GenerateLegacyGfsubsets => generate_gfsubsets::main().await,
         Commands::TestSubsettingQuality(path) => {
             test_subsetting_quality::test_subsetting_quality(&path.files)
                 .await
                 .unwrap()
         }
-        Commands::GenerateRawAdjacency => generate_raw_adjacency::generate_raw_adjacency()
-            .await
-            .unwrap(),
         Commands::TestSubsetting(path) => test_subsetting::test_subsetting(&path.files).unwrap(),
-        Commands::SplitCommonCrawl => split_common_crawl::split_common_crawl().await.unwrap(),
     }
 }
