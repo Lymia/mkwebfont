@@ -1,3 +1,4 @@
+use crate::generate_adjacency_table::{RAW_ADJACENCY_PATH, RAW_ADJACENCY_TAG};
 use anyhow::Result;
 use mkwebfont::LoadedFont;
 use mkwebfont_common::model::{adjacency_array::AdjacencyArray, data_package::DataPackage};
@@ -7,9 +8,9 @@ use tracing::info;
 
 fn subset(font: &LoadedFont) -> Result<()> {
     info!("Loading data...");
-    let data = std::fs::read(crate::generate_adjacency_table::RAW_ADJACENCY_PATH)?;
+    let data = std::fs::read(RAW_ADJACENCY_PATH)?;
     let mut data = DataPackage::deserialize(&data)?;
-    let adjacency = AdjacencyArray::deserialize("raw_adjacency", &mut data)?;
+    let adjacency = AdjacencyArray::deserialize(RAW_ADJACENCY_TAG, &mut data)?;
 
     info!("Font: {} {}", font.font_family(), font.font_style());
 

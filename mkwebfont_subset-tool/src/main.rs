@@ -1,6 +1,7 @@
 mod common_crawl_download;
 mod common_crawl_split;
 mod generate_adjacency_table;
+mod generate_data;
 mod generate_gfsubsets;
 mod test_subsetting;
 mod test_subsetting_quality;
@@ -22,8 +23,6 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
-    GenerateLegacyGfsubsets,
-
     /// Downloads about 500GiB of common crawl data and processes it into bitsets of characters
     /// present in each crawled page.
     ///
@@ -56,6 +55,16 @@ enum Commands {
     ///
     /// Requires that `split-common-crawl` is run first.
     GenerateAdjacencyTable,
+
+    /// Generates the Google Font subsets tables.
+    ///
+    /// Requires a Google Fonts API key in the `WEBFONT_APIKEY` environment variable.
+    GenerateGfsubsets,
+
+    /// Generates the final data package.
+    ///
+    /// Requires that `generate-adjacency-table` and `generate-gfsubsets` are run first.
+    GenerateData,
 
     TestSubsetting(FileArgs),
 
@@ -92,12 +101,13 @@ async fn main() {
         Commands::GenerateAdjacencyTable => generate_adjacency_table::generate_raw_adjacency()
             .await
             .unwrap(),
-        Commands::GenerateLegacyGfsubsets => generate_gfsubsets::main().await,
+        Commands::GenerateGfsubsets => generate_gfsubsets::main().await,
         Commands::TestSubsettingQuality(path) => {
             test_subsetting_quality::test_subsetting_quality(&path.files)
                 .await
                 .unwrap()
         }
         Commands::TestSubsetting(path) => test_subsetting::test_subsetting(&path.files).unwrap(),
+        Commands::GenerateData => generate_data::generate_data().unwrap(),
     }
 }

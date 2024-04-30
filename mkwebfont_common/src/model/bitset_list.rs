@@ -251,14 +251,4 @@ impl BitsetList {
         )?;
         Ok(bitset_list.0)
     }
-
-    pub fn transfer(
-        name: &str,
-        data: &DataPackage,
-        encoder: &mut DataPackageEncoder,
-    ) -> Result<()> {
-        let bitset_name = format!("{name}:bitset_list");
-        encoder.insert_data(&bitset_name, data.get_data(&bitset_name)?.to_vec());
-        Ok(())
-    }
 }

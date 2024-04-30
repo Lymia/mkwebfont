@@ -18,10 +18,9 @@ use tracing::{debug, info, info_span};
 use unic_ucd_block::Block;
 use unic_ucd_category::GeneralCategory;
 
-// TODO: Use JoinSet
-
 pub const RAW_ADJACENCY_PATH: &str = "run/common_crawl-raw_adjacency";
-const ADJACENCY_ARRAY_NAME: &str = "common_crawl-adjacency";
+pub const RAW_ADJACENCY_TAG: &str = "raw_adjacency";
+const ADJACENCY_ARRAY_NAME: &str = "raw_adjacency";
 
 async fn push_to_table(
     adjacency: &mut AdjacencyArrayBuilder,
@@ -179,9 +178,9 @@ pub async fn generate_raw_adjacency() -> Result<()> {
     }
 
     info!("Outputting raw adjacency data...");
-    let mut package = DataPackageEncoder::new("raw_adjacency");
+    let mut package = DataPackageEncoder::new(ADJACENCY_ARRAY_NAME);
     let graph = graph.build(1.5, |ch| Block::of(ch).map(|x| x.name));
-    graph.serialize("raw_adjacency", &mut package)?;
+    graph.serialize(RAW_ADJACENCY_TAG, &mut package)?;
     let package = package.build();
     std::fs::write(RAW_ADJACENCY_PATH, package.encode()?)?;
 

@@ -4,11 +4,15 @@
 //! Code quality is very bad, but this needs to be run very rarely, so... it shouldn't matter much.
 
 use anyhow::*;
+use mkwebfont_common::model::{data_package::DataPackageEncoder, subset_data::RawSubset};
 use roaring::RoaringBitmap;
 use serde::*;
-use std::{borrow::Cow, collections::HashMap, fs::File, io::Write};
+use std::{borrow::Cow, collections::HashMap};
 use tracing::info;
-use unic_ucd_category::GeneralCategory;
+
+pub const GFSUBSETS_PATH: &str = "run/raw_gfsubsets";
+pub const GFSUBSETS_TAG: &str = "gfsubsets";
+const GFSUBSETS_NAME: &str = "gfsubsets";
 
 /// Really shitty CSS parser
 fn parse_css_poorly(css: &str, cjk_tag: &str) -> Result<HashMap<String, RoaringBitmap>> {
@@ -149,16 +153,13 @@ async fn mk_gf_ranges() -> Result<()> {
     names.sort();
 
     // sort into the Google Fonts machine learning subsets and manually coded subsets
-    struct SubsetInfo {
-        name: String,
-        group: Option<String>,
-        chars: RoaringBitmap,
-    }
-
-    let mut grouped_subsets = Vec::new();
+    let mut subsets = Vec::new();
     for name in names {
-        let chars = raw_subsets.remove(&name).unwrap();
-        let mut subset = SubsetInfo { name: name.clone(), group: None, chars };
+        let mut chars = String::new();
+        for char in raw_subsets.remove(&name).unwrap() {
+            chars.push(char::from_u32(char).unwrap())
+        }
+        let mut subset = RawSubset { name: name.clone(), group: None, chars };
 
         if name.starts_with("group-") {
             let subclass = name.split('-').skip(1).next().unwrap();
@@ -166,60 +167,13 @@ async fn mk_gf_ranges() -> Result<()> {
             subset.group = Some(subclass.to_string());
         }
 
-        grouped_subsets.push(subset);
+        subsets.push(subset);
     }
 
-    // output the data file
-    #[derive(Serialize)]
-    struct Subset {
-        name: String,
-        group: Option<String>,
-        chars: String,
-        codepoints: Vec<u32>,
-    }
-    #[derive(Serialize)]
-    struct Subsets {
-        subset: Vec<Subset>,
-    }
-
-    let mut subsets = Vec::new();
-    for subset in grouped_subsets {
-        let mut chars = String::new();
-        let mut codepoints = Vec::new();
-        for char in subset.chars {
-            let cat = GeneralCategory::of(char::from_u32(char).unwrap());
-            if cat.is_letter() || cat.is_number() || cat.is_punctuation() || cat.is_symbol() {
-                chars.push(char::from_u32(char).unwrap())
-            } else {
-                codepoints.push(char);
-            }
-        }
-
-        subsets.push(Subset { name: subset.name, group: subset.group, chars, codepoints });
-    }
-    let subsets = Subsets { subset: subsets };
-
-    let mut file = File::create("mkwebfont/src/subset_manifest_default.toml")?;
-    writeln!(file, "# ")?;
-    writeln!(file, "# Subset Manifest")?;
-    writeln!(file, "# ===============")?;
-    writeln!(file, "# ")?;
-    writeln!(file, "# This file defines the subsets that mkwebfont splits its fonts into.")?;
-    writeln!(file, "# Each [[subset]] block has the following fields:")?;
-    writeln!(file, "# ")?;
-    writeln!(file, "# * name       = the name of the subset")?;
-    writeln!(file, "# * group      = the optional name of the subset group")?;
-    writeln!(file, "# * chars      = a string containing unicode codepoints to include")?;
-    writeln!(file, "# * codepoints = a list of unicode codepoints to include")?;
-    writeln!(file, "# ")?;
-    writeln!(file, "# Subsets in a group will only be generated together or not at all.")?;
-    writeln!(file, "# ")?;
-    writeln!(file, "# The default subset manifest here is based on Google Fonts metadata.")?;
-    writeln!(file, "# Regenerate it with `cargo run -p mkwebfont_subset-tool`.")?;
-    writeln!(file, "# ")?;
-    writeln!(file)?;
-    writeln!(file)?;
-    file.write_all(toml::to_string(&subsets)?.as_bytes())?;
+    info!("Outputting Google Fonts subset data...");
+    let mut package = DataPackageEncoder::new(GFSUBSETS_NAME);
+    package.insert_bincode(GFSUBSETS_TAG, &subsets);
+    package.build().save(GFSUBSETS_PATH)?;
     Ok(())
 }
 

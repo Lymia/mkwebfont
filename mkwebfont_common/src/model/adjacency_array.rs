@@ -299,6 +299,11 @@ impl AdjacencyArray {
         self.meta.codepoints.get(&(ch as u32)).unwrap().edge_total
     }
 
+    pub fn with_name(mut self, name: &str) -> Self {
+        self.meta.name = name.to_string();
+        self
+    }
+
     /// Returns the modularity of a set of characters
     pub fn modularity(&self, set: &[char]) -> f64 {
         let mut modularity = 0.0;
@@ -350,17 +355,5 @@ impl AdjacencyArray {
         let meta: Meta = data.take_bincode(&format!("{name}:adjacency_array_meta"))?;
         let data = data.take_data(&format!("{name}:adjacency_array"))?;
         Ok(AdjacencyArray { meta, data })
-    }
-
-    pub fn transfer(
-        name: &str,
-        data: &DataPackage,
-        encoder: &mut DataPackageEncoder,
-    ) -> Result<()> {
-        let meta_name = format!("{name}:adjacency_array_meta");
-        let array_name = format!("{name}:adjacency_array");
-        encoder.insert_data(&meta_name, data.get_data(&meta_name)?.to_vec());
-        encoder.insert_data(&array_name, data.get_data(&array_name)?.to_vec());
-        Ok(())
     }
 }
