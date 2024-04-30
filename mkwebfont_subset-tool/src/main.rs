@@ -102,12 +102,12 @@ async fn main() {
             .await
             .unwrap(),
         Commands::GenerateGfsubsets => generate_gfsubsets::main().await,
+        Commands::GenerateData => generate_data::generate_data().unwrap(),
         Commands::TestSubsettingQuality(path) => {
             test_subsetting_quality::test_subsetting_quality(&path.files)
                 .await
                 .unwrap()
         }
         Commands::TestSubsetting(path) => test_subsetting::test_subsetting(&path.files).unwrap(),
-        Commands::GenerateData => generate_data::generate_data().unwrap(),
     }
 }

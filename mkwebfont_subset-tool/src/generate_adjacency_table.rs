@@ -15,8 +15,8 @@ use std::sync::{
 };
 use tokio::sync::Mutex;
 use tracing::{debug, info, info_span};
-use unic_ucd_block::Block;
-use unic_ucd_category::GeneralCategory;
+use unicode_blocks::find_unicode_block;
+use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
 
 pub const RAW_ADJACENCY_PATH: &str = "run/common_crawl-raw_adjacency";
 pub const RAW_ADJACENCY_TAG: &str = "raw_adjacency";
@@ -121,8 +121,8 @@ pub async fn generate_raw_adjacency() -> Result<()> {
     let mut ommitted_glyphs = 0;
     for glyph in &all_glyphs {
         let ch = char::from_u32(glyph).unwrap();
-        let cat = GeneralCategory::of(ch);
-        if !cat.is_other() && !cat.is_separator() {
+        let cat = ch.general_category_group();
+        if cat != GeneralCategoryGroup::Other && cat != GeneralCategoryGroup::Separator {
             if count[glyph as usize] >= MIN_COUNT {
                 filtered_glyphs.insert(glyph);
             } else {
@@ -179,7 +179,7 @@ pub async fn generate_raw_adjacency() -> Result<()> {
 
     info!("Outputting raw adjacency data...");
     let mut package = DataPackageEncoder::new(ADJACENCY_ARRAY_NAME);
-    let graph = graph.build(1.5, |ch| Block::of(ch).map(|x| x.name));
+    let graph = graph.build(1.5, |ch| find_unicode_block(ch).map(|x| x.name()));
     graph.serialize(RAW_ADJACENCY_TAG, &mut package)?;
     let package = package.build();
     std::fs::write(RAW_ADJACENCY_PATH, package.encode()?)?;

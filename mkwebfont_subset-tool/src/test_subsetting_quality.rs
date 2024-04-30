@@ -4,7 +4,7 @@ use roaring::RoaringBitmap;
 use std::{fs::File, io::BufReader, ops::RangeInclusive, path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
-use unic_ucd_category::GeneralCategory;
+use unicode_properties::{GeneralCategoryGroup, UnicodeEmoji, UnicodeGeneralCategory};
 use zstd::Decoder;
 
 struct Script {
@@ -92,14 +92,14 @@ async fn measure_font(lock: Arc<Mutex<()>>, style: WebfontInfo) -> Result<()> {
         let mut has_emoji = false;
         for ch in &bitmap {
             let ch = char::from_u32(ch).unwrap();
-            let cat = GeneralCategory::of(ch);
-            if ch.is_whitespace() || ch.is_control() || cat.is_other() {
+            let cat = ch.general_category_group();
+            if cat == GeneralCategoryGroup::Separator || cat == GeneralCategoryGroup::Other {
                 continue;
             }
             if ch == '�' {
                 continue;
             }
-            if !has_emoji && !unic_emoji_char::is_emoji(ch) {
+            if !has_emoji && ch.is_emoji_char() {
                 has_emoji = true;
             }
             filtered_bitmap.insert(ch as u32);

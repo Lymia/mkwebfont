@@ -31,7 +31,7 @@ use std::{
 };
 use tokio::task::JoinHandle;
 use tracing::{debug, info};
-use unic_ucd_category::GeneralCategory;
+use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
 use warc::WarcReader;
 
 const STORE_PREFIX: &str = "https://data.commoncrawl.org";
@@ -134,8 +134,8 @@ pub async fn process_list_to_bitmaps(target: &str, list: &str) -> Result<DataPac
             let warc = WarcReader::from_path_gzip(&path)?;
             let mut builder = BitsetListBuilder::new(&path.file_name().unwrap().to_string_lossy());
             builder.filter_chars(|x| {
-                let category = GeneralCategory::of(x);
-                !category.is_other() && !category.is_separator()
+                let cat = x.general_category_group();
+                cat != GeneralCategoryGroup::Other && cat != GeneralCategoryGroup::Separator
             });
             for record in warc.iter_records() {
                 let record = record?;
