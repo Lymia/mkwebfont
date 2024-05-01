@@ -10,6 +10,7 @@ mod test_subsetting_quality;
 
 use async_recursion::async_recursion;
 use clap::{Parser, Subcommand};
+use mkwebfont_common::model::data_package::DataPackage;
 use std::{io, path::PathBuf};
 
 #[derive(Parser)]
@@ -18,10 +19,6 @@ struct Args {
     /// The subcommand to invoke.
     #[command(subcommand)]
     command: Commands,
-
-    /// Whether to enable verbose output
-    #[arg(short, long)]
-    verbose: bool,
 }
 
 #[derive(Subcommand)]
@@ -124,18 +121,35 @@ async fn run(command: Commands) {
             run(Commands::GenerateGlyphsets).await;
             run(Commands::CollectData).await;
         }
-        Commands::HashPackage(_) => {}
+        Commands::HashPackage(args) => {
+            for arg in args.files {
+                let (pkg, hash) = DataPackage::load_hash(&arg).unwrap();
+
+                let name = pkg.package_id();
+                let timestamp = pkg.timestamp();
+                let data = std::fs::read(&arg).unwrap();
+                let download_hash = mkwebfont_common::hashing::hash_full(&data);
+                let hash_frag = mkwebfont_common::hashing::hash_fragment(&data);
+
+                let cache_name = format!("{name}_{hash_frag}");
+
+                println!("const XXXX: DownloadSource = DownloadSource {{");
+                println!("    name: {name:?},");
+                println!("    cache_name: {cache_name:?},");
+                println!("    timestamp: {timestamp},");
+                println!("    download_url: \"insert url here\",");
+                println!("    download_hash: {download_hash:?},");
+                println!("    known_hash: {hash:?},");
+                println!("}};");
+            }
+        }
     }
 }
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    let filter = if args.verbose {
-        "debug,h2=info,hyper_util=info,reqwest=info,rustls=info"
-    } else {
-        "info"
-    };
+    let filter = "debug,h2=info,hyper_util=info,reqwest=info,rustls=info";
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(io::stderr)

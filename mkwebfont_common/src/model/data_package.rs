@@ -5,7 +5,7 @@ use std::{
     collections::BTreeMap,
     fmt::{Debug, Formatter},
     fs::File,
-    io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
+    io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write},
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -122,6 +122,8 @@ impl DataPackageEncoder {
     }
 }
 
+pub type KnownHash = [u8; 32];
+
 #[derive(Encode, Decode)]
 pub struct DataPackage {
     package_id: String,
@@ -177,7 +179,7 @@ impl DataPackage {
         Ok(())
     }
 
-    fn deserialize_stream(mut r: impl Read) -> Result<Self> {
+    fn deserialize_stream(mut r: impl Read) -> Result<(Self, KnownHash)> {
         let mut header = [0u8; 44];
         r.read_exact(&mut header)?;
 
@@ -197,12 +199,31 @@ impl DataPackage {
         drop(buf_r3);
         assert_eq!(buf_r1.into_inner().hash.finalize().as_bytes(), compressed_hash);
 
-        Ok(val)
+        let mut known_hash = [0; 32];
+        known_hash.copy_from_slice(compressed_hash);
+        Ok((val, known_hash))
     }
 
     pub fn load(target: impl AsRef<Path>) -> Result<Self> {
         debug!("Deserializing data package from '{}'...", target.as_ref().display());
+        Ok(Self::deserialize_stream(File::open(target)?)?.0)
+    }
+
+    pub fn load_hash(target: impl AsRef<Path>) -> Result<(Self, KnownHash)> {
+        debug!("Deserializing data package from '{}'...", target.as_ref().display());
         Self::deserialize_stream(File::open(target)?)
+    }
+
+    pub fn load_mem(data: &[u8]) -> Result<Self> {
+        debug!("Deserializing data package from memory...");
+        Ok(Self::deserialize_stream(Cursor::new(data))?.0)
+    }
+
+    pub fn load_with_hash(target: impl AsRef<Path>, known_hash: KnownHash) -> Result<Self> {
+        debug!("Deserializing data package from '{}'...", target.as_ref().display());
+        let (pkg, hash) = Self::deserialize_stream(File::open(target)?)?;
+        ensure!(hash == known_hash, "Data package hash does not match expected hash!");
+        Ok(pkg)
     }
 }
 

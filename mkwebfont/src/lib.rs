@@ -1,8 +1,8 @@
+mod data;
 mod fonts;
 mod render;
 mod splitter;
 
-use mkwebfont_common::model::data_package::DataPackage;
 pub use render::{SubsetInfo, WebfontInfo};
 
 /// A builder for making configuration for splitting webfonts.
@@ -49,7 +49,7 @@ impl WebfontCtxBuilder {
     }
 
     /// Builds the context, and checks its arguments properly.
-    pub fn build(self) -> anyhow::Result<WebfontCtx> {
+    pub async fn build(self) -> anyhow::Result<WebfontCtx> {
         Ok(WebfontCtx(std::sync::Arc::new(WebfontCtxData {
             preload_codepoints: self.preload_codepoints,
             preload_codepoints_in: self.preload_codepoints_in,
@@ -58,12 +58,8 @@ impl WebfontCtxBuilder {
                 Some(data) => toml::from_str(&data)?,
             },
             data: {
-                let mut package = DataPackage::load("run/mkwebfont-datapkg-builtin-v0.1.0")?;
-                let section = package
-                    .take_section(mkwebfont_common::model::package_consts::PKG_GFSUBSETS_TAG)?;
-                let subset =
-                    mkwebfont_common::model::subset_data::RawSubsets::deserialize(section)?;
-                subset.build()
+                let data = data::DataStorage::instance()?;
+                data.gfsubsets().await?
             },
         })))
     }
@@ -77,7 +73,7 @@ pub(crate) struct WebfontCtxData {
     pub(crate) preload_codepoints: roaring::RoaringBitmap,
     pub(crate) preload_codepoints_in: std::collections::HashMap<String, roaring::RoaringBitmap>,
     pub(crate) tuning: splitter::TuningParameters,
-    pub(crate) data: mkwebfont_common::model::subset_data::WebfontData,
+    pub(crate) data: std::sync::Arc<mkwebfont_common::model::subset_data::WebfontData>,
 }
 
 /// A loaded font.

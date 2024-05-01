@@ -37,7 +37,9 @@ anyhow = "1.0"
 blake3 = { version = "1.5", features = ["pure"] }
 brotli = { version = "4.0", features = ["ffi-api"] }
 clap = { version = "4.5", features = ["derive"], optional = true }
+directories = "5.0"
 hb-subset = "=0.3.0" # pinned for now, very low-usage crate
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
 roaring = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.37", features = ["rt-multi-thread"] }

@@ -136,7 +136,7 @@ async fn main_impl(args: Args) -> Result<()> {
     if let Some(tuning) = args.splitter_tuning {
         ctx.add_splitter_tuning(&std::fs::read_to_string(tuning)?);
     }
-    let ctx = ctx.build()?;
+    let ctx = ctx.build().await?;
 
     // load fonts
     let mut raw_fonts = Vec::new();
@@ -207,7 +207,7 @@ async fn main_impl(args: Args) -> Result<()> {
     Ok(())
 }
 fn main_sync(args: Args) -> Result<()> {
-    let rt = Builder::new_multi_thread().build()?;
+    let rt = Builder::new_multi_thread().enable_io().build()?;
     rt.block_on(main_impl(args))
 }
 

@@ -54,6 +54,12 @@ pub fn to_nix_base32(bytes: &[u8]) -> String {
 // end code from nix-base32
 ///////////////////////////////////////////////////////////////////////////////
 
+pub fn hash_full(data: &[u8]) -> String {
+    let blake3_hash = blake3::hash(data);
+    let hash_str = to_nix_base32(&*blake3_hash.as_bytes());
+    hash_str.to_string()
+}
+
 pub fn hash_fragment(data: &[u8]) -> String {
     let blake3_hash = blake3::hash(data);
     let hash_str = to_nix_base32(&*blake3_hash.as_bytes());

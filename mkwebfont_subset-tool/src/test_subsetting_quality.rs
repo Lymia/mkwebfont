@@ -173,7 +173,7 @@ pub async fn test_subsetting_quality(paths: &[PathBuf]) -> Result<()> {
         loaded_fonts.extend(LoadedFont::load(&std::fs::read(path)?)?);
     }
 
-    let ctx = WebfontCtxBuilder::new().build()?;
+    let ctx = WebfontCtxBuilder::new().build().await?;
     let styles = mkwebfont::process_webfont(&ctx, &loaded_fonts).await?;
 
     let mutex = Arc::new(Mutex::new(()));
