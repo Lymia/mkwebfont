@@ -19,9 +19,9 @@
             };
             mkwebfont = nightlyRustPlatform.buildRustPackage {
                 pname = "mkwebfont";
-                version = "0.1.0";
+                version = "0.2.0";
                 src = ./.;
-                cargoBuildFlags = "-p mkwebfont --no-default-features --features binary";
+                cargoBuildFlags = "-p mkwebfont";
 
                 doCheck = false;
 
@@ -29,9 +29,6 @@
                     lockFile = ./Cargo.lock;
                 };
 
-                buildInputs = [
-                    pkgs.harfbuzz
-                ];
                 nativeBuildInputs = [
                     pkgs.pkg-config
                     nightlyRustPlatform.bindgenHook
