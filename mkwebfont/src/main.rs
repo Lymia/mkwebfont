@@ -87,9 +87,7 @@ async fn main_impl(args: Args) -> Result<()> {
     {
         let mut early_exit = false;
         if let Some(path) = args.write_default_subset_manifest {
-            info!("Writting default subset manifest to {}", path.display());
-            std::fs::write(path, include_str!("subset_manifest_default.toml"))?;
-            early_exit = true;
+            todo!()
         }
         if let Some(path) = args.write_default_splitter_tuning {
             info!("Writting default splitter configuration to {}", path.display());

@@ -45,6 +45,29 @@ fn extract_version(mut str: &str) -> String {
     out.trim_matches('.').to_string()
 }
 
+fn decode_range(bitmap: &RoaringBitmap) -> Vec<RangeInclusive<char>> {
+    let mut range_start = None;
+    let mut range_last = '\u{fffff}';
+    let mut ranges = Vec::new();
+    for char in bitmap {
+        let char = char::from_u32(char).expect("Invalid char in RoaringBitmap");
+        if let Some(start) = range_start {
+            let next = char::from_u32(range_last as u32 + 1).unwrap();
+            if next != char {
+                ranges.push(start..=range_last);
+                range_start = Some(char);
+            }
+        } else {
+            range_start = Some(char);
+        }
+        range_last = char;
+    }
+    if let Some(start) = range_start {
+        ranges.push(start..=range_last);
+    }
+    ranges
+}
+
 /// Contains the data needed to use a font as a webfont.
 #[derive(Debug)]
 pub struct WebfontInfo {
@@ -130,7 +153,7 @@ impl SubsetInfo {
         let font_version = extract_version(font.font_version());
         let is_regular = font_style.to_lowercase() == "regular";
 
-        let subset_ranges = crate::subset_manifest::decode_range(&subset);
+        let subset_ranges = decode_range(&subset);
 
         SubsetInfo {
             name: name.to_string(),

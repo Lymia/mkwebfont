@@ -1,7 +1,6 @@
 use crate::{
     fonts::LoadedFont,
     render::FontEncoder,
-    subset_manifest::{WebfontSubset, WebfontSubsetGroup},
     WebfontCtx, WebfontCtxData,
 };
 use roaring::RoaringBitmap;
@@ -9,6 +8,7 @@ use serde::Deserialize;
 use std::{collections::HashSet, sync::Arc};
 use tracing::debug;
 use unic_ucd_block::Block;
+use mkwebfont_common::model::subset_data::{WebfontSubset, WebfontSubsetGroup};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct TuningParameters {

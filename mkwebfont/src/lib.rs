@@ -2,8 +2,8 @@ mod contrib;
 mod fonts;
 mod render;
 mod splitter;
-mod subset_manifest;
 
+use mkwebfont_common::model::data_package::DataPackage;
 pub use render::{SubsetInfo, WebfontInfo};
 
 /// A builder for making configuration for splitting webfonts.
@@ -58,11 +58,11 @@ impl WebfontCtxBuilder {
                 None => toml::from_str(include_str!("splitter_default_tuning.toml"))?,
                 Some(data) => toml::from_str(&data)?,
             },
-            data: match self.subset_manifest {
-                None => subset_manifest::WebfontData::load(include_str!(
-                    "subset_manifest_default.toml"
-                ))?,
-                Some(data) => subset_manifest::WebfontData::load(&data)?,
+            data: {
+                let mut package = DataPackage::load("run/mkwebfont-datapkg-builtin-v0.1.0")?;
+                let section = package.take_section(mkwebfont_common::model::package_consts::PKG_GFSUBSETS_TAG)?;
+                let subset = mkwebfont_common::model::subset_data::RawSubsets::deserialize(section)?;
+                subset.build()
             },
         })))
     }
@@ -76,7 +76,7 @@ pub(crate) struct WebfontCtxData {
     pub(crate) preload_codepoints: roaring::RoaringBitmap,
     pub(crate) preload_codepoints_in: std::collections::HashMap<String, roaring::RoaringBitmap>,
     pub(crate) tuning: splitter::TuningParameters,
-    pub(crate) data: subset_manifest::WebfontData,
+    pub(crate) data: mkwebfont_common::model::subset_data::WebfontData,
 }
 
 /// A loaded font.
