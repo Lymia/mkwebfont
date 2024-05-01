@@ -3,6 +3,7 @@ mod common_crawl_split;
 mod generate_adjacency_table;
 mod generate_data;
 mod generate_gfsubsets;
+mod generate_glyphsets;
 mod test_subsetting;
 mod test_subsetting_quality;
 
@@ -61,18 +62,15 @@ enum Commands {
     /// Requires a Google Fonts API key in the `WEBFONT_APIKEY` environment variable.
     GenerateGfsubsets,
 
+    /// Generates the basic glyph subsets from Google's glyph sets data.
+    GenerateGlyphsets,
+
     /// Generates the final data package.
     ///
     /// Requires that `generate-adjacency-table` and `generate-gfsubsets` are run first.
     GenerateData,
 
-    /// A function that runs the following commands in order:
-    ///
-    /// * `common-crawl-download`
-    /// * `common-crawl-split`
-    /// * `generate-adjacency-table`
-    /// * `generate-gfsubsets`
-    /// * `generate-data`
+    /// Generates the final data package and runs all required steps before it.
     RunAll,
 
     TestSubsetting(FileArgs),
@@ -100,6 +98,7 @@ async fn run(command: Commands) {
             .await
             .unwrap(),
         Commands::GenerateGfsubsets => generate_gfsubsets::main().await,
+        Commands::GenerateGlyphsets => generate_glyphsets::generate_glyphsets().await.unwrap(),
         Commands::GenerateData => generate_data::generate_data().unwrap(),
         Commands::TestSubsettingQuality(path) => {
             test_subsetting_quality::test_subsetting_quality(&path.files)

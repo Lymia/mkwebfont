@@ -1,8 +1,3 @@
-//! A (very poorly written) script to scrape the character split classes used by Google Fonts to
-//! a Rust data file.
-//!
-//! Code quality is very bad, but this needs to be run very rarely, so... it shouldn't matter much.
-
 use anyhow::*;
 use mkwebfont_common::model::{
     data_package::DataPackageEncoder,
