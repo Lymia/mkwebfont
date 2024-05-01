@@ -14,6 +14,8 @@ To install it, simply run the following command:
 cargo +nightly install mkwebfont
 ```
 
+Alternatively, download an AppImage from the [releases page](https://github.com/Lymia/mkwebfont/releases).
+
 Then, run the following command to create a webfont:
 ```bash
 # Assumes that you serve `https://example.com/` from a directory of `/srv/http/root`.
