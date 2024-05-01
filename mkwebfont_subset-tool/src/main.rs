@@ -1,9 +1,10 @@
+mod collect_data;
 mod common_crawl_download;
 mod common_crawl_split;
 mod generate_adjacency_table;
-mod generate_data;
 mod generate_gfsubsets;
 mod generate_glyphsets;
+mod generate_validation_data;
 mod test_subsetting;
 mod test_subsetting_quality;
 
@@ -65,10 +66,13 @@ enum Commands {
     /// Generates the basic glyph subsets from Google's glyph sets data.
     GenerateGlyphsets,
 
+    /// Generates the validation data used to check the average size usage of a font.
+    GenerateValidationData,
+
     /// Generates the final data package.
     ///
     /// Requires that `generate-adjacency-table` and `generate-gfsubsets` are run first.
-    GenerateData,
+    CollectData,
 
     /// Generates the final data package and runs all required steps before it.
     RunAll,
@@ -99,7 +103,10 @@ async fn run(command: Commands) {
             .unwrap(),
         Commands::GenerateGfsubsets => generate_gfsubsets::main().await,
         Commands::GenerateGlyphsets => generate_glyphsets::generate_glyphsets().await.unwrap(),
-        Commands::GenerateData => generate_data::generate_data().unwrap(),
+        Commands::GenerateValidationData => generate_validation_data::generate_validation_data()
+            .await
+            .unwrap(),
+        Commands::CollectData => collect_data::generate_data().await.unwrap(),
         Commands::TestSubsettingQuality(path) => {
             test_subsetting_quality::test_subsetting_quality(&path.files)
                 .await
@@ -111,7 +118,8 @@ async fn run(command: Commands) {
             run(Commands::CommonCrawlSplit).await;
             run(Commands::GenerateAdjacencyTable).await;
             run(Commands::GenerateGfsubsets).await;
-            run(Commands::GenerateData).await;
+            run(Commands::GenerateGlyphsets).await;
+            run(Commands::CollectData).await;
         }
     }
 }

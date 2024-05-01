@@ -12,7 +12,7 @@ use std::{
 };
 use tracing::debug;
 
-pub struct BitsetListBuilder {
+pub struct BitsetSectionBuilder {
     source: String,
     codepoint_list: Vec<u32>,
     glyph_mapping: HashMap<u32, u32, WyHashBuilder>,
@@ -23,9 +23,9 @@ pub struct BitsetListBuilder {
     used_cd: Box<[u16; 0x110000]>,
     filtered: Box<[bool; 0x110000]>,
 }
-impl BitsetListBuilder {
+impl BitsetSectionBuilder {
     pub fn new(source: &str) -> Self {
-        BitsetListBuilder {
+        BitsetSectionBuilder {
             source: source.to_string(),
             codepoint_list: vec![],
             glyph_mapping: Default::default(),
@@ -94,7 +94,7 @@ impl BitsetListBuilder {
         bitset.serialize_into(self.cursor()).unwrap();
     }
 
-    fn push_sample_from_bitset(&mut self, list: &[u32], src: RoaringBitmap) {
+    pub fn push_sample_from_bitset(&mut self, list: &[u32], src: RoaringBitmap) {
         let mut bitset = RoaringBitmap::new();
         for ch in src {
             bitset.insert(self.map_ch(list[ch as usize]));
@@ -113,10 +113,10 @@ impl BitsetListBuilder {
             .map(|x| RoaringBitmap::deserialize_from(Cursor::new(&self.data[*x..])).unwrap())
     }
 
-    pub fn optimize(&self) -> BitsetListBuilder {
+    pub fn optimize(&self) -> BitsetSectionBuilder {
         debug!("Optimizing bitset section: {}", self.source);
 
-        let mut optimzied = BitsetListBuilder::new(&self.source);
+        let mut optimzied = BitsetSectionBuilder::new(&self.source);
 
         // Calculate the frequency of each character
         let mut frequency = vec![0usize; self.codepoint_list.len()];
@@ -151,7 +151,7 @@ impl BitsetListBuilder {
     }
 }
 
-pub fn build(raw_sections: Vec<BitsetListBuilder>) -> BitsetList {
+pub fn build(raw_sections: Vec<BitsetSectionBuilder>) -> BitsetList {
     let mut sections = Vec::new();
     for section in raw_sections {
         sections.push(Arc::new(BitsetSection {
@@ -188,6 +188,10 @@ impl BitsetSection {
         self.index
             .iter()
             .map(|x| RoaringBitmap::deserialize_from(Cursor::new(&self.data[*x..])).unwrap())
+    }
+
+    pub fn get(&self, i: usize) -> RoaringBitmap {
+        RoaringBitmap::deserialize_from(Cursor::new(&self.data[self.index[i]..])).unwrap()
     }
 }
 

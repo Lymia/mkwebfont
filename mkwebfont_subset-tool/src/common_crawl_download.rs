@@ -19,7 +19,7 @@ use mkwebfont_common::{
     join_set::JoinSet,
     model::{
         bitset_list,
-        bitset_list::BitsetListBuilder,
+        bitset_list::BitsetSectionBuilder,
         data_package::{DataPackage, DataPackageEncoder},
     },
 };
@@ -150,7 +150,8 @@ pub async fn process_list_to_bitmaps(target: &str, list: &str) -> Result<DataPac
                 found.load(Ordering::Relaxed),
             );
             let warc = WarcReader::from_path_gzip(&path)?;
-            let mut builder = BitsetListBuilder::new(&path.file_name().unwrap().to_string_lossy());
+            let mut builder =
+                BitsetSectionBuilder::new(&path.file_name().unwrap().to_string_lossy());
             builder.filter_chars(|x| {
                 let cat = x.general_category_group();
                 cat != GeneralCategoryGroup::Other && cat != GeneralCategoryGroup::Separator
