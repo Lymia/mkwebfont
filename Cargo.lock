@@ -2189,8 +2189,9 @@ dependencies = [
 
 [[package]]
 name = "wyrand"
-version = "0.1.6"
-source = "git+https://github.com/Lymia/wyrand-rs.git#d1ff807e9c3fdb679e3179e58e58aab1a282c551"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dadc56f0dc130aa22c0d2fe303ccee3a2ad429c87d257642e96017920c66ed0"
 dependencies = [
  "rand_core",
 ]

@@ -53,6 +53,7 @@ const VALIDATION_DL_INFO: DownloadSource = DownloadSource {
     ],
 };
 
+#[cfg(feature = "download-data")]
 async fn data_package_from_source(source: &DownloadSource) -> Result<DataPackage> {
     let cache_dir = directories::ProjectDirs::from("moe.aura", "", "mkwebfont")
         .expect("Could not get cache directory!");
@@ -79,6 +80,19 @@ async fn data_package_from_source(source: &DownloadSource) -> Result<DataPackage
             std::fs::write(&cache_path, &data)?;
             DataPackage::load_with_hash(cache_path, source.known_hash)
         }
+    }
+}
+
+#[cfg(feature = "appimage")]
+async fn data_package_from_source(source: &DownloadSource) -> Result<DataPackage> {
+    let var = std::env::var("MKWEBFONT_APPIMAGE_DATA")?;
+    let mut path = PathBuf::from(var);
+    path.push(source.name);
+
+    if path.exists() {
+        DataPackage::load(path)
+    } else {
+        bail!("No data found in AppImage!?")
     }
 }
 

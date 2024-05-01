@@ -24,9 +24,11 @@ include = [
 ]
 
 [features]
-default = ["binary", "bundled-harfbuzz"]
+default = ["binary", "bundled-harfbuzz", "download-data"]
 binary = ["clap", "tracing-subscriber"]
 bundled-harfbuzz = ["hb-subset/bundled"]
+appimage = []
+download-data = ["directories", "reqwest"]
 
 [[bin]]
 name = "mkwebfont"
@@ -37,17 +39,19 @@ anyhow = "1.0"
 blake3 = { version = "1.5", features = ["pure"] }
 brotli = { version = "5.0", features = ["ffi-api"] }
 clap = { version = "4.5", features = ["derive"], optional = true }
-directories = "5.0"
 hb-subset = "=0.3.0" # pinned for now, very low-usage crate
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
 roaring = "0.10"
 serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1.37", features = ["rt-multi-thread"] }
+tokio = { version = "1.37", features = ["rt-multi-thread", "sync"] }
 toml = "0.8"
 tracing = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 unic-ucd-block = "0.9"
+
+# Used only for downloading mkwebfont-datapkg packages.
+directories = { version = "5.0", optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"], optional = true }
 
 # Unicode data
 unicode-blocks = "0.1"

@@ -19,7 +19,7 @@ struct Args {
     store: Option<PathBuf>,
 
     /// The URI at which the .woof2 store can be accessed at.
-    #[arg(long)]
+    #[arg(short='u', long)]
     store_uri: Option<String>,
 
     /// The path to write the .css file to, replacing the existing contents.
@@ -207,7 +207,12 @@ async fn main_impl(args: Args) -> Result<()> {
     Ok(())
 }
 fn main_sync(args: Args) -> Result<()> {
+    #[cfg(feature = "download-data")]
     let rt = Builder::new_multi_thread().enable_io().build()?;
+
+    #[cfg(not(feature = "download-data"))]
+    let rt = Builder::new_multi_thread().build()?;
+
     rt.block_on(main_impl(args))
 }
 

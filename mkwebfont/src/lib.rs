@@ -2,6 +2,7 @@ mod data;
 mod fonts;
 mod render;
 mod splitter_legacy;
+mod subset_plan;
 
 pub use render::{SubsetInfo, WebfontInfo};
 
