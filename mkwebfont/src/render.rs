@@ -12,6 +12,9 @@ use std::{
 };
 use tokio::{task, task::JoinHandle};
 use tracing::{debug, info, Instrument};
+use unicode_blocks::find_unicode_block;
+
+// TODO: Optimize subset ranges
 
 fn extract_name(str: &str) -> String {
     let mut out = String::new();
@@ -44,26 +47,50 @@ fn extract_version(mut str: &str) -> String {
     out.trim_matches('.').to_string()
 }
 
-fn decode_range(bitmap: &RoaringBitmap) -> Vec<RangeInclusive<char>> {
+fn is_same_block(ch_a: char, ch_b: char) -> bool {
+    if let Some(block_a) = find_unicode_block(ch_a) {
+        if let Some(block_b) = find_unicode_block(ch_b) {
+            return block_a.name() == block_b.name()
+        }
+    }
+    false
+}
+
+fn decode_range(bitmap: &RoaringBitmap, all_chars: &RoaringBitmap) -> Vec<RangeInclusive<char>> {
     let mut range_start = None;
     let mut range_last = '\u{fffff}';
     let mut ranges = Vec::new();
-    for char in bitmap {
-        let char = char::from_u32(char).expect("Invalid char in RoaringBitmap");
+
+    for ch in bitmap {
+        let ch = char::from_u32(ch).expect("Invalid char in RoaringBitmap");
         if let Some(start) = range_start {
             let next = char::from_u32(range_last as u32 + 1).unwrap();
-            if next != char {
-                ranges.push(start..=range_last);
-                range_start = Some(char);
+            if next != ch {
+                let mut can_merge = false;
+                if is_same_block(next, ch) {
+                    can_merge = true;
+                    for ch in next..ch {
+                        if all_chars.contains(ch as u32) {
+                            can_merge = false;
+                            break;
+                        }
+                    }
+                }
+
+                if !can_merge {
+                    ranges.push(start..=range_last);
+                    range_start = Some(ch);
+                }
             }
         } else {
-            range_start = Some(char);
+            range_start = Some(ch);
         }
-        range_last = char;
+        range_last = ch;
     }
     if let Some(start) = range_start {
         ranges.push(start..=range_last);
     }
+
     ranges
 }
 
@@ -150,7 +177,7 @@ impl SubsetInfo {
         let font_version = extract_version(font.font_version());
         let is_regular = font_style.to_lowercase() == "regular";
 
-        let subset_ranges = decode_range(&subset);
+        let subset_ranges = decode_range(&subset, font.all_codepoints());
 
         SubsetInfo {
             name: name.to_string(),
