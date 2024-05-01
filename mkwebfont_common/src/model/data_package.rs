@@ -61,7 +61,7 @@ pub struct DataSection {
 }
 impl DataSection {
     pub fn type_check(&self, tp: &str) -> Result<()> {
-        if tp == self.tp {
+        if tp != self.tp {
             bail!("DataSection type mismatch: {tp:?} != {:?}", self.tp);
         } else {
             debug!("Deserializing {tp} from {self:?}...");
