@@ -1,7 +1,7 @@
 mod data;
 mod fonts;
 mod render;
-mod splitter;
+mod splitter_legacy;
 
 pub use render::{SubsetInfo, WebfontInfo};
 
@@ -72,7 +72,7 @@ pub struct WebfontCtx(pub(crate) std::sync::Arc<WebfontCtxData>);
 pub(crate) struct WebfontCtxData {
     pub(crate) preload_codepoints: roaring::RoaringBitmap,
     pub(crate) preload_codepoints_in: std::collections::HashMap<String, roaring::RoaringBitmap>,
-    pub(crate) tuning: splitter::TuningParameters,
+    pub(crate) tuning: splitter_legacy::TuningParameters,
     pub(crate) data: std::sync::Arc<mkwebfont_common::model::subset_data::WebfontData>,
 }
 

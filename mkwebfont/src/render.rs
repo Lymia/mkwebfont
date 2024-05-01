@@ -261,7 +261,7 @@ impl FontEncoder {
 /// The internal function that actually splits the webfont.
 pub async fn split_webfont(ctx: &WebfontCtx, font: &LoadedFont) -> Result<WebfontInfo> {
     let mut encoder = FontEncoder::new(font.clone());
-    crate::splitter::split_webfonts(ctx, font, &mut encoder);
+    crate::splitter_legacy::split_webfonts(ctx, font, &mut encoder);
 
     let info = encoder.produce_webfont().await?;
     info!(
