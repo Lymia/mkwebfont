@@ -558,18 +558,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 
 [[package]]
-name = "hb-subset"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7340b4303dc40254307edbe53fabcdde93b0c3eb0aa85e1fd459beca9863987"
-dependencies = [
- "bindgen",
- "cc",
- "pkg-config",
- "thiserror",
-]
-
-[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -919,8 +907,8 @@ dependencies = [
  "cc",
  "clap",
  "directories",
- "hb-subset",
  "mkwebfont_common",
+ "mkwebfont_hb-subset",
  "reqwest",
  "roaring",
  "serde",
@@ -947,6 +935,16 @@ dependencies = [
  "tracing",
  "wyrand",
  "zstd",
+]
+
+[[package]]
+name = "mkwebfont_hb-subset"
+version = "0.3.0"
+dependencies = [
+ "bindgen",
+ "cc",
+ "pkg-config",
+ "thiserror",
 ]
 
 [[package]]

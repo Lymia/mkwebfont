@@ -1,5 +1,5 @@
 [package]
-name = "hb-subset"
+name = "mkwebfont_hb-subset"
 version = "0.3.0"
 edition = "2021"
 license = "MIT"
@@ -18,6 +18,9 @@ exclude = [
     ".github",
 ]
 
+[lib]
+name = "hb_subset"
+
 [dependencies]
 thiserror = "1.0.50"
 
@@ -31,7 +34,3 @@ bundled = []
 
 [package.metadata.docs.rs]
 features = ["bundled"]
-
-[profile.test]
-opt-level = 1
-

@@ -2,5 +2,5 @@
 	path = mkwebfont/contrib/woff2
 	url = https://github.com/google/woff2
 [submodule "mkwebfont-hb-subset/harfbuzz"]
-	path = mkwebfont-hb-subset/harfbuzz
+	path = mkwebfont_hb-subset/harfbuzz
 	url = https://github.com/harfbuzz/harfbuzz.git

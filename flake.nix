@@ -54,7 +54,7 @@
             });
 
             mkwebfont-unwrapped = mkwebfont-common pkgs "-p mkwebfont";
-            mkwebfont-unwrapped-nonet = mkwebfont-common pkgs "-p mkwebfont --no-default-features --features appimage,binary,bundled-harfbuzz";
+            mkwebfont-unwrapped-nonet = mkwebfont-common pkgs "-p mkwebfont --no-default-features --features appimage,binary";
 
             mkwebfont-no_data = pkgs.runCommand "mkwebfont-no_data" {
               inherit (mkwebfont-unwrapped) pname version meta;
