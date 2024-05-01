@@ -1,0 +1,37 @@
+[package]
+name = "hb-subset"
+version = "0.3.0"
+edition = "2021"
+license = "MIT"
+description = "A wrapper for HarfBuzz font subsetting API "
+homepage = "https://github.com/henkkuli/hb-subset-rs"
+repository = "https://github.com/henkkuli/hb-subset-rs"
+readme = "README.md"
+keywords = ["font", "subsetting", "harfbuzz"]
+categories = ["api-bindings", "encoding"]
+
+exclude = [
+    "harfbuzz/",
+    "!harfbuzz/src",
+    "!harfbuzz/COPYING",
+    "tests/fonts",
+    ".github",
+]
+
+[dependencies]
+thiserror = "1.0.50"
+
+[build-dependencies]
+bindgen = "0.69.1"
+cc = "1.0.83"
+pkg-config = "0.3.27"
+
+[features]
+bundled = []
+
+[package.metadata.docs.rs]
+features = ["bundled"]
+
+[profile.test]
+opt-level = 1
+
