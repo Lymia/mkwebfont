@@ -1,5 +1,4 @@
 use crate::{
-    contrib::nix_base32,
     fonts::{FontStyle, FontWeight, LoadedFont},
     WebfontCtx,
 };
@@ -144,9 +143,7 @@ pub struct SubsetInfo {
 }
 impl SubsetInfo {
     fn new(font: &LoadedFont, name: &str, subset: RoaringBitmap, woff2_data: Vec<u8>) -> Self {
-        let blake3_hash = blake3::hash(&woff2_data);
-        let hash_str = nix_base32::to_nix_base32(&*blake3_hash.as_bytes());
-        let hash_str = &hash_str[1..21];
+        let hash_str = mkwebfont_common::hashing::hash_fragment(&woff2_data);
 
         let font_name = extract_name(font.font_family());
         let font_style = extract_name(font.font_style());

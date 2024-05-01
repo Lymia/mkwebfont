@@ -1,4 +1,3 @@
-mod contrib;
 mod fonts;
 mod render;
 mod splitter;
@@ -60,8 +59,10 @@ impl WebfontCtxBuilder {
             },
             data: {
                 let mut package = DataPackage::load("run/mkwebfont-datapkg-builtin-v0.1.0")?;
-                let section = package.take_section(mkwebfont_common::model::package_consts::PKG_GFSUBSETS_TAG)?;
-                let subset = mkwebfont_common::model::subset_data::RawSubsets::deserialize(section)?;
+                let section = package
+                    .take_section(mkwebfont_common::model::package_consts::PKG_GFSUBSETS_TAG)?;
+                let subset =
+                    mkwebfont_common::model::subset_data::RawSubsets::deserialize(section)?;
                 subset.build()
             },
         })))

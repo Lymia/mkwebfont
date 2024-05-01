@@ -1,13 +1,13 @@
 use crate::common_crawl_download::COMMON_CRAWL_TAG;
 use anyhow::Result;
 use mkwebfont_common::{
+    hashing::{wyhash, WyHashBuilder, WyRand},
     join_set::JoinSet,
     model::{
         bitset_list,
         bitset_list::{BitsetList, BitsetSectionBuilder},
         data_package::{DataPackage, DataPackageEncoder},
     },
-    wyhash::{wyhash, WyHashBuilder, WyRand},
 };
 use roaring::RoaringBitmap;
 use std::{collections::HashSet, sync::Arc};

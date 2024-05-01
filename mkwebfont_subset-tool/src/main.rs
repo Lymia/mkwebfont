@@ -83,6 +83,9 @@ enum Commands {
     ///
     /// Requires that `download-common-crawl` is run first.
     TestSubsettingQuality(FileArgs),
+
+    /// Hashes the data in a package, to allow downloads to work correctly.
+    HashPackage(FileArgs),
 }
 
 #[derive(Parser)]
@@ -121,6 +124,7 @@ async fn run(command: Commands) {
             run(Commands::GenerateGlyphsets).await;
             run(Commands::CollectData).await;
         }
+        Commands::HashPackage(_) => {}
     }
 }
 

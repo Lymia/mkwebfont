@@ -1,9 +1,4 @@
-mod variation_axises;
-
-use crate::{
-    contrib::woff2,
-    fonts::variation_axises::{AxisName, VariationAxis},
-};
+use crate::fonts::variation_axises::{AxisName, VariationAxis};
 use anyhow::*;
 use hb_subset::{Blob, FontFace, SubsetInput};
 use roaring::RoaringBitmap;
@@ -13,6 +8,9 @@ use std::{
 };
 use tracing::debug;
 use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
+
+mod variation_axises;
+mod woff2;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum FontStyle {

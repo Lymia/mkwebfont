@@ -1,6 +1,6 @@
 use crate::{
+    hashing::WyHashBuilder,
     model::data_package::{DataSection, DataSectionEncoder},
-    wyhash::WyHashBuilder,
 };
 use anyhow::Result;
 use bincode::{Decode, Encode};
