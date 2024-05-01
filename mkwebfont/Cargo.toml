@@ -37,7 +37,7 @@ anyhow = "1.0"
 blake3 = { version = "1.5", features = ["pure"] }
 brotli = { version = "4.0", features = ["ffi-api"] }
 clap = { version = "4.5", features = ["derive"], optional = true }
-hb-subset = "0.3"
+hb-subset = "=0.3.0" # pinned for now, very low-usage crate
 roaring = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.37", features = ["rt-multi-thread"] }
@@ -47,6 +47,10 @@ tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 unic-ucd-block = "0.9"
 
+# Unicode data
+unicode-properties = "0.1"
+
+# Subcrates
 mkwebfont_common = { path = "../mkwebfont_common" }
 
 [build-dependencies]

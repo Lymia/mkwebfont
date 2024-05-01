@@ -1,4 +1,9 @@
-use crate::contrib::woff2;
+mod variation_axises;
+
+use crate::{
+    contrib::woff2,
+    fonts::variation_axises::{AxisName, VariationAxis},
+};
 use anyhow::*;
 use hb_subset::{Blob, FontFace, SubsetInput};
 use roaring::RoaringBitmap;
@@ -7,6 +12,7 @@ use std::{
     sync::Arc,
 };
 use tracing::debug;
+use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum FontStyle {
@@ -79,7 +85,7 @@ struct LoadedFontData {
     font_family: String,
     font_style: String,
     font_version: String,
-    is_variable: bool,
+    variations: Vec<VariationAxis>,
     parsed_font_style: FontStyle,
     parsed_font_weight: FontWeight,
     available_codepoints: RoaringBitmap,
@@ -124,8 +130,8 @@ impl LoadedFont {
             return Ok(None);
         }
 
-        let is_variable =
-            unsafe { hb_subset::sys::hb_ot_var_get_axis_count(font_face.as_raw()) != 0 };
+        let variations = variation_axises::get_variation_axises(&font_face);
+        let is_variable = !variations.is_empty();
 
         let font_family = if is_variable {
             // a lot of dynamic fonts have a weight prebaked in the font_family for some reason
@@ -160,6 +166,29 @@ impl LoadedFont {
             if is_variable { " / Variable font" } else { "" },
         );
         debug!("Inferred style: {parsed_font_style:?} / {parsed_font_weight:?}");
+        if is_variable {
+            if variations.len() == 1 {
+                let axis = variations.first().unwrap();
+                debug!(
+                    "Font axis variations: {} / ({}..={}, default: {})",
+                    axis.name,
+                    axis.range.start(),
+                    axis.range.end(),
+                    axis.default,
+                );
+            } else {
+                debug!("Font axis variations: ");
+                for axis in &variations {
+                    debug!(
+                        "- {} / ({}..={}, default: {})",
+                        axis.name,
+                        axis.range.start(),
+                        axis.range.end(),
+                        axis.default,
+                    );
+                }
+            }
+        }
 
         drop(font_face);
 
@@ -167,7 +196,7 @@ impl LoadedFont {
             font_family,
             font_style,
             font_version,
-            is_variable,
+            variations,
             parsed_font_style,
             parsed_font_weight,
             available_codepoints,
@@ -192,7 +221,7 @@ impl LoadedFont {
         &self.0.font_version
     }
     pub fn is_variable(&self) -> bool {
-        self.0.is_variable
+        !self.0.variations.is_empty()
     }
     pub fn parsed_font_style(&self) -> FontStyle {
         self.0.parsed_font_style
@@ -202,17 +231,28 @@ impl LoadedFont {
     }
 
     pub fn subset(&self, name: &str, chars: &RoaringBitmap) -> Result<Vec<u8>> {
-        // Subset the font
+        // Load the font into harfbuzz
+        let blob = Blob::from_bytes(&self.0.font_data)?;
+        let mut font = FontFace::new_with_index(blob, self.0.font_index)?;
+
+        // Prepare the subsetting plan
         let mut subset_input = SubsetInput::new()?;
         subset_input.unicode_set().clear();
-        for char in chars {
-            subset_input
-                .unicode_set()
-                .insert(char::from_u32(char).unwrap());
+        for ch in chars {
+            let ch = char::from_u32(ch).unwrap();
+            let cat = ch.general_category();
+            if cat != GeneralCategory::Control && cat != GeneralCategory::Format {
+                subset_input.unicode_set().insert(ch);
+            }
+        }
+        for variation in &self.0.variations {
+            // TODO: Do not hardcode allowed axises
+            if variation.is_hidden || variation.axis != Some(AxisName::Weight) {
+                variation.pin(&mut font, &mut subset_input);
+            }
         }
 
-        let blob = Blob::from_bytes(&self.0.font_data)?;
-        let font = FontFace::new_with_index(blob, self.0.font_index)?;
+        // Subset the font
         let new_font = subset_input.subset_font(&font)?;
         let new_font = new_font.underlying_blob().to_vec();
         Ok(woff2::compress(&new_font, name.to_string(), 11, true).unwrap())

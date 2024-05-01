@@ -1,11 +1,12 @@
+use crate::common_crawl_download::COMMON_CRAWL_TAG;
 use anyhow::Result;
 use mkwebfont::{LoadedFont, WebfontCtxBuilder, WebfontInfo};
+use mkwebfont_common::model::{bitset_list::BitsetList, data_package::DataPackage};
 use roaring::RoaringBitmap;
-use std::{fs::File, io::BufReader, ops::RangeInclusive, path::PathBuf, sync::Arc};
+use std::{ops::RangeInclusive, path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 use unicode_properties::{GeneralCategoryGroup, UnicodeEmoji, UnicodeGeneralCategory};
-use zstd::Decoder;
 
 struct Script {
     name: &'static str,
@@ -47,8 +48,8 @@ async fn measure_font(lock: Arc<Mutex<()>>, style: WebfontInfo) -> Result<()> {
         all_chars.extend(item.subset().iter());
     }
 
-    let reader = BufReader::new(File::open("run/common-crawl-validation_parsed-bitmaps.zst")?);
-    let mut zstd = Decoder::new(reader)?;
+    let mut data = DataPackage::load("run/common-crawl_bitsets-validation")?;
+    let bitset_list = BitsetList::deserialize(data.take_section(COMMON_CRAWL_TAG)?)?;
 
     // define and create the statistics table
     #[derive(Copy, Clone)]
@@ -79,9 +80,13 @@ async fn measure_font(lock: Arc<Mutex<()>>, style: WebfontInfo) -> Result<()> {
     statistics[SCRIPTS.len()].name = "Emoji";
     statistics[SCRIPTS.len() + 1].name = "All Webpages";
 
+    for subset in style.subsets() {
+        debug!("{} / {:.2} KiB", subset.name(), subset.woff2_data().len() as f64 / 1024.0);
+    }
+
     // execute the actual counting operaiton
     let mut processed = 0;
-    while let Ok(bitmap) = RoaringBitmap::deserialize_unchecked_from(&mut zstd) {
+    for (bitmap, chars) in bitset_list.iter().take(300000) {
         processed += 1;
         if processed % 100000 == 0 {
             debug!("Processed {processed} bitmaps...");
@@ -90,13 +95,13 @@ async fn measure_font(lock: Arc<Mutex<()>>, style: WebfontInfo) -> Result<()> {
         // Filter the bitmap to remove whitespace and control characters.
         let mut filtered_bitmap = RoaringBitmap::new();
         let mut has_emoji = false;
-        for ch in &bitmap {
-            let ch = char::from_u32(ch).unwrap();
+        for idx in &bitmap {
+            let ch = char::from_u32(chars[idx as usize]).unwrap();
             let cat = ch.general_category_group();
             if cat == GeneralCategoryGroup::Separator || cat == GeneralCategoryGroup::Other {
                 continue;
             }
-            if ch == '�' {
+            if ch == '�' || ch == '\0' {
                 continue;
             }
             if !has_emoji && ch.is_emoji_char() {
