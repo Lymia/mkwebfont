@@ -1,6 +1,5 @@
 use crate::{sys, SubsetInput};
-use std::ops::Deref;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 
 /// Flags for [`SubsetInput`].
 ///

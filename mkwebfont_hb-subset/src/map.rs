@@ -52,10 +52,7 @@ impl<'a, K, V> Map<'a, K, V> {
     /// Constructs a copy of the map with `'static` lifetime.
     #[doc(alias = "hb_map_copy")]
     pub fn clone_static(&self) -> Map<'static, K, V> {
-        Map(
-            InnerMap(unsafe { sys::hb_map_copy(self.as_raw()) }),
-            PhantomData,
-        )
+        Map(InnerMap(unsafe { sys::hb_map_copy(self.as_raw()) }), PhantomData)
     }
 
     /// Adds the contents of `other` to map.
@@ -373,10 +370,7 @@ mod tests {
 
     #[test]
     fn keys_works() {
-        assert_eq!(
-            Map::<u32, u32>::from_iter([]).keys().unwrap(),
-            Set::from_iter([])
-        );
+        assert_eq!(Map::<u32, u32>::from_iter([]).keys().unwrap(), Set::from_iter([]));
         assert_eq!(
             Map::<u32, u32>::from_iter([(0, 100), (1, 101), (10, 110)])
                 .keys()
@@ -387,10 +381,7 @@ mod tests {
 
     #[test]
     fn values_works() {
-        assert_eq!(
-            Map::<u32, u32>::from_iter([]).values().unwrap(),
-            Set::from_iter([])
-        );
+        assert_eq!(Map::<u32, u32>::from_iter([]).values().unwrap(), Set::from_iter([]));
         assert_eq!(
             Map::<u32, u32>::from_iter([(0, 100), (1, 101), (10, 110)])
                 .values()
@@ -479,43 +470,34 @@ mod tests {
         map.insert(25, 0xDFFF);
 
         let char_to_u32_map = unsafe { Map::<char, u32>::from_raw(map.clone().into_raw()) };
-        assert_set_is_correct(
-            &char_to_u32_map,
-            [
-                ('\u{D7FF}', 10),
-                ('\u{E000}', 10),
-                ('\u{14}', 0xD7FF),
-                ('\u{15}', 0xE000),
-                ('\u{17}', 0xD800),
-                ('\u{18}', 0xD912),
-                ('\u{19}', 0xDFFF),
-            ],
-        );
+        assert_set_is_correct(&char_to_u32_map, [
+            ('\u{D7FF}', 10),
+            ('\u{E000}', 10),
+            ('\u{14}', 0xD7FF),
+            ('\u{15}', 0xE000),
+            ('\u{17}', 0xD800),
+            ('\u{18}', 0xD912),
+            ('\u{19}', 0xDFFF),
+        ]);
 
         let u32_to_char_map = unsafe { Map::<u32, char>::from_raw(map.clone().into_raw()) };
-        assert_set_is_correct(
-            &u32_to_char_map,
-            [
-                (0xD7FF, '\u{0a}'),
-                (0xE000, '\u{0a}'),
-                (20, '\u{D7FF}'),
-                (21, '\u{E000}'),
-                (0xD800, '\u{3}'),
-                (0xD912, '\u{4}'),
-                (0xDFFF, '\u{5}'),
-            ],
-        );
+        assert_set_is_correct(&u32_to_char_map, [
+            (0xD7FF, '\u{0a}'),
+            (0xE000, '\u{0a}'),
+            (20, '\u{D7FF}'),
+            (21, '\u{E000}'),
+            (0xD800, '\u{3}'),
+            (0xD912, '\u{4}'),
+            (0xDFFF, '\u{5}'),
+        ]);
 
         let char_to_char_map = unsafe { Map::<char, char>::from_raw(map.clone().into_raw()) };
-        assert_set_is_correct(
-            &char_to_char_map,
-            [
-                ('\u{D7FF}', '\u{0a}'),
-                ('\u{E000}', '\u{0a}'),
-                ('\u{14}', '\u{D7FF}'),
-                ('\u{15}', '\u{E000}'),
-            ],
-        );
+        assert_set_is_correct(&char_to_char_map, [
+            ('\u{D7FF}', '\u{0a}'),
+            ('\u{E000}', '\u{0a}'),
+            ('\u{14}', '\u{D7FF}'),
+            ('\u{15}', '\u{E000}'),
+        ]);
     }
 
     #[test]

@@ -80,16 +80,12 @@ impl<'a, T> Set<'a, T> {
     /// Constructs a copy of the set with `'static` lifetime.
     #[doc(alias = "hb_set_copy")]
     pub fn clone_static(&self) -> Set<'static, T> {
-        Set(
-            InnerSet(unsafe { sys::hb_set_copy(self.as_raw()) }),
-            PhantomData,
-        )
+        Set(InnerSet(unsafe { sys::hb_set_copy(self.as_raw()) }), PhantomData)
     }
 }
 
 impl<'a, T> Set<'a, T>
-where
-    T: Into<u32>,
+where T: Into<u32>
 {
     /// Tests whether a value belongs to set.
     #[doc(alias = "hb_set_has")]
@@ -117,9 +113,7 @@ where
 
     /// Converts a range to inclusive bounds.
     fn range_to_bounds(range: impl RangeBounds<T>) -> Option<(u32, u32)>
-    where
-        T: Clone + 'static,
-    {
+    where T: Clone + 'static {
         fn bound_to_u32<T: Clone + Into<u32>>(bound: Bound<&T>) -> Bound<u32> {
             match bound {
                 Bound::Included(b) => Bound::Included(b.clone().into()),
@@ -188,9 +182,7 @@ where
     /// ```
     #[doc(alias = "hb_set_add_range")]
     pub fn insert_range(&mut self, range: impl RangeBounds<T>)
-    where
-        T: Clone + 'static,
-    {
+    where T: Clone + 'static {
         let Some((lower, upper)) = Self::range_to_bounds(range) else {
             return;
         };
@@ -200,9 +192,7 @@ where
     /// Removes a range of values from set.
     #[doc(alias = "hb_set_del_range")]
     pub fn remove_range(&mut self, range: impl RangeBounds<T>)
-    where
-        T: Clone + 'static,
-    {
+    where T: Clone + 'static {
         // TODO: Assert that sys::HB_SET_VALUE_INVALID is u32::MAX like it should be
         #[allow(clippy::assertions_on_constants, clippy::absurd_extreme_comparisons)]
         const _: () = assert!(u32::MAX <= sys::HB_SET_VALUE_INVALID);
@@ -214,8 +204,7 @@ where
 }
 
 impl<'a, T> Set<'a, T>
-where
-    T: TryFrom<u32>,
+where T: TryFrom<u32>
 {
     /// Constructs an iterator over the set.
     #[doc(alias = "hb_set_next")]
@@ -276,8 +265,7 @@ impl<'a, T> Clone for Set<'a, T> {
 }
 
 impl<'a, T> fmt::Debug for Set<'a, T>
-where
-    T: TryFrom<u32> + fmt::Debug,
+where T: TryFrom<u32> + fmt::Debug
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_set().entries(self).finish()
@@ -285,8 +273,7 @@ where
 }
 
 impl<'a, T> FromIterator<T> for Set<'a, T>
-where
-    T: Into<u32>,
+where T: Into<u32>
 {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut set = Set::new().unwrap();
@@ -298,8 +285,7 @@ where
 }
 
 impl<'s, 'a, T> IntoIterator for &'s Set<'a, T>
-where
-    T: TryFrom<u32>,
+where T: TryFrom<u32>
 {
     type Item = T;
     type IntoIter = Iter<'s, 'a, T>;
@@ -316,8 +302,7 @@ pub struct Iter<'s, 'a, T>(IterFilter<'s, 'a, T>);
 type IterFilter<'s, 'a, T> = FilterMap<IterImpl<'s, 'a, T>, fn(u32) -> Option<T>>;
 
 impl<'s, 'a, T> Iterator for Iter<'s, 'a, T>
-where
-    T: TryFrom<u32>,
+where T: TryFrom<u32>
 {
     type Item = T;
 
@@ -327,8 +312,7 @@ where
 }
 
 impl<'s, 'a, T> DoubleEndedIterator for Iter<'s, 'a, T>
-where
-    T: TryFrom<u32>,
+where T: TryFrom<u32>
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0.next_back()
@@ -651,10 +635,7 @@ mod tests {
         set.insert(u32::MAX - 2);
         assert_eq!(set.iter().collect::<Vec<_>>(), [u32::MAX - 3, u32::MAX - 2]);
         set.insert(u32::MAX - 1);
-        assert_eq!(
-            set.iter().collect::<Vec<_>>(),
-            [u32::MAX - 3, u32::MAX - 2, u32::MAX - 1]
-        );
+        assert_eq!(set.iter().collect::<Vec<_>>(), [u32::MAX - 3, u32::MAX - 2, u32::MAX - 1]);
         set.clear();
         assert!(set.is_empty());
         set.insert_range((Bound::Excluded(u32::MAX - 3), Bound::Unbounded));
@@ -715,10 +696,7 @@ mod tests {
         assert!(set.iter().next().is_none());
         set.insert(0);
         set.insert_range(6..12);
-        assert_eq!(
-            set.iter().rev().collect::<Vec<_>>(),
-            [11, 10, 9, 8, 7, 6, 0]
-        );
+        assert_eq!(set.iter().rev().collect::<Vec<_>>(), [11, 10, 9, 8, 7, 6, 0]);
         set.remove_range(8..=10);
         assert_eq!(set.iter().rev().collect::<Vec<_>>(), [11, 7, 6, 0]);
 

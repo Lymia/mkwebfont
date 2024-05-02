@@ -136,10 +136,7 @@ mod tests {
     #[test]
     fn tag_debug_is_correct() {
         assert_eq!(u32::from(Tag::new([b'D', b'S', b'I', b'G'])), 0x44534947u32);
-        assert_eq!(
-            format!("{:?}", Tag::new([b'D', b'S', b'I', b'G'])),
-            "Tag(DSIG)"
-        );
+        assert_eq!(format!("{:?}", Tag::new([b'D', b'S', b'I', b'G'])), "Tag(DSIG)");
         assert_eq!(format!("{:?}", Tag::new(b"DSIG")), "Tag(DSIG)");
     }
 
@@ -147,9 +144,6 @@ mod tests {
     fn language_works() {
         assert_eq!(Language::from_str("").unwrap().to_string(), "[invalid]");
         assert_eq!(Language::from_str("en").unwrap().to_string(), "en");
-        assert_eq!(
-            Language::from_str("non-existent").unwrap().to_string(),
-            "non-existent"
-        );
+        assert_eq!(Language::from_str("non-existent").unwrap().to_string(), "non-existent");
     }
 }

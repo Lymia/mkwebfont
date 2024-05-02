@@ -139,13 +139,7 @@ impl<'a> FontFace<'a> {
     pub fn ot_name(&self, name: impl Into<sys::hb_ot_name_id_t>, language: Language) -> String {
         let name = name.into();
         let mut len = unsafe {
-            sys::hb_ot_name_get_utf8(
-                self.as_raw(),
-                name,
-                language.as_raw(),
-                null_mut(),
-                null_mut(),
-            )
+            sys::hb_ot_name_get_utf8(self.as_raw(), name, language.as_raw(), null_mut(), null_mut())
         };
         len += 1; // Reserve space for NUL termination
         let mut buf = vec![0; len as usize];
@@ -177,10 +171,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_COPYRIGHT")]
     pub fn copyright(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::COPYRIGHT,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::COPYRIGHT, Language::default())
     }
 
     /// Gets font family name.
@@ -196,10 +187,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_FONT_FAMILY")]
     pub fn font_family(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::FONT_FAMILY,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::FONT_FAMILY, Language::default())
     }
 
     /// Gets font subfamily name.
@@ -215,10 +203,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_FONT_SUBFAMILY")]
     pub fn font_subfamily(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::FONT_SUBFAMILY,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::FONT_SUBFAMILY, Language::default())
     }
 
     /// Gets unique font identifier.
@@ -234,10 +219,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_UNIQUE_ID")]
     pub fn unique_id(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::UNIQUE_ID,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::UNIQUE_ID, Language::default())
     }
 
     /// Gets full font name that reflects all family and relevant subfamily descriptors.
@@ -253,10 +235,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_FULL_NAME")]
     pub fn full_name(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::FULL_NAME,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::FULL_NAME, Language::default())
     }
 
     /// Gets version string.
@@ -272,10 +251,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_VERSION_STRING")]
     pub fn version_string(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::VERSION_STRING,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::VERSION_STRING, Language::default())
     }
 
     /// Gets PostScript name for the font.
@@ -291,10 +267,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_POSTSCRIPT_NAME")]
     pub fn postscript_name(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::POSTSCRIPT_NAME,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::POSTSCRIPT_NAME, Language::default())
     }
 
     /// Gets trademark information.
@@ -310,10 +283,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_TRADEMARK")]
     pub fn trademark(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::TRADEMARK,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::TRADEMARK, Language::default())
     }
 
     /// Gets manufacturer name.
@@ -329,10 +299,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_MANUFACTURER")]
     pub fn manufacturer(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::MANUFACTURER,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::MANUFACTURER, Language::default())
     }
 
     /// Gets designer name.
@@ -348,10 +315,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_DESIGNER")]
     pub fn designer(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::DESIGNER,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::DESIGNER, Language::default())
     }
 
     /// Gets description.
@@ -367,10 +331,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_DESCRIPTION")]
     pub fn description(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::DESCRIPTION,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::DESCRIPTION, Language::default())
     }
 
     /// Gets URL of font vendor.
@@ -386,10 +347,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_VENDOR_URL")]
     pub fn vendor_url(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::VENDOR_URL,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::VENDOR_URL, Language::default())
     }
 
     /// Gets URL of typeface designer.
@@ -405,10 +363,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_DESIGNER_URL")]
     pub fn designer_url(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::DESIGNER_URL,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::DESIGNER_URL, Language::default())
     }
 
     /// Gets license description.
@@ -424,10 +379,7 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_LICENSE")]
     pub fn license(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::LICENSE,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::LICENSE, Language::default())
     }
 
     /// Gets URL where additional licensing information can be found.
@@ -443,100 +395,67 @@ impl<'a> FontFace<'a> {
     /// ```
     #[doc(alias = "HB_OT_NAME_ID_LICENSE_URL")]
     pub fn license_url(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::LICENSE_URL,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::LICENSE_URL, Language::default())
     }
 
     /// Gets typographic family name.
     #[doc(alias = "HB_OT_NAME_ID_TYPOGRAPHIC_FAMILY")]
     pub fn typographic_family(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::TYPOGRAPHIC_FAMILY,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::TYPOGRAPHIC_FAMILY, Language::default())
     }
 
     /// Gets typographic subfamily name.
     #[doc(alias = "HB_OT_NAME_ID_TYPOGRAPHIC_SUBFAMILY")]
     pub fn typographic_subfamily(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::TYPOGRAPHIC_SUBFAMILY,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::TYPOGRAPHIC_SUBFAMILY, Language::default())
     }
 
     /// Gets compatible full name for MacOS.
     #[doc(alias = "HB_OT_NAME_ID_MAC_FULL_NAME")]
     pub fn mac_full_name(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::MAC_FULL_NAME,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::MAC_FULL_NAME, Language::default())
     }
 
     /// Gets sample text.
     #[doc(alias = "HB_OT_NAME_ID_SAMPLE_TEXT")]
     pub fn sample_text(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::SAMPLE_TEXT,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::SAMPLE_TEXT, Language::default())
     }
 
     /// Gets PostScript CID findfont name.
     #[doc(alias = "HB_OT_NAME_ID_CID_FINDFONT_NAME")]
     pub fn cid_findfont_name(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::CID_FINDFONT_NAME,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::CID_FINDFONT_NAME, Language::default())
     }
 
     /// Gets WWS family Name.
     #[doc(alias = "HB_OT_NAME_ID_WWS_FAMILY")]
     pub fn wws_family(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::WWS_FAMILY,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::WWS_FAMILY, Language::default())
     }
 
     /// Gets WWS subfamily Name.
     #[doc(alias = "HB_OT_NAME_ID_WWS_SUBFAMILY")]
     pub fn wws_subfamily(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::WWS_SUBFAMILY,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::WWS_SUBFAMILY, Language::default())
     }
 
     /// Gets light background palette.
     #[doc(alias = "HB_OT_NAME_ID_LIGHT_BACKGROUND")]
     pub fn light_background(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::LIGHT_BACKGROUND,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::LIGHT_BACKGROUND, Language::default())
     }
 
     /// Gets dark background palette.
     #[doc(alias = "HB_OT_NAME_ID_DARK_BACKGROUND")]
     pub fn dark_background(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::DARK_BACKGROUND,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::DARK_BACKGROUND, Language::default())
     }
 
     /// Gets variations PostScript name prefix.
     #[doc(alias = "HB_OT_NAME_ID_VARIATIONS_PS_PREFIX")]
     pub fn variations_ps_prefix(&self) -> String {
-        self.ot_name(
-            sys::hb_ot_name_id_predefined_t::VARIATIONS_PS_PREFIX,
-            Language::default(),
-        )
+        self.ot_name(sys::hb_ot_name_id_predefined_t::VARIATIONS_PS_PREFIX, Language::default())
     }
 }
 

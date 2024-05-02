@@ -63,10 +63,7 @@ impl SubsetInput {
     #[doc(alias = "hb_subset_input_set_flags")]
     #[doc(alias = "hb_subset_input_get_flags")]
     pub fn flags(&mut self) -> FlagRef<'_> {
-        FlagRef(
-            self,
-            Flags(unsafe { sys::hb_subset_input_get_flags(self.as_raw()) }),
-        )
+        FlagRef(self, Flags(unsafe { sys::hb_subset_input_get_flags(self.as_raw()) }))
     }
 
     /// Gets the set of glyph IDs to retain.
@@ -77,9 +74,7 @@ impl SubsetInput {
     #[doc(alias = "HB_SUBSET_SETS_GLYPH_INDEX")]
     pub fn glyph_set(&mut self) -> U32Set<'_> {
         unsafe {
-            Set::from_raw(sys::hb_set_reference(sys::hb_subset_input_glyph_set(
-                self.as_raw(),
-            )))
+            Set::from_raw(sys::hb_set_reference(sys::hb_subset_input_glyph_set(self.as_raw())))
         }
     }
 
@@ -91,9 +86,7 @@ impl SubsetInput {
     #[doc(alias = "HB_SUBSET_SETS_UNICODE")]
     pub fn unicode_set(&mut self) -> CharSet<'_> {
         unsafe {
-            Set::from_raw(sys::hb_set_reference(sys::hb_subset_input_unicode_set(
-                self.as_raw(),
-            )))
+            Set::from_raw(sys::hb_set_reference(sys::hb_subset_input_unicode_set(self.as_raw())))
         }
     }
 
@@ -196,9 +189,9 @@ impl SubsetInput {
     #[doc(alias = "hb_subset_input_old_to_new_glyph_mapping")]
     pub fn old_to_new_glyph_mapping(&mut self) -> Map<'_, u32, u32> {
         unsafe {
-            Map::from_raw(sys::hb_map_reference(
-                sys::hb_subset_input_old_to_new_glyph_mapping(self.as_raw()),
-            ))
+            Map::from_raw(sys::hb_map_reference(sys::hb_subset_input_old_to_new_glyph_mapping(
+                self.as_raw(),
+            )))
         }
     }
 
@@ -329,19 +322,15 @@ impl<'f, 'b> SubsetPlan<'f, 'b> {
     /// [`Self::into_raw`].
     pub unsafe fn from_raw(plan: *mut sys::hb_subset_plan_t) -> Self {
         let unicode_to_old_glyph_mapping = unsafe {
-            Map::from_raw(sys::hb_map_reference(
-                sys::hb_subset_plan_unicode_to_old_glyph_mapping(plan),
-            ))
+            Map::from_raw(sys::hb_map_reference(sys::hb_subset_plan_unicode_to_old_glyph_mapping(
+                plan,
+            )))
         };
         let new_to_old_glyph_mapping = unsafe {
-            Map::from_raw(sys::hb_map_reference(
-                sys::hb_subset_plan_new_to_old_glyph_mapping(plan),
-            ))
+            Map::from_raw(sys::hb_map_reference(sys::hb_subset_plan_new_to_old_glyph_mapping(plan)))
         };
         let old_to_new_glyph_mapping = unsafe {
-            Map::from_raw(sys::hb_map_reference(
-                sys::hb_subset_plan_old_to_new_glyph_mapping(plan),
-            ))
+            Map::from_raw(sys::hb_map_reference(sys::hb_subset_plan_old_to_new_glyph_mapping(plan)))
         };
 
         Self {
