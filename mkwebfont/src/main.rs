@@ -19,7 +19,7 @@ struct Args {
     store: Option<PathBuf>,
 
     /// The URI at which the .woof2 store can be accessed at.
-    #[arg(short='u', long)]
+    #[arg(short = 'u', long)]
     store_uri: Option<String>,
 
     /// The path to write the .css file to, replacing the existing contents.

@@ -50,7 +50,7 @@ fn extract_version(mut str: &str) -> String {
 fn is_same_block(ch_a: char, ch_b: char) -> bool {
     if let Some(block_a) = find_unicode_block(ch_a) {
         if let Some(block_b) = find_unicode_block(ch_b) {
-            return block_a.name() == block_b.name()
+            return block_a.name() == block_b.name();
         }
     }
     false

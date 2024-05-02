@@ -1,7 +1,7 @@
 mod data;
 mod fonts;
 mod render;
-mod splitter_legacy;
+mod splitter;
 mod subset_plan;
 
 pub use render::{SubsetInfo, WebfontInfo};
@@ -54,10 +54,6 @@ impl WebfontCtxBuilder {
         Ok(WebfontCtx(std::sync::Arc::new(WebfontCtxData {
             preload_codepoints: self.preload_codepoints,
             preload_codepoints_in: self.preload_codepoints_in,
-            tuning: match self.splitter_tuning {
-                None => toml::from_str(include_str!("splitter_default_tuning.toml"))?,
-                Some(data) => toml::from_str(&data)?,
-            },
             data: {
                 let data = data::DataStorage::instance()?;
                 data.gfsubsets().await?
@@ -73,7 +69,6 @@ pub struct WebfontCtx(pub(crate) std::sync::Arc<WebfontCtxData>);
 pub(crate) struct WebfontCtxData {
     pub(crate) preload_codepoints: roaring::RoaringBitmap,
     pub(crate) preload_codepoints_in: std::collections::HashMap<String, roaring::RoaringBitmap>,
-    pub(crate) tuning: splitter_legacy::TuningParameters,
     pub(crate) data: std::sync::Arc<mkwebfont_common::model::subset_data::WebfontData>,
 }
 
