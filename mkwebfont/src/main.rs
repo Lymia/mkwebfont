@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use mkwebfont::{LoadedFont, WebfontCtxBuilder};
+use mkwebfont::{LoadedFont, SubsetPlan};
 use std::{
     collections::HashSet, fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf,
 };
@@ -53,52 +53,9 @@ struct Args {
     /// available, rather than requiring loading another .woff2 font.
     #[arg(long)]
     preload: Vec<String>,
-
-    /// Functions like preload, but allows preloading only for a specific font.
-    ///
-    /// The format is: `--preload-in "Font Family Name:abcdef"`
-    #[arg(long)]
-    preload_in: Vec<String>,
-
-    /// Uses the subset manifest file at the given path.
-    ///
-    /// This can be used to customize which characters are subsetted into which groups.
-    #[arg(long)]
-    subset_manifest: Option<PathBuf>,
-
-    /// Writes the default subset manifest file to the given path.
-    #[arg(long)]
-    write_default_subset_manifest: Option<PathBuf>,
-
-    /// Uses the splitter tuning file at the given path.
-    ///
-    /// This can be used to customize how mkwebfont decides which subsets to apply to a given font.
-    /// You will likely not need to use this.
-    #[arg(long)]
-    splitter_tuning: Option<PathBuf>,
-
-    /// Writes the default splitter tuning file to the given path.
-    #[arg(long)]
-    write_default_splitter_tuning: Option<PathBuf>,
 }
 
 async fn main_impl(args: Args) -> Result<()> {
-    // write default configuration
-    {
-        let mut early_exit = false;
-        if let Some(path) = args.write_default_subset_manifest {
-            todo!()
-        }
-        if let Some(path) = args.write_default_splitter_tuning {
-            info!("Writting default splitter configuration to {}", path.display());
-            std::fs::write(path, include_str!("splitter_default_tuning.toml"))?;
-            early_exit = true;
-        }
-        if early_exit {
-            return Ok(());
-        }
-    }
-
     // check arguments
     if args.append.is_some() && args.output.is_some() {
         error!("`--append` and `--output` parameter cannot be used together.");
@@ -113,30 +70,10 @@ async fn main_impl(args: Args) -> Result<()> {
     }
 
     // prepare webfont generation context
-    let mut ctx = WebfontCtxBuilder::new();
+    let mut ctx = SubsetPlan::new();
     for str in args.preload {
-        ctx.preload(str.chars());
+        ctx.preload_chars(str.chars());
     }
-    for str in args.preload_in {
-        if !str.contains(':') {
-            error!("Failed to parse `--preload-in` argumnet: {str:?}");
-            std::process::exit(1);
-        }
-
-        let mut iter = str.splitn(2, ':');
-        let family = iter.next().unwrap();
-        let chars = iter.next().unwrap();
-        assert!(iter.next().is_none());
-
-        ctx.preload_in(family, chars.chars());
-    }
-    if let Some(manifest) = args.subset_manifest {
-        ctx.add_subset_manifest(&std::fs::read_to_string(manifest)?);
-    }
-    if let Some(tuning) = args.splitter_tuning {
-        ctx.add_splitter_tuning(&std::fs::read_to_string(tuning)?);
-    }
-    let ctx = ctx.build().await?;
 
     // load fonts
     let mut raw_fonts = Vec::new();

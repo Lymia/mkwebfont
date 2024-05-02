@@ -1,7 +1,4 @@
-use crate::{
-    fonts::{FontStyle, FontWeight, LoadedFont},
-    WebfontCtx,
-};
+use crate::fonts::{FontStyle, FontWeight, LoadedFont};
 use anyhow::*;
 use roaring::RoaringBitmap;
 use std::{
@@ -251,7 +248,7 @@ pub struct FontEncoder {
     woff2_subsets: Vec<JoinHandle<Result<SubsetInfo>>>,
 }
 impl FontEncoder {
-    fn new(font: LoadedFont) -> Self {
+    pub fn new(font: LoadedFont) -> Self {
         FontEncoder { font, woff2_subsets: Vec::new() }
     }
 
@@ -283,18 +280,4 @@ impl FontEncoder {
             entries,
         })
     }
-}
-
-/// The internal function that actually splits the webfont.
-pub async fn split_webfont(ctx: &WebfontCtx, font: &LoadedFont) -> Result<WebfontInfo> {
-    let mut encoder = FontEncoder::new(font.clone());
-    crate::splitter_legacy::split_webfonts(ctx, font, &mut encoder);
-
-    let info = encoder.produce_webfont().await?;
-    info!(
-        "Successfully split {} codepoints into {} subsets!",
-        font.all_codepoints().len(),
-        info.entries.len(),
-    );
-    Ok(info)
 }

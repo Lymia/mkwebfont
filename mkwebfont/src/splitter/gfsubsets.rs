@@ -130,6 +130,7 @@ impl SplitterState {
             .data
             .groups
             .iter()
+            .filter(|x| !self.processed_groups.contains(&x.name))
             .map(|x| (x, self.subset_group_ratio(&*x)))
             .max_by_key(|x| OrderedFloat(x.1))
             .unwrap();
@@ -147,6 +148,7 @@ impl SplitterState {
             .data
             .subsets
             .iter()
+            .filter(|x| !self.processed_subsets.contains(&x.name))
             .map(|x| (x, self.unique_available_ratio(&*x)))
             .max_by_key(|x| OrderedFloat(x.1))
             .unwrap();
@@ -154,9 +156,11 @@ impl SplitterState {
             .data
             .subsets
             .iter()
+            .filter(|x| !self.processed_subsets.contains(&x.name))
             .map(|x| (x, self.unique_available_count(&*x)))
             .max_by_key(|x| x.1)
             .unwrap();
+
         if best_ratio >= self.tuning.accept_subset_ratio_threshold {
             Some(ratio_subset.clone())
         } else if best_count >= self.tuning.accept_subset_count_threshold {
@@ -168,7 +172,7 @@ impl SplitterState {
 
     /// Applies high priority subsets immediately.
     fn check_high_priority(&mut self, encoder: &mut FontEncoder) {
-        for &name in self.tuning.high_priority_subsets.clone() {
+        for &name in self.tuning.high_priority_subsets {
             debug!("Checking high priority subset: {name}");
             let subset = self.data.by_name.get(name).unwrap().clone();
             if self.unique_available_ratio(&subset) > self.tuning.high_priority_ratio_threshold {
@@ -190,7 +194,7 @@ impl SplitterState {
             .iter()
             .chain(self.data.groups.iter().flat_map(|x| &x.subsets))
         {
-            let union = remaining.clone() | group.map.clone();
+            let union = remaining.clone() & group.map.clone();
             if union.len() as usize > self.tuning.reject_subset_threshold / 2 {
                 subsets.push(union.clone());
                 remaining = remaining - union;

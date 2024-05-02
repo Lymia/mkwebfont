@@ -23,7 +23,14 @@ impl SubsetPlanBuilder {
         SubsetPlanBuilder { preload: Default::default() }
     }
 
-    pub fn build(self) -> SubsetPlan {
-        SubsetPlan(Arc::new(SubsetPlanData { preload: self.preload }))
+    pub fn preload_chars(&mut self, chars: impl Iterator<Item = char>) -> &mut Self {
+        for ch in chars {
+            self.preload.insert(ch as u32);
+        }
+        self
+    }
+
+    pub(crate) fn build(&self) -> SubsetPlan {
+        SubsetPlan(Arc::new(SubsetPlanData { preload: self.preload.clone() }))
     }
 }

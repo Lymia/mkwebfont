@@ -5,72 +5,7 @@ mod splitter;
 mod subset_plan;
 
 pub use render::{SubsetInfo, WebfontInfo};
-
-/// A builder for making configuration for splitting webfonts.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct WebfontCtxBuilder {
-    splitter_tuning: Option<String>,
-    subset_manifest: Option<String>,
-    preload_codepoints: roaring::RoaringBitmap,
-    preload_codepoints_in: std::collections::HashMap<String, roaring::RoaringBitmap>,
-}
-impl WebfontCtxBuilder {
-    /// Creates a new builder.
-    pub fn new() -> Self {
-        WebfontCtxBuilder {
-            splitter_tuning: None,
-            subset_manifest: None,
-            preload_codepoints: Default::default(),
-            preload_codepoints_in: Default::default(),
-        }
-    }
-
-    /// Adds a splitter tuning file.
-    pub fn add_splitter_tuning(&mut self, data: &str) {
-        self.splitter_tuning = Some(data.to_string());
-    }
-
-    /// Adds a subset manifest file.
-    pub fn add_subset_manifest(&mut self, data: &str) {
-        self.subset_manifest = Some(data.to_string());
-    }
-
-    /// Preload certain characters into every font loaded in this context.
-    pub fn preload(&mut self, chars: impl Iterator<Item = char>) {
-        self.preload_codepoints.extend(chars.map(|x| x as u32));
-    }
-
-    /// Preload certain characters into a given font family.
-    pub fn preload_in(&mut self, font: &str, chars: impl Iterator<Item = char>) {
-        self.preload_codepoints_in
-            .entry(font.to_string())
-            .or_default()
-            .extend(chars.map(|x| x as u32));
-    }
-
-    /// Builds the context, and checks its arguments properly.
-    pub async fn build(self) -> anyhow::Result<WebfontCtx> {
-        Ok(WebfontCtx(std::sync::Arc::new(WebfontCtxData {
-            preload_codepoints: self.preload_codepoints,
-            preload_codepoints_in: self.preload_codepoints_in,
-            data: {
-                let data = data::DataStorage::instance()?;
-                data.gfsubsets().await?
-            },
-        })))
-    }
-}
-
-/// A particular configuration for splitting webfonts.
-#[derive(Clone, Debug)]
-pub struct WebfontCtx(pub(crate) std::sync::Arc<WebfontCtxData>);
-#[derive(Debug)]
-pub(crate) struct WebfontCtxData {
-    pub(crate) preload_codepoints: roaring::RoaringBitmap,
-    pub(crate) preload_codepoints_in: std::collections::HashMap<String, roaring::RoaringBitmap>,
-    pub(crate) data: std::sync::Arc<mkwebfont_common::model::subset_data::WebfontData>,
-}
+pub use subset_plan::SubsetPlanBuilder as SubsetPlan;
 
 /// A loaded font.
 ///
@@ -114,21 +49,23 @@ impl LoadedFont {
 }
 
 pub async fn process_webfont(
-    split_ctx: &WebfontCtx,
+    plan: &SubsetPlan,
     fonts: &[LoadedFont],
 ) -> anyhow::Result<Vec<WebfontInfo>> {
     use tracing::Instrument;
 
+    let plan = plan.build();
+
     let mut awaits = Vec::new();
     for font in fonts {
-        let ctx = split_ctx.clone();
+        let plan = plan.clone();
         let font = font.underlying.clone();
 
         let span = tracing::info_span!("split", "{font}");
         let _enter = span.enter();
 
         awaits.push(tokio::task::spawn(
-            async move { render::split_webfont(&ctx, &font).await }.in_current_span(),
+            async move { splitter::split_webfont(&plan, &font).await }.in_current_span(),
         ));
     }
 
