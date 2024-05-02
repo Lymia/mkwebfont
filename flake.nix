@@ -83,7 +83,7 @@
             };
 
             devShells.default = pkgs.mkShell {
-                buildInputs = [ rust-shell ];
+                buildInputs = [ rust-shell pkgs.zig pkgs.cargo-zigbuild ];
             };
         }
     );

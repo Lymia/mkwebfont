@@ -2,7 +2,6 @@ use std::{
     ffi::{c_char, CString},
     marker::PhantomData,
     ops::Deref,
-    os::unix::prelude::OsStrExt,
     path::Path,
     ptr::null_mut,
     slice,
@@ -21,8 +20,8 @@ impl Blob<'static> {
     #[doc(alias = "hb_blob_create_from_file")]
     #[doc(alias = "hb_blob_create_from_file_or_fail")]
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, AllocationError> {
-        let path =
-            CString::new(path.as_ref().as_os_str().as_bytes()).map_err(|_| AllocationError)?;
+        let path = path.as_ref().to_string_lossy(); // TODO: Not ideal
+        let path = CString::new(path.as_bytes()).map_err(|_| AllocationError)?;
 
         let blob = unsafe { sys::hb_blob_create_from_file_or_fail(path.as_ptr()) };
         if blob.is_null() {
