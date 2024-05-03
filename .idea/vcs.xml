@@ -7,5 +7,6 @@
     <mapping directory="$PROJECT_DIR$/mkwebfont/contrib/woff2/brotli" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/mkwebfont/contrib/woff2/brotli/research/esaxx" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/mkwebfont/contrib/woff2/brotli/research/libdivsufsort" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mkwebfont_hb-subset/harfbuzz" vcs="Git" />
   </component>
 </project>

@@ -78,8 +78,8 @@ impl Display for FontWeight {
 }
 
 #[derive(Clone)]
-pub struct LoadedFont(Arc<LoadedFontData>);
-struct LoadedFontData {
+pub struct FontFaceWrapper(Arc<FontFaceData>);
+struct FontFaceData {
     font_family: String,
     font_style: String,
     font_version: String,
@@ -90,8 +90,8 @@ struct LoadedFontData {
     font_data: Arc<[u8]>,
     font_index: u32,
 }
-impl LoadedFont {
-    pub fn load(buffer: Vec<u8>) -> Result<Vec<LoadedFont>> {
+impl FontFaceWrapper {
+    pub fn load(buffer: Vec<u8>) -> Result<Vec<FontFaceWrapper>> {
         let is_woff = buffer.len() >= 4 && &buffer[0..4] == b"wOFF";
         let is_woff2 = buffer.len() >= 4 && &buffer[0..4] == b"wOF2";
         let is_collection = buffer.len() >= 4 && &buffer[0..4] == b"ttcf";
@@ -121,7 +121,7 @@ impl LoadedFont {
 
         Ok(fonts)
     }
-    fn load_for_font(font_data: Arc<[u8]>, idx: u32) -> Result<Option<LoadedFont>> {
+    fn load_for_font(font_data: Arc<[u8]>, idx: u32) -> Result<Option<FontFaceWrapper>> {
         let blob = Blob::from_bytes(&font_data)?;
         let font_face = FontFace::new_with_index(blob, idx)?;
         if font_face.glyph_count() == 0 {
@@ -190,7 +190,7 @@ impl LoadedFont {
 
         drop(font_face);
 
-        Ok(Some(LoadedFont(Arc::new(LoadedFontData {
+        Ok(Some(FontFaceWrapper(Arc::new(FontFaceData {
             font_family,
             font_style,
             font_version,
@@ -256,7 +256,7 @@ impl LoadedFont {
         Ok(woff2::compress(&new_font, name.to_string(), 11, true).unwrap())
     }
 }
-impl Debug for LoadedFont {
+impl Debug for FontFaceWrapper {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -267,7 +267,7 @@ impl Debug for LoadedFont {
         )
     }
 }
-impl Display for LoadedFont {
+impl Display for FontFaceWrapper {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {}", self.font_family(), self.font_style())
     }

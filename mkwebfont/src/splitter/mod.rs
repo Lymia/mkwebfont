@@ -1,4 +1,6 @@
-use crate::{fonts::LoadedFont, render::FontEncoder, subset_plan::SubsetPlan, WebfontInfo};
+use crate::{
+    fonts::FontFaceWrapper, render::FontEncoder, subset_plan::ParsedSubsetPlan, WebfontInfo,
+};
 use anyhow::Result;
 use tracing::info;
 
@@ -7,14 +9,14 @@ mod gfsubsets;
 pub trait SplitterImplementation {
     async fn split(
         &self,
-        font: &LoadedFont,
-        plan: &SubsetPlan,
+        font: &FontFaceWrapper,
+        plan: &ParsedSubsetPlan,
         encoder: &mut FontEncoder,
     ) -> Result<()>;
 }
 
 /// The internal function that actually splits the webfont.
-pub async fn split_webfont(plan: &SubsetPlan, font: &LoadedFont) -> Result<WebfontInfo> {
+pub async fn split_webfont(plan: &ParsedSubsetPlan, font: &FontFaceWrapper) -> Result<WebfontInfo> {
     let mut encoder = FontEncoder::new(font.clone());
     gfsubsets::GfSubsetSplitter
         .split(font, plan, &mut encoder)

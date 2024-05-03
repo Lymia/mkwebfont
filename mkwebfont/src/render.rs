@@ -1,4 +1,4 @@
-use crate::fonts::{FontStyle, FontWeight, LoadedFont};
+use crate::fonts::{FontFaceWrapper, FontStyle, FontWeight};
 use anyhow::*;
 use roaring::RoaringBitmap;
 use std::{
@@ -166,7 +166,7 @@ pub struct SubsetInfo {
     woff2_data: Vec<u8>,
 }
 impl SubsetInfo {
-    fn new(font: &LoadedFont, name: &str, subset: RoaringBitmap, woff2_data: Vec<u8>) -> Self {
+    fn new(font: &FontFaceWrapper, name: &str, subset: RoaringBitmap, woff2_data: Vec<u8>) -> Self {
         let hash_str = mkwebfont_common::hashing::hash_fragment(&woff2_data);
 
         let font_name = extract_name(font.font_family());
@@ -244,11 +244,11 @@ impl<'a> Display for FontStylesheetDisplay<'a> {
 }
 
 pub struct FontEncoder {
-    font: LoadedFont,
+    font: FontFaceWrapper,
     woff2_subsets: Vec<JoinHandle<Result<SubsetInfo>>>,
 }
 impl FontEncoder {
-    pub fn new(font: LoadedFont) -> Self {
+    pub fn new(font: FontFaceWrapper) -> Self {
         FontEncoder { font, woff2_subsets: Vec::new() }
     }
 
