@@ -3,6 +3,7 @@ use anyhow::Result;
 use mkwebfont_common::join_set::JoinSet;
 use roaring::RoaringBitmap;
 use std::{collections::HashSet, path::Path};
+use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{debug, info, info_span, warn, Instrument};
 
 pub use crate::{
@@ -51,6 +52,14 @@ impl LoadedFont {
     }
 }
 
+const FINISH_PRELOAD: Mutex<Vec<JoinHandle<Result<()>>>> = Mutex::const_new(Vec::new());
+async fn finish_preload() -> Result<()> {
+    for join in FINISH_PRELOAD.lock().await.drain(..) {
+        join.await??;
+    }
+    Ok(())
+}
+
 impl SubsetPlan {
     /// Preload resources required for this subsetting plan.
     pub async fn preload(&self) -> Result<()> {
@@ -79,6 +88,8 @@ pub async fn load_fonts_from_disk(
 
 pub async fn process_webfont(plan: &SubsetPlan, fonts: &[LoadedFont]) -> Result<Vec<WebfontInfo>> {
     let plan = plan.build();
+
+    finish_preload().await?;
 
     let mut awaits = Vec::new();
     for font in fonts {

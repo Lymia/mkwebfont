@@ -92,7 +92,7 @@ fn decode_range(bitmap: &RoaringBitmap, all_chars: &RoaringBitmap) -> Vec<RangeI
 }
 
 /// Contains the data needed to use a font as a webfont.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WebfontInfo {
     font_family: String,
     font_style_text: String,
@@ -135,6 +135,15 @@ impl WebfontInfo {
     pub fn subsets(&self) -> &[SubsetInfo] {
         &self.entries
     }
+
+    /// Returns the bitset of characters in the webfont.
+    pub fn all_chars(&self) -> RoaringBitmap {
+        let mut bitmap = RoaringBitmap::new();
+        for subset in &self.entries {
+            bitmap.extend(&subset.subset);
+        }
+        bitmap
+    }
 }
 struct UnicodeRange<'a>(&'a [RangeInclusive<char>]);
 impl<'a> Display for UnicodeRange<'a> {
@@ -157,7 +166,7 @@ impl<'a> Display for UnicodeRange<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SubsetInfo {
     name: String,
     file_name: String,

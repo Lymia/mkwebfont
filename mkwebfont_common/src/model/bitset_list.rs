@@ -193,6 +193,14 @@ impl BitsetSection {
     pub fn get(&self, i: usize) -> RoaringBitmap {
         RoaringBitmap::deserialize_from(Cursor::new(&self.data[self.index[i]..])).unwrap()
     }
+
+    pub fn decode(&self, set: RoaringBitmap) -> RoaringBitmap {
+        let mut new = RoaringBitmap::new();
+        for ch in set {
+            new.insert(self.codepoint_list[ch as usize]);
+        }
+        new
+    }
 }
 
 #[derive(Clone, Decode, Encode)]
