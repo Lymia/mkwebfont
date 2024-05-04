@@ -1,7 +1,12 @@
+use std::collections::{BTreeMap, HashMap};
 use crate::generate_adjacency_table::{ADJACENCY_PATH, ADJACENCY_TAG};
 use anyhow::Result;
 use mkwebfont::LoadedFont;
-use mkwebfont_common::model::{adjacency_array::AdjacencyArray, data_package::DataPackage};
+use mkwebfont_common::{
+    hashing::{wyhash, WyHashBuilder},
+    model::{adjacency_array::AdjacencyArray, data_package::DataPackage},
+};
+use ordered_float::OrderedFloat;
 use roaring::RoaringBitmap;
 use std::path::PathBuf;
 use tracing::{info, warn};
@@ -34,22 +39,25 @@ fn subset(font: &LoadedFont) -> Result<()> {
     for &seed_ch in &chars {
         remaining.insert(seed_ch as u32);
     }
-    for &seed_ch in &chars {
+
+    let mut map = BTreeMap::new();
+    for (i, &seed_ch) in chars.iter().enumerate() {
         if !fulfilled.contains(seed_ch as u32) {
             let mut subset = Vec::new();
             subset.push(seed_ch);
             fulfilled.insert(seed_ch as u32);
             remaining.remove(seed_ch as u32);
 
-            while subset.len() < 50 && !remaining.is_empty() {
-                let mut best_modularity = 0.0;
+            let mut accum = adjacency.get_character_frequency(seed_ch as u32);
+            while subset.len() < 80 && !remaining.is_empty() {
+                let mut best_score = 0;
                 let mut best_ch = None;
                 for ch in &remaining {
                     let ch = char::from_u32(ch).unwrap();
 
-                    let modularity = adjacency.delta_modularity(ch, &subset);
-                    if modularity > best_modularity {
-                        best_modularity = modularity;
+                    let score = adjacency.estimate_conditional_probability(accum, &subset, ch);
+                    if score > best_score {
+                        best_score = score;
                         best_ch = Some(ch);
                     }
                 }
@@ -62,16 +70,18 @@ fn subset(font: &LoadedFont) -> Result<()> {
                 subset.push(best_ch);
                 fulfilled.insert(best_ch as u32);
                 remaining.remove(best_ch as u32);
+                accum = best_score;
             }
 
-            let modularity = adjacency.modularity(&subset);
             let mut str = String::new();
             for ch in subset {
                 str.push(ch);
             }
-            println!("{str:?} {modularity}");
+            println!("{str:?}");
+            map.insert(format!("ss{i}"), str);
         }
     }
+    std::fs::write("mkwebfont/src/splitter/temp.toml", toml::to_string(&map).unwrap())?;
 
     Ok(())
 }

@@ -6,7 +6,6 @@ mod generate_gfsubsets;
 mod generate_glyphsets;
 mod generate_validation_data;
 mod test_subsetting;
-mod test_subsetting_quality;
 
 use async_recursion::async_recursion;
 use clap::{Parser, Subcommand};

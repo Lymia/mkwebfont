@@ -292,6 +292,14 @@ impl AdjacencyArray {
         }
     }
 
+    pub fn estimate_conditional_probability(&self, accum_min: u64, set: &[char], new: char) -> u64 {
+        let mut accum = accum_min;
+        for &ch in set {
+            accum = accum.min(self.get_pairing(ch as u32, new as u32));
+        }
+        accum
+    }
+
     fn get_edge_total(&self, ch: char) -> f64 {
         if let Some(info) = self.meta.codepoints.get(&(ch as u32)) {
             info.edge_total
@@ -324,14 +332,18 @@ impl AdjacencyArray {
         // calculate modularity expectation
         let ea = self.get_edge_total(target);
         for &char in set {
-            let eb = self.get_edge_total(char);
-            total -= eb.max(1.0); // always expect at least one edge
+            if char != target {
+                let eb = self.get_edge_total(char);
+                total -= eb.max(1.0); // always expect at least one edge
+            }
         }
         total *= ea / (2.0 * self.meta.edge_total);
 
         // calculate actual modularity
-        for char in set {
-            total += self.get_pairing(target as u32, *char as u32) as f64;
+        for &char in set {
+            if char != target {
+                total += self.get_pairing(target as u32, char as u32) as f64;
+            }
         }
         total
     }

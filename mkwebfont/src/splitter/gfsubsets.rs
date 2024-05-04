@@ -3,7 +3,10 @@ use crate::{
     splitter::SplitterImplementation, subset_plan::LoadedSubsetPlan,
 };
 use anyhow::Result;
-use mkwebfont_common::model::subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup};
+use mkwebfont_common::model::{
+    subset_data,
+    subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup},
+};
 use ordered_float::OrderedFloat;
 use roaring::RoaringBitmap;
 use std::{collections::HashSet, sync::Arc};
@@ -126,6 +129,10 @@ impl SplitterState {
 
     /// Selects the best subset group to apply.
     fn select_subset_group(&mut self) -> Option<Arc<WebfontSubsetGroup>> {
+        if self.data.groups.len() == self.processed_groups.len() {
+            return None;
+        }
+
         let (group, ratio) = self
             .data
             .groups
@@ -144,6 +151,10 @@ impl SplitterState {
 
     /// Selects the best subset to apply.
     fn select_next_subset(&mut self) -> Option<Arc<WebfontSubset>> {
+        if self.data.subsets.len() == self.processed_subsets.len() {
+            return None;
+        }
+
         let (ratio_subset, best_ratio) = self
             .data
             .subsets
@@ -173,10 +184,13 @@ impl SplitterState {
     /// Applies high priority subsets immediately.
     fn check_high_priority(&mut self, encoder: &mut FontEncoder) {
         for &name in self.tuning.high_priority_subsets {
-            debug!("Checking high priority subset: {name}");
-            let subset = self.data.by_name.get(name).unwrap().clone();
-            if self.unique_available_ratio(&subset) > self.tuning.high_priority_ratio_threshold {
-                self.do_subset(&subset, encoder);
+            if self.data.by_name.contains_key(name) {
+                debug!("Checking high priority subset: {name}");
+                let subset = self.data.by_name.get(name).unwrap().clone();
+                if self.unique_available_ratio(&subset) > self.tuning.high_priority_ratio_threshold
+                {
+                    self.do_subset(&subset, encoder);
+                }
             }
         }
     }

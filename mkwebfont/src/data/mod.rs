@@ -96,7 +96,7 @@ async fn data_package_from_source(source: &DownloadSource) -> Result<DataPackage
     path.push(source.name);
 
     if path.exists() {
-        check_pkg(DataPackage::load(path)?, source)
+        check_pkg(DataPackage::load_with_hash(path, source.known_hash)?, source)
     } else {
         bail!("No data found in AppImage!?")
     }

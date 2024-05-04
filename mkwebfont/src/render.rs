@@ -6,6 +6,7 @@ use std::{
     fs,
     ops::RangeInclusive,
     path::Path,
+    sync::Arc,
 };
 use tokio::{task, task::JoinHandle};
 use tracing::{debug, Instrument};
@@ -94,11 +95,11 @@ fn decode_range(bitmap: &RoaringBitmap, all_chars: &RoaringBitmap) -> Vec<RangeI
 /// Contains the data needed to use a font as a webfont.
 #[derive(Debug, Clone)]
 pub struct WebfontInfo {
-    font_family: String,
-    font_style_text: String,
+    font_family: Arc<str>,
+    font_style_text: Arc<str>,
     font_style: FontStyle,
     font_weight: FontWeight,
-    entries: Vec<SubsetInfo>,
+    entries: Vec<Arc<SubsetInfo>>,
 }
 impl WebfontInfo {
     /// Writes the webfont files to the given directory.
@@ -132,7 +133,7 @@ impl WebfontInfo {
     }
 
     /// Returns the subsets in this webfont.
-    pub fn subsets(&self) -> &[SubsetInfo] {
+    pub fn subsets(&self) -> &[Arc<SubsetInfo>] {
         &self.entries
     }
 
@@ -277,13 +278,13 @@ impl FontEncoder {
     pub async fn produce_webfont(self) -> Result<WebfontInfo> {
         let mut entries = Vec::new();
         for data in self.woff2_subsets {
-            entries.push(data.await??);
+            entries.push(Arc::new(data.await??));
         }
         entries.sort_by_cached_key(|x| x.file_name.to_string());
 
         Ok(WebfontInfo {
-            font_family: self.font.font_family().to_string(),
-            font_style_text: self.font.font_style().to_string(),
+            font_family: self.font.font_family().to_string().into(),
+            font_style_text: self.font.font_style().to_string().into(),
             font_style: self.font.parsed_font_style(),
             font_weight: self.font.parsed_font_weight(),
             entries,

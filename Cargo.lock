@@ -1020,6 +1020,7 @@ dependencies = [
  "flate2",
  "mkwebfont",
  "mkwebfont_common",
+ "ordered-float",
  "reqwest",
  "roaring",
  "serde",

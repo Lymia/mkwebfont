@@ -20,6 +20,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 warc = "0.3"
 zstd = "0.13"
 
+ordered-float = { version = "4.0", default-features = false }
+
 # Unicode data
 unicode-blocks = "0.1"
 unicode-properties = "0.1"
