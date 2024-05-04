@@ -1,7 +1,9 @@
 use crate::{fonts::FontFaceWrapper, splitter};
 use anyhow::Result;
+use mkwebfont_common::join_set::JoinSet;
 use roaring::RoaringBitmap;
-use tracing::{info_span, Instrument};
+use std::{collections::HashSet, path::Path};
+use tracing::{debug, info, info_span, warn, Instrument};
 
 pub use crate::{
     render::{SubsetInfo, WebfontInfo},
@@ -49,20 +51,50 @@ impl LoadedFont {
     }
 }
 
+impl SubsetPlan {
+    /// Preload resources required for this subsetting plan.
+    pub async fn preload(&self) -> Result<()> {
+        warn!("(TODO: preload called)");
+        Ok(())
+    }
+}
+
+/// A fast function for loading fonts from disk.
+pub async fn load_fonts_from_disk(
+    paths: impl IntoIterator<Item = impl AsRef<Path>>,
+) -> Result<Vec<LoadedFont>> {
+    let mut joins = JoinSet::new();
+    for path in paths {
+        let path = path.as_ref().to_path_buf();
+        joins.spawn(async move {
+            info!("Loading fonts: {}", path.display());
+            LoadedFont::load(&std::fs::read(path)?)
+        });
+    }
+
+    let fonts = joins.join_vec().await?;
+    info!("Loaded {} font families...", fonts.len());
+    Ok(fonts)
+}
+
 pub async fn process_webfont(plan: &SubsetPlan, fonts: &[LoadedFont]) -> Result<Vec<WebfontInfo>> {
     let plan = plan.build();
 
     let mut awaits = Vec::new();
     for font in fonts {
-        let plan = plan.clone();
-        let font = font.underlying.clone();
+        if plan.family_config.check_font(&font.underlying) {
+            let plan = plan.clone();
+            let font = font.underlying.clone();
 
-        let span = info_span!("split", "{font}");
-        let _enter = span.enter();
+            let span = info_span!("split", "{font}");
+            let _enter = span.enter();
 
-        awaits.push(tokio::task::spawn(
-            async move { splitter::split_webfont(&plan, &font).await }.in_current_span(),
-        ));
+            awaits.push(tokio::task::spawn(
+                async move { splitter::split_webfont(&plan, &font).await }.in_current_span(),
+            ));
+        } else {
+            info!("Font family is excluded: {}", font.underlying)
+        }
     }
 
     let mut out = Vec::new();

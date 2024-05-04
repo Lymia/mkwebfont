@@ -58,7 +58,7 @@ struct Args {
 async fn main_impl(args: Args) -> Result<()> {
     // check arguments
     if args.append.is_some() && args.output.is_some() {
-        error!("`--append` and `--output` parameter cannot be used together.");
+        error!("Only one of `--append` and `--output` may be used in one invocation.");
         std::process::exit(1)
     }
     if args.store.is_none() {
@@ -68,47 +68,28 @@ async fn main_impl(args: Args) -> Result<()> {
     if args.fonts.is_empty() {
         warn!("No fonts were specified! An empty .css file will be generated.");
     }
+    if !args.exclude.is_empty() && !args.family.is_empty() {
+        warn!("Only one of `--family` and `--exclude` may be used in one invocation.");
+        std::process::exit(1)
+    }
 
     // prepare webfont generation context
     let mut ctx = SubsetPlan::new();
     for str in args.preload {
         ctx.preload_chars(str.chars());
     }
+    if !args.exclude.is_empty() {
+        ctx.blacklist_fonts(&args.exclude);
+    }
+    if !args.exclude.is_empty() {
+        ctx.whitelist_fonts(&args.family);
+    }
 
     // load fonts
-    let mut raw_fonts = Vec::new();
-    for path in &args.fonts {
-        info!("Loading fonts from path: {}", path.display());
-        raw_fonts.extend(LoadedFont::load(&std::fs::read(path)?)?);
-    }
-    let raw_fonts_len = raw_fonts.len();
-    debug!("Found {} fonts:", raw_fonts_len);
-    let accepted_fonts = {
-        let exclude: HashSet<_> = args.exclude.into_iter().collect();
-        let family: HashSet<_> = args.family.into_iter().collect();
-
-        let mut accepted_fonts = Vec::new();
-        for font in raw_fonts {
-            let name = font.font_family();
-            let style = font.font_style();
-            let is_excluded = exclude.contains(name);
-            let is_not_whitelisted = !family.is_empty() && !family.contains(name);
-
-            if is_excluded {
-                debug!(" - {name} {style} (excluded)");
-            } else if is_not_whitelisted {
-                debug!(" - {name} {style} (not in whitelist)");
-            } else {
-                debug!(" - {name} {style}");
-                accepted_fonts.push(font);
-            }
-        }
-        accepted_fonts
-    };
-    info!("Found {} fonts, and accepted {} fonts.", raw_fonts_len, accepted_fonts.len());
+    let fonts = mkwebfont::load_fonts_from_disk(&args.fonts).await?;
 
     // process webfonts
-    let styles = mkwebfont::process_webfont(&ctx, &accepted_fonts).await?;
+    let styles = mkwebfont::process_webfont(&ctx, &fonts).await?;
 
     let store_uri = if let Some(store_uri) = args.store_uri {
         store_uri
