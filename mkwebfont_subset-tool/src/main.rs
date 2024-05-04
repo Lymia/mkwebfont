@@ -5,7 +5,6 @@ mod generate_adjacency_table;
 mod generate_gfsubsets;
 mod generate_glyphsets;
 mod generate_validation_data;
-mod test_subsetting;
 
 use async_recursion::async_recursion;
 use clap::{Parser, Subcommand};
@@ -73,8 +72,6 @@ enum Commands {
     /// Generates the final data package and runs all required steps before it.
     RunAll,
 
-    TestSubsetting(FileArgs),
-
     /// Hashes the data in a package, to allow downloads to work correctly.
     HashPackage(FileArgs),
 }
@@ -101,7 +98,6 @@ async fn run(command: Commands) {
             .await
             .unwrap(),
         Commands::CollectData => collect_data::generate_data().await.unwrap(),
-        Commands::TestSubsetting(path) => test_subsetting::test_subsetting(&path.files).unwrap(),
         Commands::RunAll => {
             run(Commands::CommonCrawlDownload).await;
             run(Commands::CommonCrawlSplit).await;

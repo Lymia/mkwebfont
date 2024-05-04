@@ -11,13 +11,6 @@ use tracing::{debug, info};
 const PLACE_SENTINEL: u32 = u32::MAX;
 
 fn triangle(n: usize) -> usize {
-    n.checked_mul(n.checked_add(1).unwrap())
-        .unwrap()
-        .checked_div(2)
-        .unwrap()
-}
-
-fn triangle_unchecked(n: usize) -> usize {
     (n * (n + 1)) / 2
 }
 
@@ -25,7 +18,7 @@ fn place_idx(place_a: usize, place_b: usize) -> usize {
     if place_a < place_b {
         place_idx(place_b, place_a)
     } else {
-        triangle_unchecked(place_a + 1) - (place_b + 1)
+        triangle(place_a + 1) - (place_b + 1)
     }
 }
 
@@ -258,20 +251,6 @@ impl AdjacencyArray {
         }
     }
 
-    pub fn is_same_block(&self, a: u32, b: u32) -> bool {
-        if a != b {
-            let Some(data_a) = self.meta.codepoints.get(&a) else {
-                return false;
-            };
-            let Some(data_b) = self.meta.codepoints.get(&b) else {
-                return false;
-            };
-            data_a.block_id == data_b.block_id
-        } else {
-            true
-        }
-    }
-
     pub fn get_pairing(&self, a: u32, b: u32) -> u64 {
         if a != b {
             let Some(data_a) = self.meta.codepoints.get(&a) else {
@@ -286,66 +265,18 @@ impl AdjacencyArray {
                 return is_same_block;
             }
             let data = self.data[place_idx(data_a.place(), data_b.place())];
-            self.meta.encoder.decode(data) + is_same_block
+            (data as u64) * 2 + is_same_block
         } else {
             self.get_character_frequency(a)
         }
     }
 
-    pub fn estimate_conditional_probability(&self, accum_min: u64, set: &[char], new: char) -> u64 {
-        let mut accum = accum_min;
+    pub fn estimate_conditional_probability(&self, set: &[char], new: char) -> u64 {
+        let mut accum = u64::MAX;
         for &ch in set {
             accum = accum.min(self.get_pairing(ch as u32, new as u32));
         }
         accum
-    }
-
-    fn get_edge_total(&self, ch: char) -> f64 {
-        if let Some(info) = self.meta.codepoints.get(&(ch as u32)) {
-            info.edge_total
-        } else {
-            //tracing::warn!("Unknown character {ch:?}");
-            0.0
-        }
-    }
-
-    /// Returns the modularity of a set of characters
-    pub fn modularity(&self, set: &[char]) -> f64 {
-        let mut modularity = 0.0;
-        for a in 0..set.len() {
-            for b in a + 1..set.len() {
-                let ca = set[a];
-                let cb = set[b];
-                modularity += self.get_pairing(ca as u32, cb as u32) as f64;
-                let ea = self.get_edge_total(ca).max(1.0);
-                let eb = self.get_edge_total(cb).max(1.0);
-                modularity -= (ea * eb) / (2.0 * self.meta.edge_total);
-            }
-        }
-        modularity / (2.0 * self.meta.edge_total)
-    }
-
-    /// Returns the change in modularity if a character would be added to a set of characters.
-    pub fn delta_modularity(&self, target: char, set: &[char]) -> f64 {
-        let mut total = 0.0;
-
-        // calculate modularity expectation
-        let ea = self.get_edge_total(target);
-        for &char in set {
-            if char != target {
-                let eb = self.get_edge_total(char);
-                total -= eb.max(1.0); // always expect at least one edge
-            }
-        }
-        total *= ea / (2.0 * self.meta.edge_total);
-
-        // calculate actual modularity
-        for &char in set {
-            if char != target {
-                total += self.get_pairing(target as u32, char as u32) as f64;
-            }
-        }
-        total
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::fonts::{FontFaceWrapper, FontStyle, FontWeight};
 use anyhow::*;
+use mkwebfont_common::hashing::{hash_fragment, hash_full};
 use roaring::RoaringBitmap;
 use std::{
     fmt::{Display, Formatter},
@@ -177,8 +178,6 @@ pub struct SubsetInfo {
 }
 impl SubsetInfo {
     fn new(font: &FontFaceWrapper, name: &str, subset: RoaringBitmap, woff2_data: Vec<u8>) -> Self {
-        let hash_str = mkwebfont_common::hashing::hash_fragment(&woff2_data);
-
         let font_name = extract_name(font.font_family());
         let font_style = extract_name(font.font_style());
         let font_version = extract_version(font.font_version());
@@ -189,7 +188,7 @@ impl SubsetInfo {
         SubsetInfo {
             name: name.to_string(),
             file_name: format!(
-                "{font_name}{}{}_{font_version}_{name}_{hash_str}.woff2",
+                "{font_name}{}{}_{font_version}_{name}",
                 if !is_regular || font.is_variable() { "_" } else { "" },
                 if font.is_variable() {
                     "Variable"
@@ -203,6 +202,10 @@ impl SubsetInfo {
             subset_ranges,
             woff2_data,
         }
+    }
+
+    fn finalize_name(&mut self, frag: &str) {
+        self.file_name = format!("{}_{frag}.woff2", self.file_name);
     }
 
     /// Returns the name of the subset.
@@ -278,9 +281,24 @@ impl FontEncoder {
     pub async fn produce_webfont(self) -> Result<WebfontInfo> {
         let mut entries = Vec::new();
         for data in self.woff2_subsets {
-            entries.push(Arc::new(data.await??));
+            entries.push(data.await??);
         }
         entries.sort_by_cached_key(|x| x.file_name.to_string());
+
+        let fragment = {
+            let mut data = Vec::new();
+            for entry in &entries {
+                data.extend(hash_full(&entry.woff2_data).as_bytes());
+            }
+            hash_fragment(&data)
+        };
+        let entries: Vec<_> = entries
+            .into_iter()
+            .map(|mut x| {
+                x.finalize_name(&fragment);
+                Arc::new(x)
+            })
+            .collect();
 
         Ok(WebfontInfo {
             font_family: self.font.font_family().to_string().into(),
