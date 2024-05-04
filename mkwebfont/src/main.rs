@@ -1,11 +1,9 @@
 use anyhow::Result;
 use clap::Parser;
-use mkwebfont::{LoadedFont, SubsetPlan};
-use std::{
-    collections::HashSet, fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf,
-};
+use mkwebfont::SubsetPlan;
+use std::{fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
 use tokio::runtime::Builder;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 /// Generates webfonts for a given font.
 #[derive(Parser, Debug)]
@@ -53,6 +51,10 @@ struct Args {
     /// available, rather than requiring loading another .woff2 font.
     #[arg(long)]
     preload: Vec<String>,
+
+    /// Prints a report about how much network the font would use in common situations.
+    #[arg(long)]
+    print_report: bool,
 }
 
 async fn main_impl(args: Args) -> Result<()> {
@@ -84,6 +86,10 @@ async fn main_impl(args: Args) -> Result<()> {
     if !args.exclude.is_empty() {
         ctx.whitelist_fonts(&args.family);
     }
+    if args.print_report {
+        ctx.print_report();
+    }
+    ctx.preload().await?;
 
     // load fonts
     let fonts = mkwebfont::load_fonts_from_disk(&args.fonts).await?;

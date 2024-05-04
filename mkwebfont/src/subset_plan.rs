@@ -1,4 +1,5 @@
 use crate::fonts::FontFaceWrapper;
+use enumset::*;
 use roaring::RoaringBitmap;
 use std::{collections::HashSet, ops::Deref, sync::Arc};
 
@@ -14,6 +15,7 @@ impl Deref for LoadedSubsetPlan {
 pub struct SubsetPlanData {
     pub preload: RoaringBitmap,
     pub family_config: FontFamilyConfig,
+    pub flags: EnumSet<FontFlags>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -32,15 +34,25 @@ impl FontFamilyConfig {
     }
 }
 
+#[derive(EnumSetType, Debug)]
+pub enum FontFlags {
+    PrintReport,
+}
+
 /// Represents a configuration for subsetting.
 #[derive(Clone, Debug)]
 pub struct SubsetPlan {
     preload: RoaringBitmap,
     family_config: FontFamilyConfig,
+    pub(crate) flags: EnumSet<FontFlags>,
 }
 impl SubsetPlan {
     pub fn new() -> SubsetPlan {
-        SubsetPlan { preload: Default::default(), family_config: FontFamilyConfig::AllFonts }
+        SubsetPlan {
+            preload: Default::default(),
+            family_config: FontFamilyConfig::AllFonts,
+            flags: Default::default(),
+        }
     }
 
     /// A set of characters that should be injected into the same font as the basic latin
@@ -89,10 +101,17 @@ impl SubsetPlan {
         self
     }
 
+    /// Prints a report of how much download size the font uses on average
+    pub fn print_report(&mut self) -> &mut Self {
+        self.flags.insert(FontFlags::PrintReport);
+        self
+    }
+
     pub fn build(&self) -> LoadedSubsetPlan {
         LoadedSubsetPlan(Arc::new(SubsetPlanData {
             preload: self.preload.clone(),
             family_config: self.family_config.clone(),
+            flags: self.flags,
         }))
     }
 }

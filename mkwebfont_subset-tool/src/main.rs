@@ -76,11 +76,6 @@ enum Commands {
 
     TestSubsetting(FileArgs),
 
-    /// Tests the final download size of a given set of fonts on a set of website data.
-    ///
-    /// Requires that `download-common-crawl` is run first.
-    TestSubsettingQuality(FileArgs),
-
     /// Hashes the data in a package, to allow downloads to work correctly.
     HashPackage(FileArgs),
 }
@@ -107,11 +102,6 @@ async fn run(command: Commands) {
             .await
             .unwrap(),
         Commands::CollectData => collect_data::generate_data().await.unwrap(),
-        Commands::TestSubsettingQuality(path) => {
-            test_subsetting_quality::test_subsetting_quality(&path.files)
-                .await
-                .unwrap()
-        }
         Commands::TestSubsetting(path) => test_subsetting::test_subsetting(&path.files).unwrap(),
         Commands::RunAll => {
             run(Commands::CommonCrawlDownload).await;

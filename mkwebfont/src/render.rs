@@ -8,7 +8,7 @@ use std::{
     path::Path,
 };
 use tokio::{task, task::JoinHandle};
-use tracing::{debug, info, Instrument};
+use tracing::{debug, Instrument};
 use unicode_blocks::find_unicode_block;
 
 // TODO: Optimize subset ranges

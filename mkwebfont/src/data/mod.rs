@@ -53,6 +53,12 @@ const VALIDATION_DL_INFO: DownloadSource = DownloadSource {
     ],
 };
 
+fn check_pkg(pkg: DataPackage, source: &DownloadSource) -> Result<DataPackage> {
+    assert_eq!(pkg.package_id(), source.name);
+    assert_eq!(pkg.timestamp(), source.timestamp);
+    Ok(pkg)
+}
+
 #[cfg(feature = "download-data")]
 async fn data_package_from_source(source: &DownloadSource) -> Result<DataPackage> {
     let cache_dir = directories::ProjectDirs::from("moe.aura", "", "mkwebfont")
@@ -67,7 +73,7 @@ async fn data_package_from_source(source: &DownloadSource) -> Result<DataPackage
     debug!("Cached path: '{}' in '{}'", source.name, cache_path.display());
 
     if cache_path.exists() {
-        DataPackage::load_with_hash(cache_path, source.known_hash)
+        check_pkg(DataPackage::load_with_hash(cache_path, source.known_hash)?, source)
     } else {
         info!("Downloading '{}' from '{}'...", source.name, source.download_url);
 
@@ -78,7 +84,7 @@ async fn data_package_from_source(source: &DownloadSource) -> Result<DataPackage
             bail!("Downloaded package hash does not match.");
         } else {
             std::fs::write(&cache_path, &data)?;
-            DataPackage::load_with_hash(cache_path, source.known_hash)
+            check_pkg(DataPackage::load_with_hash(cache_path, source.known_hash)?, source)
         }
     }
 }
@@ -90,7 +96,7 @@ async fn data_package_from_source(source: &DownloadSource) -> Result<DataPackage
     path.push(source.name);
 
     if path.exists() {
-        DataPackage::load(path)
+        check_pkg(DataPackage::load(path)?, source)
     } else {
         bail!("No data found in AppImage!?")
     }

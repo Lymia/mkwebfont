@@ -2,10 +2,11 @@ use crate::{fonts::FontFaceWrapper, splitter};
 use anyhow::Result;
 use mkwebfont_common::join_set::JoinSet;
 use roaring::RoaringBitmap;
-use std::{collections::HashSet, path::Path};
+use std::path::Path;
 use tokio::{sync::Mutex, task::JoinHandle};
-use tracing::{debug, info, info_span, warn, Instrument};
+use tracing::{info, info_span, log::debug, Instrument};
 
+use crate::{data::DataStorage, quality_report::FontReport, subset_plan::FontFlags};
 pub use crate::{
     render::{SubsetInfo, WebfontInfo},
     subset_plan::SubsetPlan,
@@ -63,7 +64,18 @@ async fn finish_preload() -> Result<()> {
 impl SubsetPlan {
     /// Preload resources required for this subsetting plan.
     pub async fn preload(&self) -> Result<()> {
-        warn!("(TODO: preload called)");
+        let span = info_span!("preload");
+        let _enter = span.enter();
+        if self.flags.contains(FontFlags::PrintReport) {
+            FINISH_PRELOAD.lock().await.push(tokio::spawn(
+                async {
+                    debug!("Preloading validation list...");
+                    DataStorage::instance()?.validation_list().await?;
+                    Ok(())
+                }
+                .in_current_span(),
+            ));
+        }
         Ok(())
     }
 }
@@ -91,7 +103,7 @@ pub async fn process_webfont(plan: &SubsetPlan, fonts: &[LoadedFont]) -> Result<
 
     finish_preload().await?;
 
-    let mut awaits = Vec::new();
+    let mut joins = JoinSet::new();
     for font in fonts {
         if plan.family_config.check_font(&font.underlying) {
             let plan = plan.clone();
@@ -100,17 +112,30 @@ pub async fn process_webfont(plan: &SubsetPlan, fonts: &[LoadedFont]) -> Result<
             let span = info_span!("split", "{font}");
             let _enter = span.enter();
 
-            awaits.push(tokio::task::spawn(
-                async move { splitter::split_webfont(&plan, &font).await }.in_current_span(),
-            ));
+            joins.spawn(
+                async move {
+                    let font = splitter::split_webfont(&plan, &font).await?;
+                    let report = if plan.flags.contains(FontFlags::PrintReport) {
+                        Some(FontReport::for_font(&font).await?)
+                    } else {
+                        None
+                    };
+                    Ok((font, report))
+                }
+                .in_current_span(),
+            );
         } else {
             info!("Font family is excluded: {}", font.underlying)
         }
     }
 
     let mut out = Vec::new();
-    for font in awaits {
-        out.push(font.await??)
+    for (font, report) in joins.join().await? {
+        out.push(font);
+        if let Some(report) = report {
+            report.print();
+        }
+        eprintln!();
     }
     Ok(out)
 }
