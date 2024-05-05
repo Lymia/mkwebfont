@@ -141,6 +141,7 @@ impl SplitterState {
             .map(|x| (x, self.subset_group_ratio(&*x)))
             .max_by_key(|x| OrderedFloat(x.1))
             .unwrap();
+
         if ratio >= self.tuning.accept_group_ratio_threshold {
             Some(group.clone())
         } else {

@@ -76,6 +76,26 @@ impl SubsetPlan {
                 .in_current_span(),
             ));
         }
+        if self.flags.contains(FontFlags::GfsubsetSplitter) {
+            FINISH_PRELOAD.lock().await.push(tokio::spawn(
+                async {
+                    debug!("Preloading gfsubsets...");
+                    DataStorage::instance()?.gfsubsets().await?;
+                    Ok(())
+                }
+                .in_current_span(),
+            ));
+        }
+        if self.flags.contains(FontFlags::AdjacencySplitter) {
+            FINISH_PRELOAD.lock().await.push(tokio::spawn(
+                async {
+                    debug!("Preloading adjacency list...");
+                    DataStorage::instance()?.adjacency_array().await?;
+                    Ok(())
+                }
+                .in_current_span(),
+            ));
+        }
         Ok(())
     }
 }

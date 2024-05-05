@@ -37,6 +37,9 @@ impl FontFamilyConfig {
 #[derive(EnumSetType, Debug)]
 pub enum FontFlags {
     PrintReport,
+    NoSplitter,
+    GfsubsetSplitter,
+    AdjacencySplitter,
 }
 
 /// Represents a configuration for subsetting.
@@ -104,6 +107,21 @@ impl SubsetPlan {
     /// Prints a report of how much download size the font uses on average
     pub fn print_report(&mut self) -> &mut Self {
         self.flags.insert(FontFlags::PrintReport);
+        self
+    }
+
+    pub fn no_splitter(&mut self) -> &mut Self {
+        self.flags.insert(FontFlags::NoSplitter);
+        self
+    }
+
+    pub fn gfsubset_splitter(&mut self) -> &mut Self {
+        self.flags.insert(FontFlags::GfsubsetSplitter);
+        self
+    }
+
+    pub fn adjacency_splitter(&mut self) -> &mut Self {
+        self.flags.insert(FontFlags::AdjacencySplitter);
         self
     }
 

@@ -55,6 +55,18 @@ struct Args {
     /// Prints a report about how much network the font would use in common situations.
     #[arg(long)]
     print_report: bool,
+
+    /// Explicitly sets the splitting algorithm used.
+    #[arg(long)]
+    splitter: Option<SplitterImpl>,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum SplitterImpl {
+    Default,
+    None,
+    Gfsubsets,
+    Adjacency,
 }
 
 async fn main_impl(args: Args) -> Result<()> {
@@ -88,6 +100,20 @@ async fn main_impl(args: Args) -> Result<()> {
     }
     if args.print_report {
         ctx.print_report();
+    }
+    match args.splitter {
+        Some(SplitterImpl::None) => {
+            ctx.no_splitter();
+        }
+        Some(SplitterImpl::Gfsubsets) => {
+            ctx.gfsubset_splitter();
+        }
+        Some(SplitterImpl::Adjacency) => {
+            ctx.adjacency_splitter();
+        }
+        _ => {
+            ctx.gfsubset_splitter();
+        }
     }
     ctx.preload().await?;
 
