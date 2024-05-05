@@ -4,7 +4,7 @@ use mkwebfont_common::join_set::JoinSet;
 use roaring::RoaringBitmap;
 use std::path::Path;
 use tokio::{sync::Mutex, task::JoinHandle};
-use tracing::{info, info_span, log::debug, Instrument};
+use tracing::{debug, info, info_span, Instrument};
 
 use crate::{data::DataStorage, quality_report::FontReport, subset_plan::FontFlags};
 pub use crate::{

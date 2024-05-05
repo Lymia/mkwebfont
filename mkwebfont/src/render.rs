@@ -1,4 +1,7 @@
-use crate::fonts::{FontFaceWrapper, FontStyle, FontWeight};
+use crate::{
+    fonts::{FontFaceWrapper, FontStyle, FontWeight},
+    subset_plan::LoadedSubsetPlan,
+};
 use anyhow::*;
 use mkwebfont_common::hashing::{hash_fragment, hash_full};
 use roaring::RoaringBitmap;
@@ -12,7 +15,6 @@ use std::{
 use tokio::{task, task::JoinHandle};
 use tracing::{debug, Instrument};
 use unicode_blocks::find_unicode_block;
-use crate::subset_plan::LoadedSubsetPlan;
 
 // TODO: Optimize subset ranges
 
@@ -178,7 +180,13 @@ pub struct SubsetInfo {
     woff2_data: Vec<u8>,
 }
 impl SubsetInfo {
-    fn new(plan: &LoadedSubsetPlan, font: &FontFaceWrapper, name: &str, subset: RoaringBitmap, woff2_data: Vec<u8>) -> Self {
+    fn new(
+        plan: &LoadedSubsetPlan,
+        font: &FontFaceWrapper,
+        name: &str,
+        subset: RoaringBitmap,
+        woff2_data: Vec<u8>,
+    ) -> Self {
         let font_name = extract_name(font.font_family());
         let font_style = extract_name(font.font_style());
         let font_version = extract_version(font.font_version());
