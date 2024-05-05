@@ -17,7 +17,7 @@ impl SplitterImplementation for AdjacencySplitter {
         let adjacency = DataStorage::instance()?.adjacency_array().await?;
 
         let mut raw_chars = Vec::new();
-        for glyph in font.all_codepoints() {
+        for glyph in plan.do_subset(font.all_codepoints().clone()) {
             if let Some(glyph) = char::from_u32(glyph) {
                 raw_chars.push((glyph, adjacency.get_character_frequency(glyph as u32)));
             } else {
@@ -60,7 +60,7 @@ impl SplitterImplementation for AdjacencySplitter {
             for ch in subset {
                 bitmap.insert(ch as u32);
             }
-            encoder.add_subset(&format!("ss{}", remaining.len()), bitmap);
+            encoder.add_subset(&format!("ss{}", remaining.len()), plan, bitmap);
         }
 
         Ok(())

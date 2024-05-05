@@ -27,7 +27,7 @@ impl SplitterImplementation for NullSplitter {
         plan: &LoadedSubsetPlan,
         encoder: &mut FontEncoder,
     ) -> Result<()> {
-        encoder.add_subset("all", plan.do_subset(font.all_codepoints().clone()));
+        encoder.add_subset("all", plan, plan.do_subset(font.all_codepoints().clone()));
         Ok(())
     }
 }

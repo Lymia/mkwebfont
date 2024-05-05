@@ -89,7 +89,7 @@ impl SplitterState {
                 }
 
                 self.fulfilled_codepoints.extend(new_codepoints.clone());
-                encoder.add_subset(&name, new_codepoints);
+                encoder.add_subset(&name, &self.plan, new_codepoints);
             } else {
                 debug!("Rejecting subset: {name} (unique codepoints: {})", new_codepoints.len())
             }
