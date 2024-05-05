@@ -59,6 +59,12 @@ struct Args {
     /// Explicitly sets the splitting algorithm used.
     #[arg(long)]
     splitter: Option<SplitterImpl>,
+
+    #[arg(long)]
+    subset: Vec<String>,
+
+    #[arg(long)]
+    subset_from: Vec<PathBuf>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -114,6 +120,12 @@ async fn main_impl(args: Args) -> Result<()> {
         _ => {
             ctx.gfsubset_splitter();
         }
+    }
+    for subset in args.subset {
+        ctx.subset_chars(subset.chars());
+    }
+    for subset in args.subset_from {
+        ctx.subset_chars(std::fs::read_to_string(subset)?.chars());
     }
     ctx.preload().await?;
 

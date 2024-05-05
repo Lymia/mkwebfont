@@ -48,12 +48,15 @@ struct SplitterState {
 }
 impl SplitterState {
     async fn init(font: &FontFaceWrapper, plan: &LoadedSubsetPlan) -> Result<SplitterState> {
+        let fulfilled = font.all_codepoints().clone();
+        let fulfilled = fulfilled.clone() - plan.do_subset(fulfilled.clone());
+
         Ok(SplitterState {
             font: font.clone(),
             tuning: DEFAULT_TUNING,
             plan: plan.clone(),
             data: DataStorage::instance()?.gfsubsets().await?,
-            fulfilled_codepoints: Default::default(),
+            fulfilled_codepoints: fulfilled,
             processed_subsets: Default::default(),
             processed_groups: Default::default(),
             misc_idx: 0,

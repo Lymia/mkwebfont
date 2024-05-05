@@ -12,10 +12,21 @@ impl Deref for LoadedSubsetPlan {
         &self.0
     }
 }
+impl LoadedSubsetPlan {
+    pub fn do_subset(&self, subset: RoaringBitmap) -> RoaringBitmap {
+        if self.subset.is_empty() {
+            subset
+        } else {
+            subset & self.subset.clone()
+        }
+    }
+}
+
 pub struct SubsetPlanData {
     pub preload: RoaringBitmap,
     pub family_config: FontFamilyConfig,
     pub flags: EnumSet<FontFlags>,
+    pub subset: RoaringBitmap,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -48,6 +59,7 @@ pub struct SubsetPlan {
     preload: RoaringBitmap,
     family_config: FontFamilyConfig,
     pub(crate) flags: EnumSet<FontFlags>,
+    subset: RoaringBitmap,
 }
 impl SubsetPlan {
     pub fn new() -> SubsetPlan {
@@ -55,6 +67,7 @@ impl SubsetPlan {
             preload: Default::default(),
             family_config: FontFamilyConfig::AllFonts,
             flags: Default::default(),
+            subset: Default::default(),
         }
     }
 
@@ -63,6 +76,13 @@ impl SubsetPlan {
     pub fn preload_chars(&mut self, chars: impl Iterator<Item = char>) -> &mut Self {
         for ch in chars {
             self.preload.insert(ch as u32);
+        }
+        self
+    }
+
+    pub fn subset_chars(&mut self, chars: impl Iterator<Item = char>) -> &mut Self {
+        for ch in chars {
+            self.subset.insert(ch as u32);
         }
         self
     }
@@ -130,6 +150,7 @@ impl SubsetPlan {
             preload: self.preload.clone(),
             family_config: self.family_config.clone(),
             flags: self.flags,
+            subset: self.subset.clone(),
         }))
     }
 }

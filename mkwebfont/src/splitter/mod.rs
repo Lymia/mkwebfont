@@ -24,10 +24,10 @@ impl SplitterImplementation for NullSplitter {
     async fn split(
         &self,
         font: &FontFaceWrapper,
-        _: &LoadedSubsetPlan,
+        plan: &LoadedSubsetPlan,
         encoder: &mut FontEncoder,
     ) -> Result<()> {
-        encoder.add_subset("all", font.all_codepoints().clone());
+        encoder.add_subset("all", plan.do_subset(font.all_codepoints().clone()));
         Ok(())
     }
 }
