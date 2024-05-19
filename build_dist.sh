@@ -7,7 +7,7 @@ rm -rfv dist
 
 mkdir dist
 
-nix develop -c cargo zigbuild -p mkwebfont --target x86_64-pc-windows-gnu --release || exit 1
+#nix develop -c cargo zigbuild -p mkwebfont --target x86_64-pc-windows-gnu --release || exit 1
 nix bundle --bundler github:ralismark/nix-appimage .?submodules=1#mkwebfont --impure || exit 1
 nix bundle --bundler github:ralismark/nix-appimage .?submodules=1#mkwebfont-no_data --impure || exit 1
 
