@@ -1,6 +1,6 @@
 [package]
 name = "mkwebfont"
-version = "0.1.1"
+version = "0.2.0-alpha1"
 authors = ["Lymia Kanokawa <lymia@lymia.moe>"]
 edition = "2021"
 
@@ -58,8 +58,8 @@ unicode-blocks = "0.1"
 unicode-properties = "0.1"
 
 # Subcrates
-mkwebfont_common = { path = "../mkwebfont_common" }
-mkwebfont_hb-subset = { path = "../mkwebfont_hb-subset", features = ["bundled"] }
+mkwebfont_common = { version = "0.2.0-alpha1", path = "../mkwebfont_common" }
+mkwebfont_hb-subset = { version = "0.3.0", path = "../mkwebfont_hb-subset", features = ["bundled"] }
 
 [build-dependencies]
 cc = "1.0"

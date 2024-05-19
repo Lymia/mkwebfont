@@ -36,7 +36,6 @@
                 '';
             };
 
-
             mkwebfont-common = (pkgs: flags: pkgs.rustPlatform.buildRustPackage {
                 pname = "mkwebfont";
                 version = "0.2.0";
