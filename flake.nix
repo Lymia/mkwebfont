@@ -55,14 +55,6 @@
             mkwebfont-unwrapped = mkwebfont-common pkgs "-p mkwebfont";
             mkwebfont-unwrapped-nonet = mkwebfont-common pkgs "-p mkwebfont --no-default-features --features appimage,binary";
 
-            mkwebfont-no_data = pkgs.runCommand "mkwebfont-no_data" {
-              inherit (mkwebfont-unwrapped) pname version meta;
-              nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
-            } ''
-                mkdir -p $out/bin
-                makeBinaryWrapper ${mkwebfont-unwrapped}/bin/mkwebfont $out/bin/mkwebfont-no_data
-            '';
-
             mkwebfont = pkgs.runCommand "mkwebfont" {
               inherit (mkwebfont-unwrapped) pname version meta;
               nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
@@ -70,6 +62,14 @@
                 mkdir -p $out/bin
                 makeBinaryWrapper ${mkwebfont-unwrapped-nonet}/bin/mkwebfont $out/bin/mkwebfont \
                     --set MKWEBFONT_APPIMAGE_DATA ${mkwebfont-data}/share/mkwebfont-data
+            '';
+
+            mkwebfont-no_data = pkgs.runCommand "mkwebfont-no_data" {
+              inherit (mkwebfont-unwrapped) pname version meta;
+              nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
+            } ''
+                mkdir -p $out/bin
+                makeBinaryWrapper ${mkwebfont-unwrapped}/bin/mkwebfont $out/bin/mkwebfont-no_data
             '';
 
             rust-shell = pkgs.buildPackages.rust-bin.stable.latest.default.override {
