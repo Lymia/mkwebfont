@@ -1,10 +1,15 @@
 use crate::fonts::variation_axises::{AxisName, VariationAxis};
-use anyhow::*;
+use anyhow::{bail, Result};
 use hb_subset::{Blob, FontFace, SubsetInput};
+use mkwebfont_common::hashing::WyHashBuilder;
 use roaring::RoaringBitmap;
 use std::{
+    collections::{HashMap, HashSet},
     fmt::{Debug, Display, Formatter},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 use tracing::debug;
 use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
@@ -77,9 +82,28 @@ impl Display for FontWeight {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
+pub struct FontId(usize);
+impl FontId {
+    fn new() -> Self {
+        const CURRENT_ID: AtomicUsize = AtomicUsize::new(0);
+        loop {
+            let cur = CURRENT_ID.load(Ordering::Relaxed);
+            assert_ne!(cur, usize::MAX);
+            if CURRENT_ID
+                .compare_exchange(cur, cur + 1, Ordering::Relaxed, Ordering::Relaxed)
+                .is_ok()
+            {
+                return FontId(cur);
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct FontFaceWrapper(Arc<FontFaceData>);
 struct FontFaceData {
+    font_id: FontId,
     font_family: String,
     font_style: String,
     font_version: String,
@@ -89,9 +113,10 @@ struct FontFaceData {
     available_codepoints: RoaringBitmap,
     font_data: Arc<[u8]>,
     font_index: u32,
+    name_hint: Option<String>,
 }
 impl FontFaceWrapper {
-    pub fn load(buffer: Vec<u8>) -> Result<Vec<FontFaceWrapper>> {
+    pub fn load(name_hint: Option<String>, buffer: Vec<u8>) -> Result<Vec<FontFaceWrapper>> {
         let is_woff = buffer.len() >= 4 && &buffer[0..4] == b"wOFF";
         let is_woff2 = buffer.len() >= 4 && &buffer[0..4] == b"wOF2";
         let is_collection = buffer.len() >= 4 && &buffer[0..4] == b"ttcf";
@@ -103,7 +128,7 @@ impl FontFaceWrapper {
         let data: Arc<[u8]> = buffer.into();
 
         let mut fonts = Vec::new();
-        if let Some(font) = Self::load_for_font(data.clone(), 0)? {
+        if let Some(font) = Self::load_for_font(name_hint.clone(), data.clone(), 0)? {
             fonts.push(font);
         } else {
             bail!("No glyphs in first font?");
@@ -111,7 +136,7 @@ impl FontFaceWrapper {
 
         if is_collection {
             let mut i = 1;
-            while let Some(x) = Self::load_for_font(data.clone(), i)? {
+            while let Some(x) = Self::load_for_font(name_hint.clone(), data.clone(), i)? {
                 fonts.push(x);
                 i += 1;
             }
@@ -121,7 +146,11 @@ impl FontFaceWrapper {
 
         Ok(fonts)
     }
-    fn load_for_font(font_data: Arc<[u8]>, idx: u32) -> Result<Option<FontFaceWrapper>> {
+    fn load_for_font(
+        name_hint: Option<String>,
+        font_data: Arc<[u8]>,
+        idx: u32,
+    ) -> Result<Option<FontFaceWrapper>> {
         let blob = Blob::from_bytes(&font_data)?;
         let font_face = FontFace::new_with_index(blob, idx)?;
         if font_face.glyph_count() == 0 {
@@ -191,6 +220,7 @@ impl FontFaceWrapper {
         drop(font_face);
 
         Ok(Some(FontFaceWrapper(Arc::new(FontFaceData {
+            font_id: FontId::new(),
             font_family,
             font_style,
             font_version,
@@ -200,6 +230,7 @@ impl FontFaceWrapper {
             available_codepoints,
             font_data,
             font_index: idx,
+            name_hint,
         }))))
     }
 
@@ -208,6 +239,9 @@ impl FontFaceWrapper {
     }
     pub fn all_codepoints(&self) -> &RoaringBitmap {
         &self.0.available_codepoints
+    }
+    pub fn font_id(&self) -> FontId {
+        self.0.font_id
     }
     pub fn font_family(&self) -> &str {
         &self.0.font_family
@@ -270,5 +304,58 @@ impl Debug for FontFaceWrapper {
 impl Display for FontFaceWrapper {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {}", self.font_family(), self.font_style())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct FontFaceSet {
+    list: Vec<FontFaceWrapper>,
+    by_name: HashMap<String, FontFaceWrapper, WyHashBuilder>,
+    ambigious: HashSet<String, WyHashBuilder>,
+}
+impl FontFaceSet {
+    fn push_name(&mut self, name: &str, font: &FontFaceWrapper) {
+        if !self.ambigious.contains(name) {
+            if self.by_name.contains_key(name) {
+                self.ambigious.insert(name.to_string());
+                self.by_name.remove(name);
+            } else {
+                self.by_name.insert(name.to_string(), font.clone());
+            }
+        }
+    }
+
+    pub fn build(fonts: impl Iterator<Item = FontFaceWrapper>) -> FontFaceSet {
+        let mut set = FontFaceSet {
+            list: vec![],
+            by_name: Default::default(),
+            ambigious: Default::default(),
+        };
+
+        for font in fonts {
+            set.list.push(font.clone());
+            if let Some(name_hint) = &font.0.name_hint {
+                set.push_name(name_hint.as_str(), &font);
+            }
+            set.push_name(font.font_family(), &font);
+            set.push_name(&format!("{} {}", font.font_family(), font.font_style()), &font);
+        }
+
+        set
+    }
+
+    pub fn as_list(&self) -> &[FontFaceWrapper] {
+        &self.list
+    }
+
+    pub fn resolve(&self, name: &str) -> Result<&FontFaceWrapper> {
+        if self.ambigious.contains(name) {
+            bail!("Font name {name:?} is ambigious!");
+        } else {
+            match self.by_name.get(name) {
+                Some(v) => Ok(v),
+                None => bail!("Font name {name:?} does not exist."),
+            }
+        }
     }
 }

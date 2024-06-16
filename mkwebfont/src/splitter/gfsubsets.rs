@@ -3,10 +3,7 @@ use crate::{
     splitter::SplitterImplementation, subset_plan::LoadedSubsetPlan,
 };
 use anyhow::Result;
-use mkwebfont_common::model::{
-    subset_data,
-    subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup},
-};
+use mkwebfont_common::model::subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup};
 use ordered_float::OrderedFloat;
 use roaring::RoaringBitmap;
 use std::{collections::HashSet, sync::Arc};

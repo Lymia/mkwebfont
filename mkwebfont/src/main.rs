@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use mkwebfont::SubsetPlan;
+use mkwebfont::{LoadedFontSetBuilder, SubsetPlan};
 use std::{fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
 use tokio::runtime::Builder;
 use tracing::{error, info, warn};
@@ -130,7 +130,9 @@ async fn main_impl(args: Args) -> Result<()> {
     ctx.preload().await?;
 
     // load fonts
-    let fonts = mkwebfont::load_fonts_from_disk(&args.fonts).await?;
+    let fonts = LoadedFontSetBuilder::load_from_disk(&args.fonts)
+        .await?
+        .build();
 
     // process webfonts
     let styles = mkwebfont::process_webfont(&ctx, &fonts).await?;

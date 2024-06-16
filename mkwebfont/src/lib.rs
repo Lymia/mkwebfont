@@ -1,4 +1,5 @@
 mod api;
+mod build_fallbacks;
 mod data;
 mod fonts;
 mod quality_report;

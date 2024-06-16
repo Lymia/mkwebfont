@@ -6,7 +6,9 @@ use std::path::Path;
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{debug, info, info_span, Instrument};
 
-use crate::{data::DataStorage, quality_report::FontReport, subset_plan::FontFlags};
+use crate::{
+    data::DataStorage, fonts::FontFaceSet, quality_report::FontReport, subset_plan::FontFlags,
+};
 pub use crate::{
     render::{SubsetInfo, WebfontInfo},
     subset_plan::SubsetPlan,
@@ -15,16 +17,28 @@ pub use crate::{
 /// A loaded font.
 ///
 /// This may be used to filter font collections or simply subset multiple fonts in one operation.
+#[derive(Clone)]
 pub struct LoadedFont {
     underlying: FontFaceWrapper,
 }
 impl LoadedFont {
     /// Loads all fonts present in a given binary font data.
     pub fn load(font_data: &[u8]) -> Result<Vec<Self>> {
-        Ok(FontFaceWrapper::load(font_data.into())?
+        Ok(FontFaceWrapper::load(None, font_data.into())?
             .into_iter()
             .map(|x| LoadedFont { underlying: x })
             .collect())
+    }
+
+    /// Loads all fonts present in a given file.
+    pub fn load_path(path: &Path) -> Result<Vec<Self>> {
+        Ok(FontFaceWrapper::load(
+            path.file_name().map(|x| x.to_string_lossy().to_string()),
+            std::fs::read(path)?,
+        )?
+        .into_iter()
+        .map(|x| LoadedFont { underlying: x })
+        .collect())
     }
 
     /// Returns the list of codepoints in the loaded font.
@@ -53,6 +67,93 @@ impl LoadedFont {
     }
 }
 
+/// The builder for a set of loaded fonts.
+#[derive(Default)]
+pub struct LoadedFontSetBuilder {
+    fonts: Vec<LoadedFont>,
+}
+impl LoadedFontSetBuilder {
+    /// Creates a new empty builder.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A fast function for loading fonts from disk.
+    pub async fn load_from_disk(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> Result<Self> {
+        let mut set = Self::new();
+        for font in load_fonts_from_disk(paths).await? {
+            set = set.add_font(font);
+        }
+        Ok(set)
+    }
+
+    /// Merges two font set builders.
+    pub fn merge(mut self, other: LoadedFontSetBuilder) {
+        self.fonts.extend(other.fonts);
+    }
+
+    /// Adds a font to the font set buidler.
+    pub fn add_font(mut self, font: LoadedFont) -> Self {
+        self.fonts.push(font);
+        self
+    }
+
+    /// Adds a set of fonts to the font set builder.
+    pub fn add_fonts(mut self, fonts: &[LoadedFont]) -> Self {
+        for font in fonts {
+            self.fonts.push(font.clone());
+        }
+        self
+    }
+
+    /// Loads a font from a byte array.
+    pub fn load(self, font_data: &[u8]) -> Result<Self> {
+        Ok(self.add_fonts(&LoadedFont::load(font_data)?))
+    }
+
+    /// Loads a font from a file.
+    pub fn load_path(self, path: &Path) -> Result<Self> {
+        Ok(self.add_fonts(&LoadedFont::load_path(path)?))
+    }
+
+    /// Builds the final font set.
+    pub fn build(self) -> LoadedFontSet {
+        LoadedFontSet { font_set: FontFaceSet::build(self.fonts.into_iter().map(|x| x.underlying)) }
+    }
+}
+
+/// A set of loaded fonts.
+///
+/// Create these with [`LoadedFontSetBuilder`].
+pub struct LoadedFontSet {
+    font_set: FontFaceSet,
+}
+impl LoadedFontSet {
+    /// Retrieves a font by name.
+    pub fn resolve(&self, name: &str) -> Result<LoadedFont> {
+        Ok(LoadedFont { underlying: self.font_set.resolve(name)?.clone() })
+    }
+}
+
+/// A fast function for loading fonts from disk.
+async fn load_fonts_from_disk(
+    paths: impl IntoIterator<Item = impl AsRef<Path>>,
+) -> Result<Vec<LoadedFont>> {
+    let mut joins = JoinSet::new();
+    for path in paths {
+        let path = path.as_ref().to_path_buf();
+        joins.spawn(async move {
+            info!("Loading fonts: {}", path.display());
+            LoadedFont::load_path(&path)
+        });
+    }
+
+    let fonts = joins.join_vec().await?;
+    info!("Loaded {} font families...", fonts.len());
+    Ok(fonts)
+}
+
+/// Helper for preloading.
 const FINISH_PRELOAD: Mutex<Vec<JoinHandle<Result<()>>>> = Mutex::const_new(Vec::new());
 async fn finish_preload() -> Result<()> {
     for join in FINISH_PRELOAD.lock().await.drain(..) {
@@ -100,34 +201,16 @@ impl SubsetPlan {
     }
 }
 
-/// A fast function for loading fonts from disk.
-pub async fn load_fonts_from_disk(
-    paths: impl IntoIterator<Item = impl AsRef<Path>>,
-) -> Result<Vec<LoadedFont>> {
-    let mut joins = JoinSet::new();
-    for path in paths {
-        let path = path.as_ref().to_path_buf();
-        joins.spawn(async move {
-            info!("Loading fonts: {}", path.display());
-            LoadedFont::load(&std::fs::read(path)?)
-        });
-    }
-
-    let fonts = joins.join_vec().await?;
-    info!("Loaded {} font families...", fonts.len());
-    Ok(fonts)
-}
-
-pub async fn process_webfont(plan: &SubsetPlan, fonts: &[LoadedFont]) -> Result<Vec<WebfontInfo>> {
+pub async fn process_webfont(plan: &SubsetPlan, fonts: &LoadedFontSet) -> Result<Vec<WebfontInfo>> {
     let plan = plan.build();
 
     finish_preload().await?;
 
     let mut joins = JoinSet::new();
-    for font in fonts {
-        if plan.family_config.check_font(&font.underlying) {
+    for font in fonts.font_set.as_list() {
+        if plan.family_config.check_font(&font) {
             let plan = plan.clone();
-            let font = font.underlying.clone();
+            let font = font.clone();
 
             let span = info_span!("split", "{font}");
             let _enter = span.enter();
@@ -145,7 +228,7 @@ pub async fn process_webfont(plan: &SubsetPlan, fonts: &[LoadedFont]) -> Result<
                 .in_current_span(),
             );
         } else {
-            info!("Font family is excluded: {}", font.underlying)
+            info!("Font family is excluded: {}", font)
         }
     }
 
