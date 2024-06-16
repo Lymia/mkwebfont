@@ -7,11 +7,11 @@ use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{debug, info, info_span, Instrument};
 
 use crate::{
-    data::DataStorage, fonts::FontFaceSet, quality_report::FontReport, subset_plan::FontFlags,
+    data::DataStorage, fonts::FontFaceSet, quality_report::FontReport, splitter_plan::FontFlags,
 };
 pub use crate::{
     render::{SubsetInfo, WebfontInfo},
-    subset_plan::SubsetPlan,
+    splitter_plan::SplitterPlan,
 };
 
 /// A loaded font.
@@ -162,7 +162,7 @@ async fn finish_preload() -> Result<()> {
     Ok(())
 }
 
-impl SubsetPlan {
+impl SplitterPlan {
     /// Preload resources required for this subsetting plan.
     pub async fn preload(&self) -> Result<()> {
         let span = info_span!("preload");
@@ -177,7 +177,7 @@ impl SubsetPlan {
                 .in_current_span(),
             ));
         }
-        if self.flags.contains(FontFlags::GfsubsetSplitter) {
+        if self.flags.contains(FontFlags::GfontsSplitter) {
             FINISH_PRELOAD.lock().await.push(tokio::spawn(
                 async {
                     debug!("Preloading gfsubsets...");
@@ -201,7 +201,7 @@ impl SubsetPlan {
     }
 }
 
-pub async fn process_webfont(plan: &SubsetPlan, fonts: &LoadedFontSet) -> Result<Vec<WebfontInfo>> {
+pub async fn process_webfont(plan: &SplitterPlan, fonts: &LoadedFontSet) -> Result<Vec<WebfontInfo>> {
     let plan = plan.build();
 
     finish_preload().await?;

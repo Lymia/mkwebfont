@@ -1,6 +1,6 @@
 use crate::{
     data::DataStorage, fonts::FontFaceWrapper, render::FontEncoder,
-    splitter::SplitterImplementation, subset_plan::LoadedSubsetPlan,
+    splitter::SplitterImplementation, splitter_plan::LoadedSplitterPlan,
 };
 use anyhow::Result;
 use mkwebfont_common::model::subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup};
@@ -34,7 +34,7 @@ const DEFAULT_TUNING: TuningParameters = TuningParameters {
 struct SplitterState {
     font: FontFaceWrapper,
     tuning: TuningParameters,
-    plan: LoadedSubsetPlan,
+    plan: LoadedSplitterPlan,
     data: Arc<WebfontData>,
 
     fulfilled_codepoints: RoaringBitmap,
@@ -44,9 +44,9 @@ struct SplitterState {
     preload_done: bool,
 }
 impl SplitterState {
-    async fn init(font: &FontFaceWrapper, plan: &LoadedSubsetPlan) -> Result<SplitterState> {
+    async fn init(font: &FontFaceWrapper, plan: &LoadedSplitterPlan) -> Result<SplitterState> {
         let fulfilled = font.all_codepoints().clone();
-        let fulfilled = fulfilled.clone() - plan.do_subset(fulfilled.clone());
+        let fulfilled = fulfilled.clone() - plan.do_split(fulfilled.clone());
 
         Ok(SplitterState {
             font: font.clone(),
@@ -299,7 +299,7 @@ impl SplitterImplementation for GfSubsetSplitter {
     async fn split(
         &self,
         font: &FontFaceWrapper,
-        plan: &LoadedSubsetPlan,
+        plan: &LoadedSplitterPlan,
         encoder: &mut FontEncoder,
     ) -> Result<()> {
         let mut ctx = SplitterState::init(font, plan).await?;

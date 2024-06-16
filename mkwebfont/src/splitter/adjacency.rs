@@ -1,6 +1,6 @@
 use crate::{
     data::DataStorage, fonts::FontFaceWrapper, render::FontEncoder,
-    splitter::SplitterImplementation, subset_plan::LoadedSubsetPlan,
+    splitter::SplitterImplementation, splitter_plan::LoadedSplitterPlan,
 };
 use anyhow::Result;
 use roaring::RoaringBitmap;
@@ -11,13 +11,13 @@ impl SplitterImplementation for AdjacencySplitter {
     async fn split(
         &self,
         font: &FontFaceWrapper,
-        plan: &LoadedSubsetPlan,
+        plan: &LoadedSplitterPlan,
         encoder: &mut FontEncoder,
     ) -> Result<()> {
         let adjacency = DataStorage::instance()?.adjacency_array().await?;
 
         let mut raw_chars = Vec::new();
-        for glyph in plan.do_subset(font.all_codepoints().clone()) {
+        for glyph in plan.do_split(font.all_codepoints().clone()) {
             if let Some(glyph) = char::from_u32(glyph) {
                 raw_chars.push((glyph, adjacency.get_character_frequency(glyph as u32)));
             } else {

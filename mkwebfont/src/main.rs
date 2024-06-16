@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use mkwebfont::{LoadedFontSetBuilder, SubsetPlan};
+use mkwebfont::{LoadedFontSetBuilder, SplitterPlan};
 use std::{fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
 use tokio::runtime::Builder;
 use tracing::{error, info, warn};
@@ -94,7 +94,7 @@ async fn main_impl(args: Args) -> Result<()> {
     }
 
     // prepare webfont generation context
-    let mut ctx = SubsetPlan::new();
+    let mut ctx = SplitterPlan::new();
     for str in args.preload {
         ctx.preload_chars(str.chars());
     }
@@ -112,13 +112,13 @@ async fn main_impl(args: Args) -> Result<()> {
             ctx.no_splitter();
         }
         Some(SplitterImpl::Gfsubsets) => {
-            ctx.gfsubset_splitter();
+            ctx.gfonts_splitter();
         }
         Some(SplitterImpl::Adjacency) => {
             ctx.adjacency_splitter();
         }
         _ => {
-            ctx.gfsubset_splitter();
+            ctx.gfonts_splitter();
         }
     }
     for subset in args.subset {

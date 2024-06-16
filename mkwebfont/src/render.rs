@@ -1,6 +1,6 @@
 use crate::{
     fonts::{FontFaceWrapper, FontStyle, FontWeight},
-    subset_plan::LoadedSubsetPlan,
+    splitter_plan::LoadedSplitterPlan,
 };
 use anyhow::*;
 use mkwebfont_common::hashing::{hash_fragment, hash_full};
@@ -181,7 +181,7 @@ pub struct SubsetInfo {
 }
 impl SubsetInfo {
     fn new(
-        plan: &LoadedSubsetPlan,
+        plan: &LoadedSplitterPlan,
         font: &FontFaceWrapper,
         name: &str,
         subset: RoaringBitmap,
@@ -192,7 +192,7 @@ impl SubsetInfo {
         let font_version = extract_version(font.font_version());
         let is_regular = font_style.to_lowercase() == "regular";
 
-        let codepoints = plan.do_subset(font.all_codepoints().clone());
+        let codepoints = plan.do_split(font.all_codepoints().clone());
         let subset_ranges = decode_range(&subset, &codepoints);
 
         SubsetInfo {
@@ -275,7 +275,7 @@ impl FontEncoder {
         FontEncoder { font, woff2_subsets: Vec::new() }
     }
 
-    pub fn add_subset(&mut self, name: &str, plan: &LoadedSubsetPlan, codepoints: RoaringBitmap) {
+    pub fn add_subset(&mut self, name: &str, plan: &LoadedSplitterPlan, codepoints: RoaringBitmap) {
         let name = name.to_string();
         let font = self.font.clone();
         let plan = plan.clone();
