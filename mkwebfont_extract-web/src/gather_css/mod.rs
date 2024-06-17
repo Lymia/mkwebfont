@@ -1,7 +1,4 @@
-use crate::{
-    utils,
-    webroot::{RelaWebroot, Webroot},
-};
+use crate::{utils, webroot::RelaWebroot};
 use anyhow::Result;
 use arcstr::ArcStr;
 use scraper::{Html, Selector};
@@ -49,7 +46,7 @@ async fn gather_all_css(
 
 async fn process_rules(
     sources: &[(ArcStr, RelaWebroot)],
-    css_cache: CssCache,
+    css_cache: &CssCache,
 ) -> Result<Vec<Arc<RawCssRule>>> {
     let mut rules: Vec<Arc<RawCssRule>> = Vec::new();
     for (source, new_root) in sources {
@@ -61,12 +58,14 @@ async fn process_rules(
     Ok(rules)
 }
 
-pub async fn document_raw_rules(
-    document: &Html,
-    root: &RelaWebroot,
-    inject: &[ArcStr],
-    css_cache: CssCache,
-) -> Result<Vec<Arc<RawCssRule>>> {
-    let sources = gather_all_css(document, root, inject).await?;
-    process_rules(&sources, css_cache).await
+impl CssCache {
+    pub async fn get_rules_from_document(
+        &self,
+        document: &Html,
+        root: &RelaWebroot,
+        inject: &[ArcStr],
+    ) -> Result<Vec<Arc<RawCssRule>>> {
+        let sources = gather_all_css(document, root, inject).await?;
+        process_rules(&sources, self).await
+    }
 }

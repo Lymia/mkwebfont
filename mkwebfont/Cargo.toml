@@ -37,7 +37,6 @@ required-features = ["binary"]
 blake3 = { version = "1.5", features = ["pure"] }
 brotli = { version = "5.0", features = ["ffi-api"] }
 clap = { version = "4.5", features = ["derive"], optional = true }
-enumset = "1.1"
 ordered-float = { version = "4.0", default-features = false }
 roaring = "0.10"
 serde = { version = "1.0", features = ["derive"] }
@@ -54,6 +53,7 @@ unicode-properties = "0.1"
 
 # Common Dependencies
 anyhow = { workspace = true }
+enumset = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }

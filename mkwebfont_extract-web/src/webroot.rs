@@ -24,14 +24,14 @@ impl Webroot {
         })))
     }
 
-    fn canonicalize(&self, rela_root: &Path, mut path: &str) -> Result<PathBuf> {
-        let resolved_root = if path.starts_with("/") {
+    fn canonicalize(&self, rela_root: Option<&Path>, mut path: &str) -> Result<PathBuf> {
+        let resolved_root = if path.starts_with("/") || rela_root.is_none() {
             while path.starts_with("/") {
                 path = &path[1..];
             }
             &self.0.root
         } else {
-            rela_root
+            rela_root.unwrap()
         };
         let mut tmp = resolved_root.to_path_buf();
         tmp.push(path);
@@ -60,13 +60,23 @@ impl Webroot {
             .await?)
     }
 
-    pub async fn load(&self, rela_root: &Path, path: &str) -> Result<ArcStr> {
+    pub async fn load(&self, rela_root: Option<&Path>, path: &str) -> Result<ArcStr> {
         self.cache_read(&self.canonicalize(rela_root, path)?).await
     }
 
-    pub async fn load_rela(&self, rela_root: &Path, path: &str) -> Result<(ArcStr, RelaWebroot)> {
-        let mut path = self.canonicalize(rela_root, path)?;
+    pub async fn load_rela(
+        &self,
+        rela_root: Option<&Path>,
+        path: &str,
+    ) -> Result<(ArcStr, RelaWebroot)> {
+        let path = self.canonicalize(rela_root, path)?;
         Ok((self.cache_read(&path).await?, self.rela(&path)?))
+    }
+
+    pub async fn load_rela_raw(&self, path: &Path) -> Result<(ArcStr, RelaWebroot)> {
+        let path = path.canonicalize()?;
+        let rela = self.rela(&path)?;
+        Ok((self.cache_read(&path).await?, rela))
     }
 
     pub fn rela(&self, rela_root: &Path) -> Result<RelaWebroot> {
@@ -94,11 +104,11 @@ pub struct RelaWebroot {
 }
 impl RelaWebroot {
     pub async fn load(&self, path: &str) -> Result<ArcStr> {
-        self.root.load(&self.parent, path).await
+        self.root.load(Some(&self.parent), path).await
     }
 
     pub async fn load_rela(&self, path: &str) -> Result<(ArcStr, RelaWebroot)> {
-        self.root.load_rela(&self.parent, path).await
+        self.root.load_rela(Some(&self.parent), path).await
     }
 
     pub fn root(&self) -> &Webroot {

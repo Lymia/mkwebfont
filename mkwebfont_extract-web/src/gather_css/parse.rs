@@ -8,7 +8,7 @@ use lightningcss::{
     properties::{
         custom::{CustomProperty, CustomPropertyName, Token, TokenOrValue},
         display::{Display, DisplayKeyword},
-        font::FontFamily,
+        font::{AbsoluteFontWeight, FontFamily, FontStyle, FontWeight},
         Property,
     },
     rules::{style::StyleRule, CssRule, CssRuleList},
@@ -19,13 +19,10 @@ use lightningcss::{
 use mkwebfont_common::hashing::WyHashBuilder;
 use moka::future::{Cache, CacheBuilder};
 use scraper::Selector;
-use std::{
-    borrow::Cow,
-    ffi::OsStr,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{borrow::Cow, path::Path, sync::Arc};
 use tracing::{info_span, warn, Instrument};
+
+// TODO: Figure out how `inherit` et al are represented.
 
 #[derive(Clone, Debug)]
 pub struct RawCssRule {
@@ -38,9 +35,11 @@ pub struct RawCssRule {
 
 #[derive(Clone, Debug)]
 pub struct RawCssRuleDeclarations {
-    pub stack: Option<Vec<String>>,
+    pub font_stack: Option<Arc<[String]>>,
+    pub font_weight: Option<AbsoluteFontWeight>,
+    pub font_style: Option<FontStyle>,
     pub is_displayed: Option<bool>,
-    pub content: Option<String>,
+    pub content: Option<ArcStr>,
 }
 
 /// Parses CSS data into a list of CSS rules.
@@ -134,7 +133,9 @@ async fn parse_css(
                     let mut new = Vec::new();
                     for selector in selectors {
                         let parsed = filter_selector(root_selector, selector)?;
-                        conditional = true;
+                        if parsed.is_conditional {
+                            conditional = true;
+                        }
                         new.push(parsed.selector);
                     }
                     let boxed: Box<[lightningcss::selector::Selector]> = new.into();
@@ -160,8 +161,13 @@ async fn parse_css(
 
     /// Parses the list of declarations in a CSS rule into only the ones we need.
     fn parse_declarations(style: &StyleRule) -> Result<Option<RawCssRuleDeclarations>> {
-        let mut raw_declarations =
-            RawCssRuleDeclarations { stack: None, is_displayed: None, content: None };
+        let mut raw_declarations = RawCssRuleDeclarations {
+            font_stack: None,
+            font_weight: None,
+            font_style: None,
+            is_displayed: None,
+            content: None,
+        };
         let mut is_interesting = false;
 
         if !style.declarations.important_declarations.is_empty() {
@@ -175,7 +181,7 @@ async fn parse_css(
             .chain(style.declarations.declarations.iter())
         {
             /// Parses CSS font families
-            fn parse_font_families(families: &[FontFamily<'_>]) -> Vec<String> {
+            fn parse_font_families(families: &[FontFamily<'_>]) -> Arc<[String]> {
                 let mut new = Vec::new();
                 for family in families {
                     match family {
@@ -185,7 +191,18 @@ async fn parse_css(
                         FontFamily::FamilyName(name) => new.push(name.to_string()),
                     }
                 }
-                new
+                new.into()
+            }
+
+            /// Parses CSS font weight declarations.
+            fn parse_font_weight(weight: &FontWeight) -> Option<AbsoluteFontWeight> {
+                match weight {
+                    FontWeight::Absolute(v) => Some(v.clone()),
+                    FontWeight::Bolder | FontWeight::Lighter => {
+                        warn!("Relative font weights are not supported.");
+                        None
+                    }
+                }
             }
 
             match declaration {
@@ -198,32 +215,50 @@ async fn parse_css(
                     is_interesting = true;
                 }
 
-                Property::Custom(CustomProperty {
-                    name: CustomPropertyName::Unknown(name),
-                    value,
-                }) if *name == "content" => {
-                    if value.0.len() == 1 {
-                        match &value.0[0] {
-                            TokenOrValue::Token(Token::String(str)) => {
-                                raw_declarations.content = Some(str.to_string());
-                                is_interesting = true;
-                            }
-                            _ => warn!("Could not parse `content` attribute: {value:?}"),
-                        }
-                    } else {
-                        warn!("Could not parse `content` attribute: {value:?}");
-                    }
-                }
-
                 Property::Font(font) => {
-                    raw_declarations.stack = Some(parse_font_families(&font.family));
+                    raw_declarations.font_stack = Some(parse_font_families(&font.family));
+                    raw_declarations.font_weight = parse_font_weight(&font.weight);
+                    raw_declarations.font_style = Some(font.style.clone());
                     is_interesting = true;
                 }
                 Property::FontFamily(family) => {
-                    raw_declarations.stack = Some(parse_font_families(&family));
+                    raw_declarations.font_stack = Some(parse_font_families(&family));
                     is_interesting = true;
                 }
-                // TODO: Support for font styles.
+                Property::FontWeight(weight) => {
+                    raw_declarations.font_weight = parse_font_weight(weight);
+                    is_interesting = true;
+                }
+                Property::FontStyle(style) => {
+                    raw_declarations.font_style = Some(style.clone());
+                    is_interesting = true;
+                }
+
+                // Custom properties parsing
+                Property::Custom(CustomProperty {
+                    name: CustomPropertyName::Unknown(name),
+                    value,
+                }) => {
+                    match name.0.as_ref() {
+                        "content" => {
+                            if value.0.len() == 1 {
+                                match &value.0[0] {
+                                    TokenOrValue::Token(Token::String(str)) => {
+                                        raw_declarations.content = Some(str.to_string().into());
+                                        is_interesting = true;
+                                    }
+                                    _ => warn!("Could not parse `content` attribute: {value:?}"),
+                                }
+                            } else {
+                                warn!("Could not parse `content` attribute: {value:?}");
+                            }
+                        }
+                        // TODO: Support stylistic sets and font variation settings.
+                        _ => {}
+                    }
+                }
+
+                // ignore all other properties
                 _ => {}
             }
         }

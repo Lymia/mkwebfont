@@ -19,6 +19,7 @@ lto = true
 # Common dependencies
 anyhow = "1.0"
 async-recursion = "1.1"
+enumset = "1.1"
 tokio = { version = "1.38", features = ["rt-multi-thread", "sync"] }
 tracing = "0.1"
 tracing-futures = "0.2"
