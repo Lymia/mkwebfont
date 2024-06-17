@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use mkwebfont::{LoadedFontSetBuilder, SplitterPlan};
+use mkwebfont_common::FILTER_SPEC;
 use std::{fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
 use tokio::runtime::Builder;
 use tracing::{error, info, warn};
@@ -44,14 +45,6 @@ struct Args {
     #[arg(short = 'E', long)]
     exclude: Vec<String>,
 
-    /// Always include a list of codepoints in the first partition split off from the font
-    /// (usually latin).
-    ///
-    /// This can be used to allow unusual characters used throughout a website to be immediately
-    /// available, rather than requiring loading another .woff2 font.
-    #[arg(long)]
-    preload: Vec<String>,
-
     /// Prints a report about how much network the font would use in common situations.
     #[arg(long)]
     print_report: bool,
@@ -60,18 +53,44 @@ struct Args {
     #[arg(long)]
     splitter: Option<SplitterImpl>,
 
-    #[arg(long)]
-    subset: Vec<String>,
-
-    #[arg(long)]
-    subset_from: Vec<PathBuf>,
+    /// Configures how to subset the fonts, or configures additional CSS code to generate. This
+    /// can be any of the following statements.
+    ///
+    /// * `@<file name>`: A new-line delimited list of spec statements.
+    ///
+    /// * `fallback:<font list>`: Marks the list of fonts as being used for fallback, at the end
+    ///   of every character not found in a font stack. You should generally use this with a high
+    ///   quality font such as Noto Sans.
+    ///
+    /// * `preload:<font list>:<text data>`: Hints that certain characters occur on most pages, and
+    ///   should be placed in the same split font as the primary script.
+    ///
+    /// * `subset:<font list>:<text data>`: Subsets a font stack with the given text data.
+    ///
+    /// * `stack:<name>[/<language>]:<font list>[:<text data>]`: Creates a font stack, possibly
+    ///   subsetting it with specific text data. Generates a `.font-<name>` CSS class and a
+    ///   `--font-<name>` CSS variable.
+    ///
+    /// * `exclusion:<font list>:<text data>`: Specifies that all characters in a given text data
+    ///   are never to be included in the given list of fonts.
+    ///
+    /// * `whitelist`: Specifies that all fonts not explicitly subset are to be considered empty,
+    ///   and not generated at all.
+    ///
+    /// * `munge_font_names`: Modifies font names such that they are more unique in the actual CSS.
+    ///
+    /// Font lists are comma seperated lists of fonts, or `*`. Text data is raw text data,
+    /// `@<file name>` to load it from a file, or `*` to include all characters. Syntax bracketed
+    /// in `[x]` is optional and may be omitted.
+    #[arg(short = 'S', long)]
+    spec: Vec<String>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum SplitterImpl {
     Default,
     None,
-    Gfsubsets,
+    Gfonts,
     Adjacency,
 }
 
@@ -95,9 +114,6 @@ async fn main_impl(args: Args) -> Result<()> {
 
     // prepare webfont generation context
     let mut ctx = SplitterPlan::new();
-    for str in args.preload {
-        ctx.preload_chars(str.chars());
-    }
     if !args.exclude.is_empty() {
         ctx.blacklist_fonts(&args.exclude);
     }
@@ -111,7 +127,7 @@ async fn main_impl(args: Args) -> Result<()> {
         Some(SplitterImpl::None) => {
             ctx.no_splitter();
         }
-        Some(SplitterImpl::Gfsubsets) => {
+        Some(SplitterImpl::Gfonts) => {
             ctx.gfonts_splitter();
         }
         Some(SplitterImpl::Adjacency) => {
@@ -121,13 +137,12 @@ async fn main_impl(args: Args) -> Result<()> {
             ctx.gfonts_splitter();
         }
     }
-    for subset in args.subset {
+    /*for subset in args.subset {
         ctx.subset_chars(subset.chars());
     }
     for subset in args.subset_from {
         ctx.subset_chars(std::fs::read_to_string(subset)?.chars());
-    }
-    ctx.preload().await?;
+    }*/
 
     // load fonts
     let fonts = LoadedFontSetBuilder::load_from_disk(&args.fonts)
@@ -183,7 +198,7 @@ fn main_sync(args: Args) -> Result<()> {
 fn main() {
     let args = Args::parse();
     tracing_subscriber::fmt()
-        .with_env_filter(if args.verbose { "mkwebfont=debug,info" } else { "info" })
+        .with_env_filter(if args.verbose { FILTER_SPEC } else { "info" })
         .with_writer(io::stderr)
         .init();
 

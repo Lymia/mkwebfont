@@ -10,6 +10,8 @@
       <sourceFolder url="file://$MODULE_DIR$/mkwebfont_subset-tool/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/mkwebfont_hb-subset/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/mkwebfont_hb-subset/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/mkwebfont_extract-web/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mkwebfont_extract-web/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/out" />
       <excludeFolder url="file://$MODULE_DIR$/run" />
       <excludeFolder url="file://$MODULE_DIR$/target" />

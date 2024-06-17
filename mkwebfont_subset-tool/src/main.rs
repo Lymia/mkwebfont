@@ -8,7 +8,7 @@ mod generate_validation_data;
 
 use async_recursion::async_recursion;
 use clap::{Parser, Subcommand};
-use mkwebfont_common::model::data_package::DataPackage;
+use mkwebfont_common::{model::data_package::DataPackage, FILTER_SPEC};
 use std::{io, path::PathBuf};
 
 #[derive(Parser)]
@@ -134,9 +134,8 @@ async fn run(command: Commands) {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    let filter = "debug,h2=info,hyper_util=info,reqwest=info,rustls=info";
     tracing_subscriber::fmt()
-        .with_env_filter(filter)
+        .with_env_filter(FILTER_SPEC)
         .with_writer(io::stderr)
         .init();
     run(args.command).await

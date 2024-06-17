@@ -201,7 +201,10 @@ impl SplitterPlan {
     }
 }
 
-pub async fn process_webfont(plan: &SplitterPlan, fonts: &LoadedFontSet) -> Result<Vec<WebfontInfo>> {
+pub async fn process_webfont(
+    plan: &SplitterPlan,
+    fonts: &LoadedFontSet,
+) -> Result<Vec<WebfontInfo>> {
     let plan = plan.build();
 
     finish_preload().await?;

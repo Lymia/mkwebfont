@@ -1,5 +1,11 @@
 [workspace]
-members = ["mkwebfont", "mkwebfont_common", "mkwebfont_subset-tool", "mkwebfont_hb-subset"]
+members = [
+    "mkwebfont",
+    "mkwebfont_common",
+    "mkwebfont_extract-web",
+    "mkwebfont_subset-tool",
+    "mkwebfont_hb-subset",
+]
 resolver = "2"
 
 [profile.dev]
@@ -8,3 +14,16 @@ opt-level = 1
 [profile.release]
 opt-level = 3
 lto = true
+
+[workspace.dependencies]
+# Common dependencies
+anyhow = "1.0"
+async-recursion = "1.1"
+tokio = { version = "1.38", features = ["rt-multi-thread", "sync"] }
+tracing = "0.1"
+tracing-futures = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Crates in the workspace
+mkwebfont_common = { version = "0.2.0-alpha1", path = "mkwebfont_common" }
+mkwebfont_hb-subset = { version = "0.3.0", path = "mkwebfont_hb-subset" }

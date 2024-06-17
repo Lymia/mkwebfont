@@ -33,7 +33,10 @@ impl SplitterImplementation for NullSplitter {
 }
 
 /// The internal function that actually splits the webfont.
-pub async fn split_webfont(plan: &LoadedSplitterPlan, font: &FontFaceWrapper) -> Result<WebfontInfo> {
+pub async fn split_webfont(
+    plan: &LoadedSplitterPlan,
+    font: &FontFaceWrapper,
+) -> Result<WebfontInfo> {
     let mut encoder = FontEncoder::new(font.clone());
 
     if plan.flags.contains(FontFlags::NoSplitter) {

@@ -1,0 +1,26 @@
+[package]
+name = "mkwebfont_extract-web"
+version = "0.1.0"
+authors = ["Lymia Kanokawa <lymia@lymia.moe>"]
+edition = "2021"
+
+repository = "https://github.com/Lymia/mkwebfont"
+
+license = "Apache-2.0"
+
+[dependencies]
+lightningcss = { version = "1.0.0-alpha.57", features = ["into_owned"] }
+scraper = "0.19.0"
+
+# Common Dependencies
+anyhow = { workspace = true }
+async-recursion = { workspace = true }
+moka = { version = "0.12", features = ["future"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+tracing = { workspace = true }
+
+# Subcrates
+mkwebfont_common = { workspace = true }
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }

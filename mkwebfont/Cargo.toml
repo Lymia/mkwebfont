@@ -34,7 +34,6 @@ name = "mkwebfont"
 required-features = ["binary"]
 
 [dependencies]
-anyhow = "1.0"
 blake3 = { version = "1.5", features = ["pure"] }
 brotli = { version = "5.0", features = ["ffi-api"] }
 clap = { version = "4.5", features = ["derive"], optional = true }
@@ -42,11 +41,7 @@ enumset = "1.1"
 ordered-float = { version = "4.0", default-features = false }
 roaring = "0.10"
 serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1.37", features = ["rt-multi-thread", "sync"] }
 toml = "0.8"
-tracing = "0.1"
-tracing-futures = "0.2"
-tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 unic-ucd-block = "0.9"
 
 # Used only for downloading mkwebfont-datapkg packages.
@@ -57,9 +52,16 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 unicode-blocks = "0.1"
 unicode-properties = "0.1"
 
+# Common Dependencies
+anyhow = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-futures = { workspace = true }
+tracing-subscriber = { workspace = true, optional = true }
+
 # Subcrates
-mkwebfont_common = { version = "0.2.0-alpha1", path = "../mkwebfont_common" }
-mkwebfont_hb-subset = { version = "0.3.0", path = "../mkwebfont_hb-subset", features = ["bundled"] }
+mkwebfont_common = { workspace = true }
+mkwebfont_hb-subset = { workspace = true, features = ["bundled"] }
 
 [build-dependencies]
 cc = "1.0"
