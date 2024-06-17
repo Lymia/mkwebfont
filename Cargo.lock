@@ -1565,6 +1565,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-recursion",
+ "cssparser 0.33.0",
  "lightningcss",
  "mkwebfont_common",
  "moka",

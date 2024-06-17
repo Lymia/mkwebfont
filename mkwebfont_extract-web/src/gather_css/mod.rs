@@ -9,6 +9,7 @@ use lightningcss::stylesheet::StyleSheet;
 use scraper::{Html, Selector};
 use std::{borrow::Cow, collections::HashMap, path::Path, sync::Arc};
 use tracing::warn;
+use crate::gather_css::parse::RawCssRule;
 
 const CSS_BASE_RULES: &str = "
     area, datalist, head, link, param, script, style, title {
@@ -21,6 +22,15 @@ pub enum CssSource {
     Static(&'static str),
     Owned(String),
     Shared(Arc<str>),
+}
+impl CssSource {
+    pub fn as_str(&self) -> &str {
+        match self {
+            CssSource::Static(str) => *str,
+            CssSource::Owned(str) => str.as_str(),
+            CssSource::Shared(str) => &str,
+        }
+    }
 }
 
 pub async fn gather_all_css(
@@ -46,5 +56,10 @@ pub async fn gather_all_css(
             _ => unreachable!(),
         }
     }
+
     Ok(result)
+}
+
+async fn process_rules(rules: &[CssSource]) -> Vec<RawCssRule> {
+    todo!()
 }

@@ -1,33 +1,33 @@
 use anyhow::{bail, Result};
+use mkwebfont_common::hashing::WyHashBuilder;
+use moka::future::{Cache, CacheBuilder};
 use std::{
-    collections::HashMap,
+    io,
     path::{Path, PathBuf},
     sync::Arc,
 };
-use tokio::sync::RwLock;
 use tracing::debug;
 
 #[derive(Clone)]
-pub struct Webroot(Arc<RwLock<WebrootData>>);
+pub struct Webroot(Arc<WebrootData>);
 struct WebrootData {
-    root: Arc<Path>,
-    cache: HashMap<PathBuf, Arc<str>>,
+    root: PathBuf,
+    cache: Cache<PathBuf, Arc<str>, WyHashBuilder>,
 }
 impl Webroot {
     pub fn new(root: PathBuf) -> Result<Self> {
-        Ok(Webroot(Arc::new(RwLock::new(WebrootData {
-            root: root.canonicalize()?.into(),
-            cache: Default::default(),
-        }))))
+        Ok(Webroot(Arc::new(WebrootData {
+            root: root.canonicalize()?.to_path_buf(),
+            cache: CacheBuilder::new(512).build_with_hasher(Default::default()),
+        })))
     }
 
-    async fn canonicalize(&self, rela_root: &Path, mut path: &str) -> Result<PathBuf> {
-        let root = self.0.read().await.root.clone();
+    fn canonicalize(&self, rela_root: &Path, mut path: &str) -> Result<PathBuf> {
         let resolved_root = if path.starts_with("/") {
             while path.starts_with("/") {
                 path = &path[1..];
             }
-            &root
+            &self.0.root
         } else {
             rela_root
         };
@@ -41,38 +41,30 @@ impl Webroot {
             resolved.display()
         );
 
-        if !resolved.starts_with(&root) {
-            bail!("Resolved path '{resolved:?}' is not child of '{:?}'", root);
+        if !resolved.starts_with(&self.0.root) {
+            bail!("Resolved path '{resolved:?}' is not child of '{:?}'", self.0.root);
         }
 
         Ok(resolved)
     }
 
-    async fn cache_read(&self, path: &Path) -> Result<Arc<str>> {
-        let mut lock = self.0.read().await;
-        if let Some(cached) = lock.cache.get(path) {
-            Ok(cached.clone())
-        } else {
-            drop(lock);
-            let data: Arc<str> = String::from_utf8_lossy(&std::fs::read(path)?)
-                .to_string()
-                .into();
-
-            let mut lock = self.0.write().await;
-            lock.cache.insert(path.to_path_buf(), data.clone());
-            drop(lock);
-
-            Ok(data)
-        }
+    async fn cache_read(&self, path: PathBuf) -> Result<Arc<str>> {
+        Ok(self
+            .0
+            .cache
+            .try_get_with::<_, io::Error>(path.clone(), async move {
+                let path: Arc<str> = std::fs::read_to_string(path)?.into();
+                Ok(path)
+            })
+            .await?)
     }
 
     pub async fn load(&self, rela_root: &Path, path: &str) -> Result<Arc<str>> {
-        self.cache_read(&self.canonicalize(rela_root, path).await?)
-            .await
+        self.cache_read(self.canonicalize(rela_root, path)?).await
     }
 
     pub async fn rela(&self, rela_root: &Path) -> Result<RelaWebroot> {
-        let mut new_root = self.0.read().await.root.to_path_buf();
+        let mut new_root = self.0.root.to_path_buf();
         new_root.push(rela_root);
         let path = new_root.canonicalize()?;
 
