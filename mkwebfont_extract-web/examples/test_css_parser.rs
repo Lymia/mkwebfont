@@ -12,7 +12,7 @@ async fn main() {
 
     let data = std::fs::read_to_string(std::env::args().skip(1).next().unwrap()).unwrap();
     //let test = StyleSheet::parse(&data, ParserOptions::default()).unwrap();
-    let test = mkwebfont_extract_web::gather_all_css(
+    let test = mkwebfont_extract_web::raw_rules(
         &Html::parse_document(&data),
         &mkwebfont_extract_web::Webroot::new(PathBuf::from(
             "/home/aino/Projects/writing/Website/build/web/",

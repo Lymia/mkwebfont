@@ -1,6 +1,7 @@
 mod parse;
 
 use crate::{
+    gather_css::parse::RawCssRule,
     utils,
     webroot::{RelaWebroot, Webroot},
 };
@@ -9,7 +10,6 @@ use lightningcss::stylesheet::StyleSheet;
 use scraper::{Html, Selector};
 use std::{borrow::Cow, collections::HashMap, path::Path, sync::Arc};
 use tracing::warn;
-use crate::gather_css::parse::RawCssRule;
 
 const CSS_BASE_RULES: &str = "
     area, datalist, head, link, param, script, style, title {
@@ -33,7 +33,7 @@ impl CssSource {
     }
 }
 
-pub async fn gather_all_css(
+async fn gather_all_css(
     document: &Html,
     root: &RelaWebroot,
     inject: &[Arc<str>],
@@ -60,6 +60,20 @@ pub async fn gather_all_css(
     Ok(result)
 }
 
-async fn process_rules(rules: &[CssSource]) -> Vec<RawCssRule> {
-    todo!()
+async fn process_rules(sources: &[CssSource], root: &RelaWebroot) -> Result<Vec<Arc<RawCssRule>>> {
+    let mut rules = Vec::new();
+    for source in sources {
+        rules.extend(parse::parse_css(source.as_str(), root).await?);
+    }
+    rules.sort_by_key(|x| x.specificity);
+    Ok(rules)
+}
+
+pub async fn raw_rules(
+    document: &Html,
+    root: &RelaWebroot,
+    inject: &[Arc<str>],
+) -> Result<Vec<Arc<RawCssRule>>> {
+    let sources = gather_all_css(document, root, inject).await?;
+    process_rules(&sources, root).await
 }
