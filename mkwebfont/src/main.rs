@@ -185,7 +185,14 @@ async fn main_impl(args: Args) -> Result<()> {
     info!("Done!");
     Ok(())
 }
-fn main_sync(args: Args) -> Result<()> {
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+    tracing_subscriber::fmt()
+        .with_env_filter(if args.verbose { FILTER_SPEC } else { "info" })
+        .with_writer(io::stderr)
+        .init();
+
     #[cfg(feature = "download-data")]
     let rt = Builder::new_multi_thread().enable_io().build()?;
 
@@ -193,17 +200,4 @@ fn main_sync(args: Args) -> Result<()> {
     let rt = Builder::new_multi_thread().build()?;
 
     rt.block_on(main_impl(args))
-}
-
-fn main() {
-    let args = Args::parse();
-    tracing_subscriber::fmt()
-        .with_env_filter(if args.verbose { FILTER_SPEC } else { "info" })
-        .with_writer(io::stderr)
-        .init();
-
-    match main_sync(args) {
-        Ok(()) => {}
-        Err(e) => error!("Error encountered: {e}"),
-    }
 }

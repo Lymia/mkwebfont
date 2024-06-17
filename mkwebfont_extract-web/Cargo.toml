@@ -9,14 +9,15 @@ repository = "https://github.com/Lymia/mkwebfont"
 license = "Apache-2.0"
 
 [dependencies]
+arcstr = "1.2.0"
 cssparser = "0.33"
 lightningcss = { version = "1.0.0-alpha.57", features = ["into_owned"] }
+moka = { version = "0.12", features = ["future"] }
 scraper = "0.19.0"
 
 # Common Dependencies
 anyhow = { workspace = true }
 async-recursion = { workspace = true }
-moka = { version = "0.12", features = ["future"] }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 tracing = { workspace = true }
 

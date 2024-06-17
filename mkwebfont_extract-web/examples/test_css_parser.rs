@@ -1,5 +1,6 @@
 use lightningcss::stylesheet::{ParserOptions, StyleSheet};
 use mkwebfont_common::FILTER_SPEC;
+use mkwebfont_extract_web::CssCache;
 use scraper::Html;
 use std::{io, path::PathBuf};
 
@@ -12,16 +13,16 @@ async fn main() {
 
     let data = std::fs::read_to_string(std::env::args().skip(1).next().unwrap()).unwrap();
     //let test = StyleSheet::parse(&data, ParserOptions::default()).unwrap();
-    let test = mkwebfont_extract_web::raw_rules(
+    let test = mkwebfont_extract_web::document_raw_rules(
         &Html::parse_document(&data),
         &mkwebfont_extract_web::Webroot::new(PathBuf::from(
             "/home/aino/Projects/writing/Website/build/web/",
         ))
         .unwrap()
         .rela(&PathBuf::from("index.html"))
-        .await
         .unwrap(),
         &[],
+        CssCache::new(),
     )
     .await
     .unwrap();

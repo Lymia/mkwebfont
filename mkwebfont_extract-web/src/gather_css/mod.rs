@@ -1,58 +1,45 @@
-mod parse;
-
 use crate::{
-    gather_css::parse::RawCssRule,
     utils,
     webroot::{RelaWebroot, Webroot},
 };
 use anyhow::Result;
-use lightningcss::stylesheet::StyleSheet;
+use arcstr::ArcStr;
 use scraper::{Html, Selector};
-use std::{borrow::Cow, collections::HashMap, path::Path, sync::Arc};
+use std::sync::Arc;
 use tracing::warn;
 
-const CSS_BASE_RULES: &str = "
+mod parse;
+
+pub use parse::*;
+
+const CSS_BASE_RULES: ArcStr = arcstr::literal!(
+    "
     area, datalist, head, link, param, script, style, title {
         display: none;
     }
-";
-
-#[derive(Debug)]
-pub enum CssSource {
-    Static(&'static str),
-    Owned(String),
-    Shared(Arc<str>),
-}
-impl CssSource {
-    pub fn as_str(&self) -> &str {
-        match self {
-            CssSource::Static(str) => *str,
-            CssSource::Owned(str) => str.as_str(),
-            CssSource::Shared(str) => &str,
-        }
-    }
-}
+"
+);
 
 async fn gather_all_css(
     document: &Html,
     root: &RelaWebroot,
-    inject: &[Arc<str>],
-) -> Result<Vec<CssSource>> {
+    inject: &[ArcStr],
+) -> Result<Vec<(ArcStr, RelaWebroot)>> {
     let mut result = Vec::new();
-    result.push(CssSource::Static(CSS_BASE_RULES));
+    result.push((CSS_BASE_RULES, root.clone()));
     for css in inject {
-        result.push(CssSource::Shared(css.clone()));
+        result.push((css.clone(), root.clone()));
     }
     for tag in document.select(&Selector::parse("style,link[rel~=stylesheet]").unwrap()) {
         match tag.value().name.local.as_bytes() {
             b"link" => match tag.value().attr("href") {
-                Some(x) => match root.load(x).await {
-                    Ok(data) => result.push(CssSource::Shared(data)),
+                Some(x) => match root.load_rela(x).await {
+                    Ok(data) => result.push(data),
                     Err(e) => warn!("Could not load '{x}': {e:?}"),
                 },
                 None => warn!("{}", root.name().display()),
             },
-            b"style" => result.push(CssSource::Owned(utils::direct_text_children(&tag))),
+            b"style" => result.push((utils::direct_text_children(&tag).into(), root.clone())),
             _ => unreachable!(),
         }
     }
@@ -60,20 +47,26 @@ async fn gather_all_css(
     Ok(result)
 }
 
-async fn process_rules(sources: &[CssSource], root: &RelaWebroot) -> Result<Vec<Arc<RawCssRule>>> {
-    let mut rules = Vec::new();
-    for source in sources {
-        rules.extend(parse::parse_css(source.as_str(), root).await?);
+async fn process_rules(
+    sources: &[(ArcStr, RelaWebroot)],
+    css_cache: CssCache,
+) -> Result<Vec<Arc<RawCssRule>>> {
+    let mut rules: Vec<Arc<RawCssRule>> = Vec::new();
+    for (source, new_root) in sources {
+        for rule in &*css_cache.get_css(source.clone(), new_root).await? {
+            rules.push(rule.clone());
+        }
     }
     rules.sort_by_key(|x| x.specificity);
     Ok(rules)
 }
 
-pub async fn raw_rules(
+pub async fn document_raw_rules(
     document: &Html,
     root: &RelaWebroot,
-    inject: &[Arc<str>],
+    inject: &[ArcStr],
+    css_cache: CssCache,
 ) -> Result<Vec<Arc<RawCssRule>>> {
     let sources = gather_all_css(document, root, inject).await?;
-    process_rules(&sources, root).await
+    process_rules(&sources, css_cache).await
 }
