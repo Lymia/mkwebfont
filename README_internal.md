@@ -1,0 +1,1 @@
+This is an internal crate used in `mkwebfont`. Do not use it directly.
