@@ -9,16 +9,31 @@ mod parse;
 
 pub use parse::*;
 
-const CSS_BASE_RULES: ArcStr = arcstr::literal!(
-    "
-    area, datalist, head, link, param, script, style, title {
-        display: none;
+const CSS_BASE_RULES: ArcStr = arcstr::literal!(include_str!("base_rules.css"));
+
+enum CssSource {
+    RelFile(String),
+    Embedded(String),
+}
+
+fn extract_css_sources(document: &ArcStr) -> Result<Vec<CssSource>> {
+    let document = Html::parse_document(&document);
+    let mut data = Vec::new();
+    for tag in document.select(&Selector::parse("style,link[rel~=stylesheet]").unwrap()) {
+        match tag.value().name.local.as_bytes() {
+            b"link" => match tag.value().attr("href") {
+                Some(x) => data.push(CssSource::RelFile(x.to_string())),
+                None => warn!("Tag does not contain href: {tag:?}"),
+            },
+            b"style" => data.push(CssSource::Embedded(utils::direct_text_children(&tag).into())),
+            _ => unreachable!(),
+        }
     }
-"
-);
+    Ok(data)
+}
 
 async fn gather_all_css(
-    document: &Html,
+    document: &ArcStr,
     root: &RelaWebroot,
     inject: &[ArcStr],
 ) -> Result<Vec<(ArcStr, RelaWebroot)>> {
@@ -27,20 +42,15 @@ async fn gather_all_css(
     for css in inject {
         result.push((css.clone(), root.clone()));
     }
-    for tag in document.select(&Selector::parse("style,link[rel~=stylesheet]").unwrap()) {
-        match tag.value().name.local.as_bytes() {
-            b"link" => match tag.value().attr("href") {
-                Some(x) => match root.load_rela(x).await {
-                    Ok(data) => result.push(data),
-                    Err(e) => warn!("Could not load '{x}': {e:?}"),
-                },
-                None => warn!("{}", root.name().display()),
+    for source in extract_css_sources(document)? {
+        match source {
+            CssSource::RelFile(path) => match root.load_rela(&path).await {
+                Ok(data) => result.push(data),
+                Err(e) => warn!("Could not load '{path}': {e:?}"),
             },
-            b"style" => result.push((utils::direct_text_children(&tag).into(), root.clone())),
-            _ => unreachable!(),
+            CssSource::Embedded(tag) => result.push((tag.into(), root.clone())),
         }
     }
-
     Ok(result)
 }
 
@@ -61,7 +71,7 @@ async fn process_rules(
 impl CssCache {
     pub async fn get_rules_from_document(
         &self,
-        document: &Html,
+        document: &ArcStr,
         root: &RelaWebroot,
         inject: &[ArcStr],
     ) -> Result<Vec<Arc<RawCssRule>>> {

@@ -11,7 +11,7 @@ impl<T: Send + Sync + 'static> JoinSet<T> {
         JoinSet { joins: Vec::new() }
     }
 
-    pub fn spawn(&mut self, fut: impl Future<Output = Result<T>> + Send + Sync + 'static) {
+    pub fn spawn(&mut self, fut: impl Future<Output = Result<T>> + Send + 'static) {
         self.joins.push(tokio::spawn(fut.in_current_span()));
     }
 

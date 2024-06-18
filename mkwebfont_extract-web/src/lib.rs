@@ -46,6 +46,8 @@ mod api {
         }
 
         pub async fn push_webroot(&self, path: &Path, inject_css: &[&str]) -> Result<()> {
+            info!("Processing webroot at '{}'...", path.display());
+
             let webroot = Webroot::new(PathBuf::from(path))?;
             let inject_css = Arc::new(Self::convert_inject_css(inject_css));
 
@@ -60,7 +62,9 @@ mod api {
                     Ok(())
                 });
             }
-            joins.join().await?;
+            let count = joins.join().await?.len();
+
+            info!("Processed {count} pages from '{}'!", path.display());
 
             Ok(())
         }
