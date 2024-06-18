@@ -1586,6 +1586,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mkwebfont_fontops"
+version = "0.1.0"
+
+[[package]]
 name = "mkwebfont_hb-subset"
 version = "0.3.0"
 dependencies = [

@@ -13,15 +13,18 @@ mod api {
     use crate::{font_info::TextInfoBuilder, gather_css::CssCache, webroot::Webroot, TextInfo};
     use anyhow::Result;
     use arcstr::ArcStr;
+    use mkwebfont_common::join_set::JoinSet;
     use std::{
         path::{Path, PathBuf},
         sync::Arc,
     };
     use tokio::sync::RwLock;
-    use tracing::info;
+    use tracing::{info, info_span};
 
+    #[derive(Debug, Clone)]
+    pub struct TextExtractor(Arc<TextExtractorData>);
     #[derive(Debug)]
-    pub struct TextExtractor {
+    struct TextExtractorData {
         builder: Arc<RwLock<TextInfoBuilder>>,
         css_cache: CssCache,
     }
@@ -33,6 +36,40 @@ mod api {
         fn convert_inject_css(inject_css: &[&str]) -> Vec<ArcStr> {
             inject_css.iter().map(|x| ArcStr::from(*x)).collect()
         }
+
+        pub async fn push_document(&self, path: &Path, inject_css: &[&str]) -> Result<()> {
+            let webroot = Webroot::new(PathBuf::from("/"))?;
+            self.0
+                .push_rules(&webroot, path, &Self::convert_inject_css(inject_css))
+                .await?;
+            Ok(())
+        }
+
+        pub async fn push_webroot(&self, path: &Path, inject_css: &[&str]) -> Result<()> {
+            let webroot = Webroot::new(PathBuf::from(path))?;
+            let inject_css = Arc::new(Self::convert_inject_css(inject_css));
+
+            let mut joins = JoinSet::new();
+            for path in glob::glob(&format!("{}/**/*.html", path.display()))? {
+                let data = self.0.clone();
+                let webroot = webroot.clone();
+                let path = path?;
+                let inject_css = inject_css.clone();
+                joins.spawn(async move {
+                    data.push_rules(&webroot, &path, &inject_css).await?;
+                    Ok(())
+                });
+            }
+            joins.join().await?;
+
+            Ok(())
+        }
+
+        pub async fn build(&self) -> TextInfo {
+            self.0.builder.read().await.build()
+        }
+    }
+    impl TextExtractorData {
         async fn push_rules(
             &self,
             webroot: &Webroot,
@@ -40,6 +77,13 @@ mod api {
             inject_css: &[ArcStr],
         ) -> Result<()> {
             info!("Processing HTML from '{}'...", target.display());
+
+            let file_name = match target.file_name() {
+                None => "<unknown>".to_string(),
+                Some(target) => target.to_string_lossy().to_string(),
+            };
+            let span = info_span!("parse_html", name = file_name);
+            let _enter = span.enter();
 
             let (data, root) = webroot.load_rela_raw(target).await?;
             crate::extract_text::extract_text(
@@ -52,36 +96,13 @@ mod api {
             .await?;
             Ok(())
         }
-
-        pub async fn push_document(&self, path: &Path, inject_css: &[&str]) -> Result<()> {
-            let webroot = Webroot::new(PathBuf::from("/"))?;
-            self.push_rules(&webroot, path, &Self::convert_inject_css(inject_css))
-                .await?;
-            Ok(())
-        }
-
-        pub async fn push_webroot(&self, path: &Path, inject_css: &[&str]) -> Result<()> {
-            let webroot = Webroot::new(PathBuf::from(path))?;
-            let inject_css = Self::convert_inject_css(inject_css);
-
-            for path in glob::glob(&format!("{}/**/*.html", path.display()))? {
-                let path = path?;
-                self.push_rules(&webroot, &path, &inject_css).await?;
-            }
-
-            Ok(())
-        }
-
-        pub async fn build(&self) -> TextInfo {
-            self.builder.read().await.build()
-        }
     }
     impl Default for TextExtractor {
         fn default() -> Self {
-            TextExtractor {
+            TextExtractor(Arc::new(TextExtractorData {
                 builder: Arc::new(RwLock::new(TextInfoBuilder::default())),
                 css_cache: CssCache::new(),
-            }
+            }))
         }
     }
 }

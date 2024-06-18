@@ -315,12 +315,13 @@ pub struct FontFaceSet {
 }
 impl FontFaceSet {
     fn push_name(&mut self, name: &str, font: &FontFaceWrapper) {
-        if !self.ambigious.contains(name) {
-            if self.by_name.contains_key(name) {
-                self.ambigious.insert(name.to_string());
-                self.by_name.remove(name);
+        let name = name.to_lowercase();
+        if !self.ambigious.contains(&name) {
+            if self.by_name.contains_key(&name) {
+                self.by_name.remove(&name);
+                self.ambigious.insert(name);
             } else {
-                self.by_name.insert(name.to_string(), font.clone());
+                self.by_name.insert(name, font.clone());
             }
         }
     }
@@ -349,10 +350,11 @@ impl FontFaceSet {
     }
 
     pub fn resolve(&self, name: &str) -> Result<&FontFaceWrapper> {
-        if self.ambigious.contains(name) {
+        let name = name.to_lowercase();
+        if self.ambigious.contains(&name) {
             bail!("Font name {name:?} is ambigious!");
         } else {
-            match self.by_name.get(name) {
+            match self.by_name.get(&name) {
                 Some(v) => Ok(v),
                 None => bail!("Font name {name:?} does not exist."),
             }

@@ -4,7 +4,7 @@ members = [
     "mkwebfont_common",
     "mkwebfont_extract-web",
     "mkwebfont_subset-tool",
-    "mkwebfont_hb-subset",
+    "mkwebfont_hb-subset", "mkwebfont_fontops",
 ]
 resolver = "2"
 

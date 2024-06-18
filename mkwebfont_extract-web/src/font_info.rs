@@ -79,7 +79,7 @@ impl TextInfoBuilder {
     }
 
     fn intern_stack(&mut self, str: &[String]) -> Arc<[ArcStr]> {
-        let arc: Arc<[_]> = str.iter().map(ArcStr::from).collect();
+        let arc: Arc<[_]> = str.iter().map(|x| ArcStr::from(x.to_lowercase())).collect();
         if let Some(x) = self.cached_stacks.get(&arc) {
             x.clone()
         } else {
