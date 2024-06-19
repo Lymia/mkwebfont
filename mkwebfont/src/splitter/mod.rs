@@ -1,10 +1,10 @@
 use crate::{
-    fonts::FontFaceWrapper,
     render::FontEncoder,
     splitter_plan::{FontFlags, LoadedSplitterPlan},
     WebfontInfo,
 };
 use anyhow::Result;
+use mkwebfont_fontops::font_info::FontFaceWrapper;
 use tracing::info;
 
 mod adjacency;

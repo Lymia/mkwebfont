@@ -59,13 +59,6 @@
 //! # Ok(())
 //! # }
 //! ```
-//!
-//! # Using bundled version of HarfBuzz
-//! By default, this crate uses the system HarfBuzz installation. If it is not available, or it is too old, this crate
-//! can also used a bundled copy of HarfBuzz by using feature `bundled`:
-//! ```bash
-//! cargo add hb-subset --features bundled
-//! ```
 
 #![warn(missing_docs)]
 

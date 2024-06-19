@@ -1,6 +1,6 @@
-use crate::fonts::FontFaceWrapper;
 use anyhow::*;
 use mkwebfont_common::hashing::WyHashBuilder;
+use mkwebfont_fontops::font_info::FontFaceWrapper;
 use roaring::RoaringBitmap;
 use std::{
     collections::HashMap,

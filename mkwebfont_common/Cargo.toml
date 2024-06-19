@@ -6,7 +6,9 @@ edition = "2021"
 
 description = "Internal crate for mkwebfont."
 repository = "https://github.com/Lymia/mkwebfont"
+
 license = "Apache-2.0"
+readme = "README.md"
 
 [dependencies]
 bincode = "2.0.0-rc.3"

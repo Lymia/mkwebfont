@@ -1,5 +1,5 @@
-use crate::fonts::FontFaceWrapper;
 use enumset::*;
+use mkwebfont_fontops::font_info::FontFaceWrapper;
 use roaring::RoaringBitmap;
 use std::{collections::HashSet, ops::Deref, sync::Arc};
 

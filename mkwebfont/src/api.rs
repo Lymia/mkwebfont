@@ -1,14 +1,12 @@
-use crate::{fonts::FontFaceWrapper, splitter};
+use crate::{data::DataStorage, quality_report::FontReport, splitter, splitter_plan::FontFlags};
 use anyhow::Result;
 use mkwebfont_common::join_set::JoinSet;
+use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
 use roaring::RoaringBitmap;
 use std::path::Path;
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{debug, info, info_span, Instrument};
 
-use crate::{
-    data::DataStorage, fonts::FontFaceSet, quality_report::FontReport, splitter_plan::FontFlags,
-};
 pub use crate::{
     render::{SubsetInfo, WebfontInfo},
     splitter_plan::SplitterPlan,

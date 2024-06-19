@@ -1,10 +1,13 @@
 [![crates.io](https://img.shields.io/crates/v/hb-subset)](https://crates.io/crates/hb-subset)
 [![docs.rs](https://img.shields.io/docsrs/hb-subset)](https://docs.rs/hb-subset/)
 
-# hb-subset
+# mkwebfont_hb-subset
 ## A Rust wrapper for HarfBuzz subsetting API
 
 This crate exposes [HarfBuzz](https://github.com/harfbuzz/harfbuzz) API for subsetting fonts.
+
+This is modified for mkwebfont, and remains maintained, unlike the original hb-subset. Support for using a non-bundled
+version of hb-subset has been removed for simplicity and dependency reduction.
 
 ## What is subsetting?
 From HarfBuzz documentation:
@@ -56,13 +59,6 @@ let new_font = subset.subset_font(&font)?;
 
 // Extract the raw font and write to an output file
 std::fs::write("tests/fonts/subset.ttf", &*new_font.underlying_blob())?;
-```
-
-## Using bundled version of HarfBuzz
-By default, this crate uses the system HarfBuzz installation. If it is not available, or it is too old, this crate
-can also used a bundled copy of HarfBuzz by using feature `bundled`:
-```bash
-cargo add hb-subset --features bundled
 ```
 
 ## License

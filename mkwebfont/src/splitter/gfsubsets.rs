@@ -1,9 +1,10 @@
 use crate::{
-    data::DataStorage, fonts::FontFaceWrapper, render::FontEncoder,
-    splitter::SplitterImplementation, splitter_plan::LoadedSplitterPlan,
+    data::DataStorage, render::FontEncoder, splitter::SplitterImplementation,
+    splitter_plan::LoadedSplitterPlan,
 };
 use anyhow::Result;
 use mkwebfont_common::model::subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup};
+use mkwebfont_fontops::font_info::FontFaceWrapper;
 use ordered_float::OrderedFloat;
 use roaring::RoaringBitmap;
 use std::{collections::HashSet, sync::Arc};

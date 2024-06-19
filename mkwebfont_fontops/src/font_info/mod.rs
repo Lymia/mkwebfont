@@ -1,4 +1,4 @@
-use crate::fonts::variation_axises::{AxisName, VariationAxis};
+use crate::font_info::variation_axises::{AxisName, VariationAxis};
 use anyhow::{bail, Result};
 use hb_subset::{Blob, FontFace, SubsetInput};
 use mkwebfont_common::hashing::WyHashBuilder;
@@ -12,7 +12,6 @@ use std::{
     },
 };
 use tracing::debug;
-use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
 
 mod variation_axises;
 mod woff2;
@@ -272,10 +271,7 @@ impl FontFaceWrapper {
         subset_input.unicode_set().clear();
         for ch in chars {
             let ch = char::from_u32(ch).unwrap();
-            let cat = ch.general_category();
-            if cat != GeneralCategory::Control && cat != GeneralCategory::Format {
-                subset_input.unicode_set().insert(ch);
-            }
+            subset_input.unicode_set().insert(ch);
         }
         for variation in &self.0.variations {
             // TODO: Do not hardcode allowed axises

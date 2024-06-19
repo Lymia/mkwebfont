@@ -1,8 +1,9 @@
 use crate::{
-    data::DataStorage, fonts::FontFaceWrapper, render::FontEncoder,
-    splitter::SplitterImplementation, splitter_plan::LoadedSplitterPlan,
+    data::DataStorage, render::FontEncoder, splitter::SplitterImplementation,
+    splitter_plan::LoadedSplitterPlan,
 };
 use anyhow::Result;
+use mkwebfont_fontops::font_info::FontFaceWrapper;
 use roaring::RoaringBitmap;
 use tracing::warn;
 

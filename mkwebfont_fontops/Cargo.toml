@@ -4,8 +4,41 @@ version = "0.1.0"
 authors = ["Lymia Kanokawa <lymia@lymia.moe>"]
 edition = "2021"
 
+description = "Internal crate for mkwebfont."
 repository = "https://github.com/Lymia/mkwebfont"
 
 license = "Apache-2.0"
+readme = "README.md"
+
+include = [
+    "src",
+    "LICENSE-APACHE",
+    "build.rs",
+    "contrib/woff2/include",
+    "contrib/woff2/src",
+    "contrib/woff2/brotli/c/include",
+    "contrib/woff_wrapper",
+]
 
 [dependencies]
+# Linking-only dependencies (Rust implementation, used by woff2)
+brotli = { version = "6.0", features = ["ffi-api"] }
+
+# Common Dependencies
+anyhow = { workspace = true }
+roaring = { workspace = true }
+tracing = { workspace = true }
+
+# Subcrates
+mkwebfont_common = { workspace = true }
+mkwebfont_hb-subset = { workspace = true }
+
+[dev-dependencies]
+git2 = { version = "0.19", default-features = false }
+
+# Common Dependencies
+glob = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[build-dependencies]
+cc = { workspace = true }

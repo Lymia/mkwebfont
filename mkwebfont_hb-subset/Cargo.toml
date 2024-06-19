@@ -22,15 +22,8 @@ exclude = [
 name = "hb_subset"
 
 [dependencies]
-thiserror = "1.0.50"
+thiserror = "1.0"
 
 [build-dependencies]
-bindgen = "0.69.1"
-cc = "1.0.83"
-pkg-config = "0.3.27"
-
-[features]
-bundled = []
-
-[package.metadata.docs.rs]
-features = ["bundled"]
+bindgen = { workspace = true }
+cc = { workspace = true }

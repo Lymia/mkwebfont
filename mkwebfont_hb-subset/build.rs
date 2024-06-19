@@ -4,13 +4,7 @@ use bindgen::callbacks::ParseCallbacks;
 
 fn main() {
     // First ensure that appropriate version of HarfBuzz exists
-    let include_paths = if cfg!(feature = "bundled") {
-        build_harfbuzz()
-    } else {
-        pkg_config::probe_library("harfbuzz-subset")
-            .unwrap()
-            .include_paths
-    };
+    let include_paths = build_harfbuzz();
     // Then build the sys bindings
     build_bindings(include_paths);
 }

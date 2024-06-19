@@ -1,9 +1,7 @@
-use crate::{
-    fonts::{FontFaceWrapper, FontStyle, FontWeight},
-    splitter_plan::LoadedSplitterPlan,
-};
+use crate::splitter_plan::LoadedSplitterPlan;
 use anyhow::*;
 use mkwebfont_common::hashing::{hash_fragment, hash_full};
+use mkwebfont_fontops::font_info::{FontFaceWrapper, FontStyle, FontWeight};
 use roaring::RoaringBitmap;
 use std::{
     fmt::{Display, Formatter},
