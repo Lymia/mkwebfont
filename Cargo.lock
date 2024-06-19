@@ -740,6 +740,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "226c0da7462c13fb57e5cc9e0dc8f0635e7d27f276a3a7fd30054647f669007d"
 dependencies = [
  "enumset_derive",
+ "serde",
 ]
 
 [[package]]
@@ -1487,13 +1488,19 @@ name = "mkwebfont_fontops"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "brotli",
  "cc",
+ "chrono",
+ "enumset",
  "git2",
  "glob",
  "mkwebfont_common",
  "mkwebfont_hb-subset",
  "roaring",
+ "serde",
+ "tokio",
+ "toml",
  "tracing",
  "tracing-subscriber",
 ]

@@ -1,3 +1,5 @@
+pub mod compression;
+pub mod download_cache;
 pub mod hashing;
 pub mod join_set;
 pub mod model;

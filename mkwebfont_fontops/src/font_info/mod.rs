@@ -1,5 +1,6 @@
-use crate::font_info::variation_axises::{AxisName, VariationAxis};
 use anyhow::{bail, Result};
+use bincode::{Decode, Encode};
+use enumset::EnumSetType;
 use hb_subset::{Blob, FontFace, SubsetInput};
 use mkwebfont_common::hashing::WyHashBuilder;
 use roaring::RoaringBitmap;
@@ -16,7 +17,9 @@ use tracing::debug;
 mod variation_axises;
 mod woff2;
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub use variation_axises::*;
+
+#[derive(EnumSetType, Debug, Decode, Encode)]
 pub enum FontStyle {
     Regular,
     Italic,
@@ -53,21 +56,30 @@ impl FontWeight {
     pub fn infer(style: &str) -> FontWeight {
         let style = style.to_lowercase().replace("-", " ");
         match style {
-            x if x.contains("regular") => FontWeight::Regular,
             x if x.contains("thin") || x.contains("hairline") => FontWeight::Numeric(100),
             x if x.contains("extralight") || x.contains("extra light") => FontWeight::Numeric(200),
             x if x.contains("ultralight") || x.contains("ultra light") => FontWeight::Numeric(200),
+            x if x.contains("light") => FontWeight::Numeric(300),
+            x if x.contains("regular") => FontWeight::Regular,
             x if x.contains("medium") => FontWeight::Numeric(500),
             x if x.contains("semibold") || x.contains("semi bold") => FontWeight::Numeric(600),
             x if x.contains("demibold") || x.contains("demi bold") => FontWeight::Numeric(600),
+            x if x.contains("bold") => FontWeight::Bold,
             x if x.contains("extrabold") || x.contains("extra bold") => FontWeight::Numeric(800),
             x if x.contains("ultrabold") || x.contains("ultra bold") => FontWeight::Numeric(800),
             x if x.contains("extrablack") || x.contains("extra black") => FontWeight::Numeric(950),
             x if x.contains("ultrablack") || x.contains("ultra black") => FontWeight::Numeric(950),
             x if x.contains("black") => FontWeight::Numeric(900),
             x if x.contains("heavy") => FontWeight::Numeric(900),
-            x if x.contains("bold") => FontWeight::Bold,
             _ => FontWeight::Regular,
+        }
+    }
+
+    pub fn as_num(&self) -> u32 {
+        match self {
+            FontWeight::Regular => 400,
+            FontWeight::Bold => 700,
+            FontWeight::Numeric(n) => *n,
         }
     }
 }
@@ -112,10 +124,10 @@ struct FontFaceData {
     available_codepoints: RoaringBitmap,
     font_data: Arc<[u8]>,
     font_index: u32,
-    name_hint: Option<String>,
+    filename_hint: Option<String>,
 }
 impl FontFaceWrapper {
-    pub fn load(name_hint: Option<String>, buffer: Vec<u8>) -> Result<Vec<FontFaceWrapper>> {
+    pub fn load(filename_hint: Option<String>, buffer: Vec<u8>) -> Result<Vec<FontFaceWrapper>> {
         let is_woff = buffer.len() >= 4 && &buffer[0..4] == b"wOFF";
         let is_woff2 = buffer.len() >= 4 && &buffer[0..4] == b"wOF2";
         let is_collection = buffer.len() >= 4 && &buffer[0..4] == b"ttcf";
@@ -127,7 +139,7 @@ impl FontFaceWrapper {
         let data: Arc<[u8]> = buffer.into();
 
         let mut fonts = Vec::new();
-        if let Some(font) = Self::load_for_font(name_hint.clone(), data.clone(), 0)? {
+        if let Some(font) = Self::load_for_font(filename_hint.clone(), data.clone(), 0)? {
             fonts.push(font);
         } else {
             bail!("No glyphs in first font?");
@@ -135,7 +147,7 @@ impl FontFaceWrapper {
 
         if is_collection {
             let mut i = 1;
-            while let Some(x) = Self::load_for_font(name_hint.clone(), data.clone(), i)? {
+            while let Some(x) = Self::load_for_font(filename_hint.clone(), data.clone(), i)? {
                 fonts.push(x);
                 i += 1;
             }
@@ -146,7 +158,7 @@ impl FontFaceWrapper {
         Ok(fonts)
     }
     fn load_for_font(
-        name_hint: Option<String>,
+        filename_hint: Option<String>,
         font_data: Arc<[u8]>,
         idx: u32,
     ) -> Result<Option<FontFaceWrapper>> {
@@ -173,7 +185,13 @@ impl FontFaceWrapper {
             font_face.font_family()
         };
         let font_style = font_face.font_subfamily();
-        let font_version = font_face.version_string();
+        let font_version = font_face
+            .version_string()
+            .split(';')
+            .next()
+            .unwrap()
+            .trim()
+            .to_string();
         let parsed_font_style = FontStyle::infer(&font_style);
         let parsed_font_weight = if is_variable {
             FontWeight::Regular // font weight doesn't matter for variable fonts
@@ -229,7 +247,7 @@ impl FontFaceWrapper {
             available_codepoints,
             font_data,
             font_index: idx,
-            name_hint,
+            filename_hint,
         }))))
     }
 
@@ -253,6 +271,9 @@ impl FontFaceWrapper {
     }
     pub fn is_variable(&self) -> bool {
         !self.0.variations.is_empty()
+    }
+    pub fn variations(&self) -> &[VariationAxis] {
+        &self.0.variations
     }
     pub fn parsed_font_style(&self) -> FontStyle {
         self.0.parsed_font_style
@@ -331,8 +352,8 @@ impl FontFaceSet {
 
         for font in fonts {
             set.list.push(font.clone());
-            if let Some(name_hint) = &font.0.name_hint {
-                set.push_name(name_hint.as_str(), &font);
+            if let Some(filename_hint) = &font.0.filename_hint {
+                set.push_name(filename_hint.as_str(), &font);
             }
             set.push_name(font.font_family(), &font);
             set.push_name(&format!("{} {}", font.font_family(), font.font_style()), &font);
