@@ -17,7 +17,7 @@ use tracing::debug;
 mod variation_axises;
 mod woff2;
 
-pub use variation_axises::*;
+pub use variation_axises::{AxisName, VariationAxis};
 
 #[derive(EnumSetType, Debug, Decode, Encode)]
 pub enum FontStyle {

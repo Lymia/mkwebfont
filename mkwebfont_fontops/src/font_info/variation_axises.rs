@@ -38,7 +38,7 @@ pub struct VariationAxis {
     pub is_hidden: bool,
 }
 impl VariationAxis {
-    pub fn pin(&self, face: &mut FontFace, input: &mut SubsetInput) {
+    pub(crate) fn pin(&self, face: &mut FontFace, input: &mut SubsetInput) {
         unsafe {
             hb_subset_input_pin_axis_location(
                 input.as_raw(),

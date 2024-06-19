@@ -9,6 +9,8 @@ usually based on the languages used.
 
 ## Usage
 
+### Installation
+
 To install it, simply run the following command:
 ```bash
 cargo +nightly install mkwebfont
@@ -16,7 +18,9 @@ cargo +nightly install mkwebfont
 
 Alternatively, download an AppImage from the [releases page](https://github.com/Lymia/mkwebfont/releases).
 
-Then, run the following command to create a webfont:
+### Basic Usage
+
+Run the following command to create a webfont:
 ```bash
 # Assumes that you serve `https://example.com/` from a directory of `/srv/http/root`.
 # Adjust these paths for your use case
@@ -28,6 +32,21 @@ mkwebfont \
 
 After this, you can simply include the stylesheet at `https://example.com/static/fonts.css`, and then you can use any
 fonts that you included in the command line (e.g. with the `fonts/*` in the example) in your website.
+
+### Usage for Static Websites
+
+mkwebfont has special support for *completely static* websites that are use only HTML and CSS with no dynamic features. For these websites, `mkwebfont` can automatically create webfonts that contain only glyphs actually used in the website and automatically download any fonts requested in the CSS (and available on Google Fonts) from the internet.
+
+Run the following command to create webfonts for a static website:
+
+```bash
+# Assumes that you serve `https://example.com/` from a directory of `/srv/http/root`.
+# Adjust these paths for your use case
+mkdir -p /srv/http/webroot/static/webfonts
+mkwebfont \
+    --store /srv/http/webroot/static/webfonts --store-uri "https://example.com/static/webfonts/" \
+    -o /srv/http/webroot/static/fonts.css --webroot /srv/http/webroot/static/
+```
 
 ## License
 
