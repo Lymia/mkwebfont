@@ -12,6 +12,7 @@ use mkwebfont_common::{
     },
 };
 use std::{
+    io::Read,
     path::PathBuf,
     sync::{Arc, OnceLock},
 };
@@ -77,8 +78,12 @@ async fn data_package_from_source(source: &DownloadSource) -> Result<DataPackage
     } else {
         info!("Downloading '{}' from '{}'...", source.name, source.download_url);
 
-        let request = reqwest::get(source.download_url).await?;
-        let data = request.bytes().await?.to_vec();
+        let request = ureq::get(source.download_url).call()?;
+        let mut data = Vec::new();
+        request
+            .into_reader()
+            .take(1 << 30 /* 1 GiB */)
+            .read_to_end(&mut data)?;
 
         if hash_full(&data) != source.download_hash {
             bail!("Downloaded package hash does not match.");

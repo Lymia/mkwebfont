@@ -9,10 +9,10 @@ members = [
 resolver = "2"
 
 [profile.dev]
-opt-level = 1
+opt-level = 's'
 
 [profile.release]
-opt-level = 3
+opt-level = 's'
 lto = true
 
 [workspace.dependencies]
@@ -26,11 +26,10 @@ enumset = { version = "1.1", features = ["serde"] }
 glob = "0.3"
 roaring = "0.10"
 serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1.38", features = ["rt-multi-thread", "sync"] }
+tokio = { version = "1.38", features = ["rt-multi-thread", "sync", "macros"] }
 tracing = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-toml = "0.8"
 
 # Crates in the workspace
 mkwebfont_common = { version = "0.2.0-alpha1", path = "mkwebfont_common" }

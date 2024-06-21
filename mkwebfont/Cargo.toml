@@ -17,20 +17,19 @@ license = "Apache-2.0"
 default = ["binary", "download-data"]
 binary = ["clap", "tracing-subscriber"]
 appimage = []
-download-data = ["directories", "reqwest"]
+download-data = ["directories", "ureq"]
 
 [[bin]]
 name = "mkwebfont"
 required-features = ["binary"]
 
 [dependencies]
-blake3 = { version = "1.5", features = ["pure"] }
 clap = { version = "4.5", features = ["derive"], optional = true }
 ordered-float = { version = "4.0", default-features = false }
 
 # Used only for downloading mkwebfont-datapkg packages.
 directories = { version = "5.0", optional = true }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"], optional = true }
+ureq = { version = "2.9", optional = true }
 
 # Unicode data
 unicode-blocks = "0.1"
@@ -41,7 +40,6 @@ enumset = { workspace = true }
 tokio = { workspace = true }
 roaring = { workspace = true }
 serde = { workspace = true }
-toml = { workspace = true }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 tracing-subscriber = { workspace = true, optional = true }

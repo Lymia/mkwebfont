@@ -3,7 +3,7 @@ use chrono::DateTime;
 use git2::Repository;
 use glob::glob;
 use mkwebfont_common::{
-    compression::zstd_compress, hashing::raw_hash, join_set::JoinSet, FILTER_SPEC,
+    compression::zstd_compress, download_cache::DownloadInfo, join_set::JoinSet, FILTER_SPEC,
 };
 use mkwebfont_fontops::{
     font_info::{AxisName, FontFaceWrapper},
@@ -50,10 +50,9 @@ async fn main() -> Result<()> {
 
         joins.spawn(async move {
             let loaded_fonts = FontFaceWrapper::load(None, std::fs::read(&full_path)?)?;
-            let hash = raw_hash(&std::fs::read(full_path)?);
             Ok(loaded_fonts
                 .into_iter()
-                .map(|x| (hash.clone(), font.clone(), x))
+                .map(|x| (full_path.clone(), font.clone(), x))
                 .collect())
         });
     }
@@ -61,7 +60,9 @@ async fn main() -> Result<()> {
     let font_faces_len = font_faces.len();
 
     let mut font_info = HashMap::new();
-    for (hash, font_path, font) in font_faces {
+    for (full_path, font_path, font) in font_faces {
+        let url = format!("https://github.com/google/fonts/raw/{rev}/{}", font_path.display());
+
         let info = font_info
             .entry(font.font_family().to_string())
             .or_insert_with(|| GfontInfo {
@@ -80,14 +81,12 @@ async fn main() -> Result<()> {
                 let weight = font.parsed_font_weight().as_num();
                 weight..=weight
             },
-            url_suffix: font_path.display().to_string(),
-            hash,
+            info: DownloadInfo::for_file(&full_path, &url)?,
         });
     }
     let mut font_info: Vec<_> = font_info.into_values().collect();
     font_info.sort_by(|a, b| a.name.cmp(&b.name));
     let font_info = GfontsList {
-        url_prefix: format!("https://github.com/google/fonts/raw/{rev}/"),
         repo_revision: rev.clone(),
         repo_date: rev_date.to_string(),
         repo_short_date: rev_date.format("%Y-%m-%d").to_string(),

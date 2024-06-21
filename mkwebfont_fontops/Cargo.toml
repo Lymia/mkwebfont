@@ -30,7 +30,6 @@ bincode = { workspace = true }
 enumset = { workspace = true }
 roaring = { workspace = true }
 serde = { workspace = true }
-toml = { workspace = true }
 tracing = { workspace = true }
 
 # Subcrates

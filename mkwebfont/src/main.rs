@@ -193,11 +193,6 @@ fn main() -> Result<()> {
         .with_writer(io::stderr)
         .init();
 
-    #[cfg(feature = "download-data")]
-    let rt = Builder::new_multi_thread().enable_io().build()?;
-
-    #[cfg(not(feature = "download-data"))]
     let rt = Builder::new_multi_thread().build()?;
-
     rt.block_on(main_impl(args))
 }
