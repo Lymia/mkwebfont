@@ -23,6 +23,7 @@ use std::{borrow::Cow, path::Path, sync::Arc};
 use tracing::{info_span, warn, Instrument};
 
 // TODO: Figure out how `inherit` et al are represented.
+// TODO: Put out a warning for var(--blah) and such.
 
 #[derive(Clone, Debug)]
 pub struct RawCssRule {

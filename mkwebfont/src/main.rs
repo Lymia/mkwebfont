@@ -45,7 +45,10 @@ struct Args {
     #[arg(short = 'E', long)]
     exclude: Vec<String>,
 
-    /// Prints a report about how much network the font would use in common situations.
+    /// Prints a report about how much network the generated webfonts would use in common
+    /// situations.
+    ///
+    /// This is primarily used for benchmarking purposes.
     #[arg(long)]
     print_report: bool,
 
@@ -53,37 +56,45 @@ struct Args {
     #[arg(long)]
     splitter: Option<SplitterImpl>,
 
-    /// Configures how to subset the fonts, or configures additional CSS code to generate. This
-    /// can be any of the following statements.
+    /// Automatically downloads a font family by name from Google Fonts.
+    #[arg(long)]
+    gfont: Vec<String>,
+
+    /// The webroot to automatically generate webfonts for.
     ///
-    /// * `@<file name>`: A new-line delimited list of spec statements.
+    /// This automatically generates `--subset-data`, `--gfont` and `--store-uri` arguments based
+    /// on the contents of the webroot.
+    #[arg(short = 'r', long)]
+    webroot: Option<PathBuf>,
+
+    /// Enables subsetting the input fonts before splitting them.
+    #[arg(long)]
+    subset: bool,
+
+    /// Specifies how to subset fonts when `--subset` is enabled. The following directives are
+    /// allowed:
     ///
-    /// * `fallback:<font list>`: Marks the list of fonts as being used for fallback, at the end
-    ///   of every character not found in a font stack. You should generally use this with a high
-    ///   quality font such as Noto Sans.
+    /// * `@<file path>` - Parses the file at a given path as a new-line seperated list of subset
+    ///   directives.
     ///
-    /// * `preload:<font list>:<text data>`: Hints that certain characters occur on most pages, and
-    ///   should be placed in the same split font as the primary script.
+    /// * `<font list>:<text data>` - Specifies that a given font stack is used with the given text
+    ///   data.
     ///
-    /// * `subset:<font list>:<text data>`: Subsets a font stack with the given text data.
+    /// * `exclude:<font list>:<text data>` - Specifies that all characters in the given text data
+    ///   are to never be included in any fonts in the given text list. This is meant for purposes
+    ///   like using a font only for Chinese characters and not Latin characters.
     ///
-    /// * `stack:<name>[/<language>]:<font list>[:<text data>]`: Creates a font stack, possibly
-    ///   subsetting it with specific text data. Generates a `.font-<name>` CSS class and a
-    ///   `--font-<name>` CSS variable.
+    /// * `preload:<font list>:<text data>` - Specifies that all characters in the given text data
+    ///   are to be included among the latin characters (or other split subset of the most common
+    ///   characters)
     ///
-    /// * `exclusion:<font list>:<text data>`: Specifies that all characters in a given text data
-    ///   are never to be included in the given list of fonts.
+    /// A font list is a comma-delimited list of font names.
     ///
-    /// * `whitelist`: Specifies that all fonts not explicitly subset are to be considered empty,
-    ///   and not generated at all.
-    ///
-    /// * `munge_font_names`: Modifies font names such that they are more unique in the actual CSS.
-    ///
-    /// Font lists are comma seperated lists of fonts, or `*`. Text data is raw text data,
-    /// `@<file name>` to load it from a file, or `*` to include all characters. Syntax bracketed
-    /// in `[x]` is optional and may be omitted.
-    #[arg(short = 'S', long)]
-    spec: Vec<String>,
+    /// Text data may be `@<file path>` to load data from a given file, `#<unicode ranges>` for a
+    /// list of unicode ranges in the same format as `unicode-range` in CSS, or raw string data
+    /// that will be directly interpreted as text.
+    #[arg(long)]
+    subset_data: Vec<String>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]

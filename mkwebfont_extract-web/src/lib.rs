@@ -5,6 +5,8 @@ mod gather_css;
 mod utils;
 mod webroot;
 
+// TODO: Add support for `style="..."`.
+
 mod consts {
     pub const CACHE_SIZE: u64 = 128;
 }

@@ -252,29 +252,31 @@ impl AdjacencyArray {
     }
 
     pub fn get_pairing(&self, a: u32, b: u32) -> u64 {
-        if a != b {
-            let Some(data_a) = self.meta.codepoints.get(&a) else {
-                return 0;
-            };
-            let Some(data_b) = self.meta.codepoints.get(&b) else {
-                return 0;
-            };
+        let Some(data_a) = self.meta.codepoints.get(&a) else {
+            return 0;
+        };
+        let Some(data_b) = self.meta.codepoints.get(&b) else {
+            return 0;
+        };
 
-            let is_same_block = (data_a.block_id == data_b.block_id) as u64;
-            if !data_a.has_place() || !data_b.has_place() {
-                return is_same_block;
-            }
-            let data = self.data[place_idx(data_a.place(), data_b.place())];
-            (data as u64) * 2 + is_same_block
-        } else {
-            self.get_character_frequency(a)
+        if !data_a.has_place() || !data_b.has_place() {
+            return 0;
         }
+
+        self.meta
+            .encoder
+            .decode(self.data[place_idx(data_a.place(), data_b.place())])
     }
 
-    pub fn estimate_conditional_probability(&self, set: &[char], new: char) -> u64 {
-        let mut accum = u64::MAX;
+    pub fn estimate_wasted_space_score(&self, set: &[u32], new: u32) -> u64 {
+        // Theory: Estimates the number of pages in the training data set where this character is
+        //         included, but does not need to be.
+        let mut accum = 0;
+        let new_freq = self.get_character_frequency(new);
         for &ch in set {
-            accum = accum.min(self.get_pairing(ch as u32, new as u32));
+            let freq = self.get_character_frequency(ch);
+            let pairing = self.get_pairing(ch, new);
+            accum = accum.max(freq + new_freq - 2 * pairing);
         }
         accum
     }
