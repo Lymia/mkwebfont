@@ -1,10 +1,9 @@
 use crate::{
-    data::DataStorage, render::FontEncoder, splitter::SplitterImplementation,
-    splitter_plan::LoadedSplitterPlan,
+    data::DataStorage, splitter::SplitterImplementation, splitter_plan::LoadedSplitterPlan,
 };
 use anyhow::Result;
 use mkwebfont_common::model::subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup};
-use mkwebfont_fontops::font_info::FontFaceWrapper;
+use mkwebfont_fontops::{font_info::FontFaceWrapper, subsetter::FontEncoder};
 use ordered_float::OrderedFloat;
 use roaring::RoaringBitmap;
 use std::{collections::HashSet, sync::Arc};
@@ -47,7 +46,7 @@ struct SplitterState {
 impl SplitterState {
     async fn init(font: &FontFaceWrapper, plan: &LoadedSplitterPlan) -> Result<SplitterState> {
         let fulfilled = font.all_codepoints().clone();
-        let fulfilled = fulfilled.clone() - plan.do_split(fulfilled.clone());
+        let fulfilled = fulfilled.clone() - plan.apply_subsetting(fulfilled.clone());
 
         Ok(SplitterState {
             font: font.clone(),
@@ -87,7 +86,7 @@ impl SplitterState {
                 }
 
                 self.fulfilled_codepoints.extend(new_codepoints.clone());
-                encoder.add_subset(&name, &self.plan, new_codepoints);
+                encoder.add_subset(&name, new_codepoints);
             } else {
                 debug!("Rejecting subset: {name} (unique codepoints: {})", new_codepoints.len())
             }

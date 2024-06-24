@@ -2,7 +2,7 @@ use crate::{utils, webroot::RelaWebroot};
 use anyhow::Result;
 use arcstr::ArcStr;
 use scraper::{Html, Selector};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tracing::warn;
 
 mod parse;
@@ -17,9 +17,12 @@ enum CssSource {
 }
 
 fn extract_css_sources(document: &ArcStr) -> Result<Vec<CssSource>> {
+    static SELECTOR: LazyLock<Selector> =
+        LazyLock::new(|| Selector::parse("style,link[rel~=stylesheet]").unwrap());
+
     let document = Html::parse_document(&document);
     let mut data = Vec::new();
-    for tag in document.select(&Selector::parse("style,link[rel~=stylesheet]").unwrap()) {
+    for tag in document.select(&SELECTOR) {
         match tag.value().name.local.as_bytes() {
             b"link" => match tag.value().attr("href") {
                 Some(x) => data.push(CssSource::RelFile(x.to_string())),

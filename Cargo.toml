@@ -18,10 +18,9 @@ lto = true
 [workspace.dependencies]
 # Common dependencies
 anyhow = "1.0"
+arcstr = "1.2.0"
 async-recursion = "1.1"
 bincode = "2.0.0-rc.3"
-bindgen = "0.69"
-cc = "1.0"
 enumset = { version = "1.1", features = ["serde"] }
 glob = "0.3"
 roaring = "0.10"
@@ -31,7 +30,15 @@ tracing = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# Build-time dependencies
+bindgen = "0.69"
+cc = "1.0"
+
+# Unicode data
+unicode-blocks = "0.1"
+
 # Crates in the workspace
 mkwebfont_common = { version = "0.2.0-alpha1", path = "mkwebfont_common" }
+mkwebfont_extract-web = { version = "0.1.0", path = "mkwebfont_extract-web" }
 mkwebfont_fontops = { version = "0.1.0", path = "mkwebfont_fontops" }
 mkwebfont_hb-subset = { version = "0.3.0", path = "mkwebfont_hb-subset" }

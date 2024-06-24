@@ -24,12 +24,17 @@ include = [
 # Linking-only dependencies (Rust implementation, used by woff2)
 brotli = { version = "6.0", features = ["ffi-api"] }
 
+# Unicode data
+unicode-blocks = { workspace = true}
+
 # Common Dependencies
 anyhow = { workspace = true }
+arcstr = { workspace = true }
 bincode = { workspace = true }
 enumset = { workspace = true }
 roaring = { workspace = true }
 serde = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 
 # Subcrates

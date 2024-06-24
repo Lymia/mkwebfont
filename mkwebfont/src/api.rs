@@ -7,10 +7,8 @@ use std::path::Path;
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{debug, info, info_span, Instrument};
 
-pub use crate::{
-    render::{SubsetInfo, WebfontInfo},
-    splitter_plan::SplitterPlan,
-};
+pub use crate::splitter_plan::SplitterPlan;
+pub use mkwebfont_fontops::subsetter::{SubsetInfo, WebfontInfo};
 
 /// A loaded font.
 ///

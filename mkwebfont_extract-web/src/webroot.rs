@@ -24,7 +24,7 @@ impl Webroot {
         })))
     }
 
-    fn canonicalize(&self, rela_root: Option<&Path>, mut path: &str) -> Result<PathBuf> {
+    pub fn resolve(&self, rela_root: Option<&Path>, mut path: &str) -> Result<PathBuf> {
         let resolved_root = if path.starts_with("/") || rela_root.is_none() {
             while path.starts_with("/") {
                 path = &path[1..];
@@ -61,7 +61,7 @@ impl Webroot {
     }
 
     pub async fn load(&self, rela_root: Option<&Path>, path: &str) -> Result<ArcStr> {
-        self.cache_read(&self.canonicalize(rela_root, path)?).await
+        self.cache_read(&self.resolve(rela_root, path)?).await
     }
 
     pub async fn load_rela(
@@ -69,7 +69,7 @@ impl Webroot {
         rela_root: Option<&Path>,
         path: &str,
     ) -> Result<(ArcStr, RelaWebroot)> {
-        let path = self.canonicalize(rela_root, path)?;
+        let path = self.resolve(rela_root, path)?;
         Ok((self.cache_read(&path).await?, self.rela(&path)?))
     }
 
@@ -103,6 +103,10 @@ pub struct RelaWebroot {
     rela_root: Arc<Path>,
 }
 impl RelaWebroot {
+    pub fn resolve(&self, path: &str) -> Result<PathBuf> {
+        self.root.resolve(Some(&self.parent), path)
+    }
+
     pub async fn load(&self, path: &str) -> Result<ArcStr> {
         self.root.load(Some(&self.parent), path).await
     }
@@ -119,7 +123,7 @@ impl RelaWebroot {
         &self.parent
     }
 
-    pub fn name(&self) -> &Arc<Path> {
+    pub fn file_name(&self) -> &Arc<Path> {
         &self.rela_root
     }
 }

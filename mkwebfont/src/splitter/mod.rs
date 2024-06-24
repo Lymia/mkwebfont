@@ -1,10 +1,9 @@
 use crate::{
-    render::FontEncoder,
     splitter_plan::{FontFlags, LoadedSplitterPlan},
     WebfontInfo,
 };
 use anyhow::Result;
-use mkwebfont_fontops::font_info::FontFaceWrapper;
+use mkwebfont_fontops::{font_info::FontFaceWrapper, subsetter::FontEncoder};
 use tracing::info;
 
 mod adjacency;
@@ -27,7 +26,7 @@ impl SplitterImplementation for NullSplitter {
         plan: &LoadedSplitterPlan,
         encoder: &mut FontEncoder,
     ) -> Result<()> {
-        encoder.add_subset("all", plan, plan.do_split(font.all_codepoints().clone()));
+        encoder.add_subset("all", plan.apply_subsetting(font.all_codepoints().clone()));
         Ok(())
     }
 }

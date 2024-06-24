@@ -13,7 +13,7 @@ impl Deref for LoadedSplitterPlan {
     }
 }
 impl LoadedSplitterPlan {
-    pub fn do_split(&self, chars: RoaringBitmap) -> RoaringBitmap {
+    pub fn apply_subsetting(&self, chars: RoaringBitmap) -> RoaringBitmap {
         if self.subset.is_empty() {
             chars
         } else {

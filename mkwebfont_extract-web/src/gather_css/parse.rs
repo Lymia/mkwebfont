@@ -4,6 +4,7 @@ use arcstr::ArcStr;
 use async_recursion::async_recursion;
 use cssparser::ToCss as CssParserToString;
 use lightningcss::{
+    declaration::DeclarationBlock,
     printer::PrinterOptions,
     properties::{
         custom::{CustomProperty, CustomPropertyName, Token, TokenOrValue},
@@ -36,11 +37,118 @@ pub struct RawCssRule {
 
 #[derive(Clone, Debug)]
 pub struct RawCssRuleDeclarations {
-    pub font_stack: Option<Arc<[String]>>,
+    pub font_stack: Option<Arc<[ArcStr]>>,
     pub font_weight: Option<AbsoluteFontWeight>,
     pub font_style: Option<FontStyle>,
     pub is_displayed: Option<bool>,
     pub content: Option<ArcStr>,
+}
+
+/// Parses CSS font families into the form used in the rest of this subcrate.
+pub fn parse_font_families(families: &[FontFamily<'_>]) -> Arc<[ArcStr]> {
+    let mut new = Vec::new();
+    for family in families {
+        match family {
+            FontFamily::Generic(_) => {
+                warn!("Generic font families are ignored: {family:?}")
+            }
+            FontFamily::FamilyName(name) => new.push(name.to_lowercase().into()),
+        }
+    }
+    new.into()
+}
+
+/// Parses the list of declarations in a CSS rule into only the ones we need.
+pub fn parse_declarations(style: &DeclarationBlock) -> Result<Option<RawCssRuleDeclarations>> {
+    let mut raw_declarations = RawCssRuleDeclarations {
+        font_stack: None,
+        font_weight: None,
+        font_style: None,
+        is_displayed: None,
+        content: None,
+    };
+    let mut is_interesting = false;
+
+    if !style.important_declarations.is_empty() {
+        warn!("`!important` is not handled correctly.");
+    }
+
+    for declaration in style
+        .important_declarations
+        .iter()
+        .chain(style.declarations.iter())
+    {
+        /// Parses CSS font weight declarations.
+        fn parse_font_weight(weight: &FontWeight) -> Option<AbsoluteFontWeight> {
+            match weight {
+                FontWeight::Absolute(v) => Some(v.clone()),
+                FontWeight::Bolder | FontWeight::Lighter => {
+                    warn!("Relative font weights are not supported.");
+                    None
+                }
+            }
+        }
+
+        match declaration {
+            Property::Display(kind) => {
+                if let Display::Keyword(DisplayKeyword::None) = kind {
+                    raw_declarations.is_displayed = Some(false);
+                } else {
+                    raw_declarations.is_displayed = Some(true);
+                }
+                is_interesting = true;
+            }
+
+            Property::Font(font) => {
+                raw_declarations.font_stack = Some(parse_font_families(&font.family));
+                raw_declarations.font_weight = parse_font_weight(&font.weight);
+                raw_declarations.font_style = Some(font.style.clone());
+                is_interesting = true;
+            }
+            Property::FontFamily(family) => {
+                raw_declarations.font_stack = Some(parse_font_families(&family));
+                is_interesting = true;
+            }
+            Property::FontWeight(weight) => {
+                raw_declarations.font_weight = parse_font_weight(weight);
+                is_interesting = true;
+            }
+            Property::FontStyle(style) => {
+                raw_declarations.font_style = Some(style.clone());
+                is_interesting = true;
+            }
+
+            // Custom properties parsing
+            Property::Custom(CustomProperty { name: CustomPropertyName::Unknown(name), value }) => {
+                match name.0.as_ref() {
+                    "content" => {
+                        if value.0.len() == 1 {
+                            match &value.0[0] {
+                                TokenOrValue::Token(Token::String(str)) => {
+                                    raw_declarations.content = Some(str.to_string().into());
+                                    is_interesting = true;
+                                }
+                                _ => warn!("Could not parse `content` attribute: {value:?}"),
+                            }
+                        } else {
+                            warn!("Could not parse `content` attribute: {value:?}");
+                        }
+                    }
+                    // TODO: Support stylistic sets and font variation settings.
+                    _ => {}
+                }
+            }
+
+            // ignore all other properties
+            _ => {}
+        }
+    }
+
+    if is_interesting {
+        Ok(Some(raw_declarations))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Parses CSS data into a list of CSS rules.
@@ -160,124 +268,13 @@ async fn parse_css(
         })
     }
 
-    /// Parses the list of declarations in a CSS rule into only the ones we need.
-    fn parse_declarations(style: &StyleRule) -> Result<Option<RawCssRuleDeclarations>> {
-        let mut raw_declarations = RawCssRuleDeclarations {
-            font_stack: None,
-            font_weight: None,
-            font_style: None,
-            is_displayed: None,
-            content: None,
-        };
-        let mut is_interesting = false;
-
-        if !style.declarations.important_declarations.is_empty() {
-            warn!("`!important` is not handled correctly.");
-        }
-
-        for declaration in style
-            .declarations
-            .important_declarations
-            .iter()
-            .chain(style.declarations.declarations.iter())
-        {
-            /// Parses CSS font families
-            fn parse_font_families(families: &[FontFamily<'_>]) -> Arc<[String]> {
-                let mut new = Vec::new();
-                for family in families {
-                    match family {
-                        FontFamily::Generic(_) => {
-                            warn!("Generic font families are ignored: {family:?}")
-                        }
-                        FontFamily::FamilyName(name) => new.push(name.to_string()),
-                    }
-                }
-                new.into()
-            }
-
-            /// Parses CSS font weight declarations.
-            fn parse_font_weight(weight: &FontWeight) -> Option<AbsoluteFontWeight> {
-                match weight {
-                    FontWeight::Absolute(v) => Some(v.clone()),
-                    FontWeight::Bolder | FontWeight::Lighter => {
-                        warn!("Relative font weights are not supported.");
-                        None
-                    }
-                }
-            }
-
-            match declaration {
-                Property::Display(kind) => {
-                    if let Display::Keyword(DisplayKeyword::None) = kind {
-                        raw_declarations.is_displayed = Some(false);
-                    } else {
-                        raw_declarations.is_displayed = Some(true);
-                    }
-                    is_interesting = true;
-                }
-
-                Property::Font(font) => {
-                    raw_declarations.font_stack = Some(parse_font_families(&font.family));
-                    raw_declarations.font_weight = parse_font_weight(&font.weight);
-                    raw_declarations.font_style = Some(font.style.clone());
-                    is_interesting = true;
-                }
-                Property::FontFamily(family) => {
-                    raw_declarations.font_stack = Some(parse_font_families(&family));
-                    is_interesting = true;
-                }
-                Property::FontWeight(weight) => {
-                    raw_declarations.font_weight = parse_font_weight(weight);
-                    is_interesting = true;
-                }
-                Property::FontStyle(style) => {
-                    raw_declarations.font_style = Some(style.clone());
-                    is_interesting = true;
-                }
-
-                // Custom properties parsing
-                Property::Custom(CustomProperty {
-                    name: CustomPropertyName::Unknown(name),
-                    value,
-                }) => {
-                    match name.0.as_ref() {
-                        "content" => {
-                            if value.0.len() == 1 {
-                                match &value.0[0] {
-                                    TokenOrValue::Token(Token::String(str)) => {
-                                        raw_declarations.content = Some(str.to_string().into());
-                                        is_interesting = true;
-                                    }
-                                    _ => warn!("Could not parse `content` attribute: {value:?}"),
-                                }
-                            } else {
-                                warn!("Could not parse `content` attribute: {value:?}");
-                            }
-                        }
-                        // TODO: Support stylistic sets and font variation settings.
-                        _ => {}
-                    }
-                }
-
-                // ignore all other properties
-                _ => {}
-            }
-        }
-
-        if is_interesting {
-            Ok(Some(raw_declarations))
-        } else {
-            Ok(None)
-        }
-    }
-
     /// Generates the list of rules for a single style rule declaration.
     fn generate_rules(
         out: &mut Vec<Arc<RawCssRule>>,
         style: &StyleRule,
         force_conditional: bool,
     ) -> Result<()> {
-        if let Some(declarations) = parse_declarations(style)? {
+        if let Some(declarations) = parse_declarations(&style.declarations)? {
             let declarations = Arc::new(declarations);
             for selector in &style.selectors.0 {
                 let filtered = filter_selector(selector, selector)?;
@@ -389,7 +386,7 @@ impl CssCache {
         source: ArcStr,
         root: &RelaWebroot,
     ) -> Result<Arc<[Arc<RawCssRule>]>> {
-        let root_name: Cow<str> = match root.name().file_name() {
+        let root_name: Cow<str> = match root.file_name().file_name() {
             None => Cow::Borrowed("<unknown>"),
             Some(name) => name.to_string_lossy(),
         };

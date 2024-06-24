@@ -4,12 +4,20 @@ use enumset::{EnumSet, EnumSetType};
 use mkwebfont_common::hashing::WyHashBuilder;
 use std::{
     collections::{HashMap, HashSet},
+    path::PathBuf,
     sync::Arc,
 };
 
 #[derive(Debug, Clone)]
 pub struct TextInfo {
-    pub data: Vec<FontStackInfo>,
+    pub font_stacks: Vec<FontStackInfo>,
+    pub stylesheets: Vec<StylesheetInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StylesheetInfo {
+    pub path: PathBuf,
+    pub add_font_faces: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -78,13 +86,12 @@ impl TextInfoBuilder {
         }
     }
 
-    fn intern_stack(&mut self, str: &[String]) -> Arc<[ArcStr]> {
-        let arc: Arc<[_]> = str.iter().map(|x| ArcStr::from(x.to_lowercase())).collect();
-        if let Some(x) = self.cached_stacks.get(&arc) {
+    fn intern_stack(&mut self, arc: &Arc<[ArcStr]>) -> Arc<[ArcStr]> {
+        if let Some(x) = self.cached_stacks.get(arc) {
             x.clone()
         } else {
             self.cached_stacks.insert(arc.clone());
-            arc
+            arc.clone()
         }
     }
 
@@ -121,7 +128,7 @@ impl TextInfoBuilder {
             .collect();
 
         for stack in &properties.font_stack {
-            let stack = self.intern_stack(&stack);
+            let stack = self.intern_stack(stack);
             let texts = self
                 .stacks
                 .entry(stack)
@@ -136,7 +143,7 @@ impl TextInfoBuilder {
         let mut keys: Vec<_> = self.stacks.keys().collect();
         keys.sort();
 
-        let mut out = TextInfo { data: vec![] };
+        let mut out = TextInfo { font_stacks: vec![], stylesheets: vec![] };
         for key in keys {
             let stack = self.stacks.get(key).unwrap();
             let mut stack_keys: Vec<_> = stack.keys().collect();
@@ -152,7 +159,7 @@ impl TextInfoBuilder {
                     content,
                 });
             }
-            out.data.push(stack_info);
+            out.font_stacks.push(stack_info);
         }
         out
     }

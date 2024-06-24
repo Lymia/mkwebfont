@@ -1,7 +1,6 @@
-use crate::splitter_plan::LoadedSplitterPlan;
+use crate::font_info::{FontFaceWrapper, FontStyle, FontWeight};
 use anyhow::*;
 use mkwebfont_common::hashing::{hash_fragment, hash_full};
-use mkwebfont_fontops::font_info::{FontFaceWrapper, FontStyle, FontWeight};
 use roaring::RoaringBitmap;
 use std::{
     fmt::{Display, Formatter},
@@ -13,8 +12,6 @@ use std::{
 use tokio::{task, task::JoinHandle};
 use tracing::{debug, Instrument};
 use unicode_blocks::find_unicode_block;
-
-// TODO: Optimize subset ranges
 
 fn extract_name(str: &str) -> String {
     let mut out = String::new();
@@ -178,20 +175,13 @@ pub struct SubsetInfo {
     woff2_data: Vec<u8>,
 }
 impl SubsetInfo {
-    fn new(
-        plan: &LoadedSplitterPlan,
-        font: &FontFaceWrapper,
-        name: &str,
-        subset: RoaringBitmap,
-        woff2_data: Vec<u8>,
-    ) -> Self {
+    fn new(font: &FontFaceWrapper, name: &str, subset: RoaringBitmap, woff2_data: Vec<u8>) -> Self {
         let font_name = extract_name(font.font_family());
         let font_style = extract_name(font.font_style());
         let font_version = extract_version(font.font_version());
         let is_regular = font_style.to_lowercase() == "regular";
 
-        let codepoints = plan.do_split(font.all_codepoints().clone());
-        let subset_ranges = decode_range(&subset, &codepoints);
+        let subset_ranges = decode_range(&subset, &font.all_codepoints());
 
         SubsetInfo {
             name: name.to_string(),
@@ -273,15 +263,14 @@ impl FontEncoder {
         FontEncoder { font, woff2_subsets: Vec::new() }
     }
 
-    pub fn add_subset(&mut self, name: &str, plan: &LoadedSplitterPlan, codepoints: RoaringBitmap) {
+    pub fn add_subset(&mut self, name: &str, codepoints: RoaringBitmap) {
         let name = name.to_string();
         let font = self.font.clone();
-        let plan = plan.clone();
         self.woff2_subsets.push(task::spawn(
             async move {
                 debug!("Encoding subset '{name}' with {} codepoints.", codepoints.len());
                 let subset_woff2 = font.subset(&name, &codepoints)?;
-                Ok(SubsetInfo::new(&plan, &font, &name, codepoints, subset_woff2))
+                Ok(SubsetInfo::new(&font, &name, codepoints, subset_woff2))
             }
             .in_current_span(),
         ));

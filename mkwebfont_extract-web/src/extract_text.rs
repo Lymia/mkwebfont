@@ -24,7 +24,7 @@ pub async fn extract_text(
     let mut samples = Vec::new();
     {
         let document = Html::parse_document(&data);
-        let node_info = RawNodeInfo::compute(&document, &rules);
+        let node_info = RawNodeInfo::compute(&document, &rules)?;
         for element in document.root_element().descendent_elements() {
             let has_text = element.children().any(|x| x.value().is_text());
 

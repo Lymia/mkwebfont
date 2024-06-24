@@ -2,6 +2,7 @@ mod apply_rules;
 mod extract_text;
 mod font_info;
 mod gather_css;
+mod rewrite_css;
 mod utils;
 mod webroot;
 

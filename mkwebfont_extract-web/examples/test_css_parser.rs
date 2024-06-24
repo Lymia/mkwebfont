@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
 
     let info = extractor.build().await;
     println!("{:#?}", info);
-    for stack in &info.data {
+    for stack in &info.font_stacks {
         println!("{:?} => {:?}", stack.stack, stack.glyphs());
     }
 
