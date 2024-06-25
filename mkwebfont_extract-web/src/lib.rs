@@ -1,10 +1,10 @@
 mod apply_rules;
 mod extract_text;
-mod font_info;
 mod gather_css;
 mod rewrite_css;
 mod utils;
 mod webroot;
+mod webroot_info;
 
 // TODO: Add support for `style="..."`.
 
@@ -13,7 +13,13 @@ mod consts {
 }
 
 mod api {
-    use crate::{font_info::TextInfoBuilder, gather_css::CssCache, webroot::Webroot, TextInfo};
+    use crate::{
+        gather_css::CssCache,
+        rewrite_css::{RewriteContext, RewriteTargets},
+        webroot::Webroot,
+        webroot_info::TextInfoBuilder,
+        WebrootInfo,
+    };
     use anyhow::Result;
     use arcstr::ArcStr;
     use mkwebfont_common::join_set::JoinSet;
@@ -29,6 +35,7 @@ mod api {
     #[derive(Debug)]
     struct TextExtractorData {
         builder: Arc<RwLock<TextInfoBuilder>>,
+        target: Arc<RwLock<RewriteTargets>>,
         css_cache: CssCache,
     }
     impl TextExtractor {
@@ -72,8 +79,12 @@ mod api {
             Ok(())
         }
 
-        pub async fn build(&self) -> TextInfo {
-            self.0.builder.read().await.build()
+        pub async fn build(&self) -> WebrootInfo {
+            self.0
+                .builder
+                .read()
+                .await
+                .build(&(*self.0.target.read().await))
         }
     }
     impl TextExtractorData {
@@ -101,6 +112,10 @@ mod api {
                 self.builder.clone(),
             )
             .await?;
+            {
+                let mut write = self.target.write().await;
+                crate::rewrite_css::find_css_for_rewrite(&mut write, &data, &root)?;
+            }
             Ok(())
         }
     }
@@ -108,11 +123,20 @@ mod api {
         fn default() -> Self {
             TextExtractor(Arc::new(TextExtractorData {
                 builder: Arc::new(RwLock::new(TextInfoBuilder::default())),
+                target: Arc::new(RwLock::new(RewriteTargets::default())),
                 css_cache: CssCache::new(),
             }))
         }
     }
+
+    impl WebrootInfo {
+        pub async fn rewrite_webroot(&self, ctx: RewriteContext) -> Result<()> {
+            crate::rewrite_css::perform_rewrite(&self.targets, Arc::new(ctx)).await?;
+            Ok(())
+        }
+    }
 }
 
-pub use api::TextExtractor;
-pub use font_info::{FontStackInfo, TextInfo, TextSample};
+pub use api::*;
+pub use rewrite_css::RewriteContext;
+pub use webroot_info::{FontStackInfo, TextSample, WebrootInfo};

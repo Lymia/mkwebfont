@@ -14,7 +14,7 @@ struct Args {
     fonts: Vec<PathBuf>,
 
     /// The location to store generated .woff2 files in.
-    #[arg(short, long)]
+    #[arg(short = 's', long)]
     store: Option<PathBuf>,
 
     /// The URI at which the .woof2 store can be accessed at.
@@ -22,21 +22,21 @@ struct Args {
     store_uri: Option<String>,
 
     /// The path to write the .css file to, replacing the existing contents.
-    #[arg(short, long)]
+    #[arg(short = 'o', long)]
     output: Option<PathBuf>,
 
     /// The path to append the .css file to, adding it to the end of the file.
-    #[arg(short, long)]
+    #[arg(short = 'a', long)]
     append: Option<PathBuf>,
 
     /// Whether to enable verbose output
-    #[arg(short, long)]
+    #[arg(short = 'v', long)]
     verbose: bool,
 
     /// Include only certain font families.
     ///
     /// This is useful when working with TrueType Font Collections.
-    #[arg(short, long)]
+    #[arg(short = 'f', long)]
     family: Vec<String>,
 
     /// Exclude certain font families.
@@ -66,6 +66,10 @@ struct Args {
     /// on the contents of the webroot.
     #[arg(short = 'r', long)]
     webroot: Option<PathBuf>,
+
+    /// Rewrites the contents at the webroot to use the webfonts.
+    #[arg(short = 'w', long)]
+    write_to_webroot: bool,
 
     /// Enables subsetting the input fonts before splitting them.
     #[arg(long)]

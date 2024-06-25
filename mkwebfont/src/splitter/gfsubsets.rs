@@ -1,6 +1,4 @@
-use crate::{
-    data::DataStorage, splitter::SplitterImplementation, splitter_plan::LoadedSplitterPlan,
-};
+use crate::{data::DataStorage, plan::LoadedSplitterPlan, splitter::SplitterImplementation};
 use anyhow::Result;
 use mkwebfont_common::model::subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup};
 use mkwebfont_fontops::{font_info::FontFaceWrapper, subsetter::FontEncoder};

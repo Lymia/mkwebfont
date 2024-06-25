@@ -53,7 +53,7 @@ fn is_same_block(ch_a: char, ch_b: char) -> bool {
     false
 }
 
-fn decode_range(bitmap: &RoaringBitmap, all_chars: &RoaringBitmap) -> Vec<RangeInclusive<char>> {
+fn decode_range(bitmap: &RoaringBitmap, all_chars: &RoaringBitmap) -> Vec<RangeInclusive<u32>> {
     let mut range_start = None;
     let mut range_last = '\u{fffff}';
     let mut ranges = Vec::new();
@@ -75,7 +75,7 @@ fn decode_range(bitmap: &RoaringBitmap, all_chars: &RoaringBitmap) -> Vec<RangeI
                 }
 
                 if !can_merge {
-                    ranges.push(start..=range_last);
+                    ranges.push(start as u32..=range_last as u32);
                     range_start = Some(ch);
                 }
             }
@@ -85,7 +85,7 @@ fn decode_range(bitmap: &RoaringBitmap, all_chars: &RoaringBitmap) -> Vec<RangeI
         range_last = ch;
     }
     if let Some(start) = range_start {
-        ranges.push(start..=range_last);
+        ranges.push(start as u32..=range_last as u32);
     }
 
     ranges
@@ -98,6 +98,7 @@ pub struct WebfontInfo {
     font_style_text: Arc<str>,
     font_style: FontStyle,
     font_weight: FontWeight,
+    weight_range: RangeInclusive<u32>,
     entries: Vec<Arc<SubsetInfo>>,
 }
 impl WebfontInfo {
@@ -105,7 +106,7 @@ impl WebfontInfo {
     pub fn write_to_store(&self, target: &Path) -> Result<()> {
         let mut path = target.to_path_buf();
         for entry in &self.entries {
-            path.push(&entry.file_name);
+            path.push(&entry.woff2_file_name);
             debug!("Writing {}...", path.display());
             fs::write(&path, &entry.woff2_data)?;
             path.pop();
@@ -119,6 +120,18 @@ impl WebfontInfo {
 
     pub fn font_style(&self) -> &str {
         &self.font_style_text
+    }
+
+    pub fn parsed_font_style(&self) -> FontStyle {
+        self.font_style
+    }
+
+    pub fn parsed_font_weight(&self) -> FontWeight {
+        self.font_weight
+    }
+
+    pub fn weight_range(&self) -> RangeInclusive<u32> {
+        self.weight_range.clone()
     }
 
     /// Returns a stylesheet appropriate for using this webfont.
@@ -145,7 +158,7 @@ impl WebfontInfo {
         bitmap
     }
 }
-struct UnicodeRange<'a>(&'a [RangeInclusive<char>]);
+struct UnicodeRange<'a>(&'a [RangeInclusive<u32>]);
 impl<'a> Display for UnicodeRange<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut first = true;
@@ -157,9 +170,9 @@ impl<'a> Display for UnicodeRange<'a> {
             }
 
             if range.start() == range.end() {
-                write!(f, "U+{:X}", *range.start() as u32)?;
+                write!(f, "U+{:X}", *range.start())?;
             } else {
-                write!(f, "U+{:X}-{:X}", *range.start() as u32, *range.end() as u32)?;
+                write!(f, "U+{:X}-{:X}", *range.start(), *range.end())?;
             }
         }
         Result::Ok(())
@@ -169,9 +182,9 @@ impl<'a> Display for UnicodeRange<'a> {
 #[derive(Debug, Clone)]
 pub struct SubsetInfo {
     name: String,
-    file_name: String,
+    woff2_file_name: String,
     subset: RoaringBitmap,
-    subset_ranges: Vec<RangeInclusive<char>>,
+    subset_ranges: Vec<RangeInclusive<u32>>,
     woff2_data: Vec<u8>,
 }
 impl SubsetInfo {
@@ -185,7 +198,7 @@ impl SubsetInfo {
 
         SubsetInfo {
             name: name.to_string(),
-            file_name: format!(
+            woff2_file_name: format!(
                 "{font_name}{}{}_{font_version}_{name}",
                 if !is_regular || font.is_variable() { "_" } else { "" },
                 if font.is_variable() {
@@ -203,7 +216,7 @@ impl SubsetInfo {
     }
 
     fn finalize_name(&mut self, frag: &str) {
-        self.file_name = format!("{}_{frag}.woff2", self.file_name);
+        self.woff2_file_name = format!("{}_{frag}.woff2", self.woff2_file_name);
     }
 
     /// Returns the name of the subset.
@@ -212,13 +225,18 @@ impl SubsetInfo {
     }
 
     /// Returns the file name that this subset will be saved to.
-    pub fn file_name(&self) -> &str {
-        &self.file_name
+    pub fn woff2_file_name(&self) -> &str {
+        &self.woff2_file_name
     }
 
     /// Returns the characters this subset applies to.
     pub fn subset(&self) -> &RoaringBitmap {
         &self.subset
+    }
+
+    /// Returns the unicode ranges this subset covers.
+    pub fn unicode_ranges(&self) -> &[RangeInclusive<u32>] {
+        &self.subset_ranges
     }
 
     /// Returns the .woff2 data as an array.
@@ -246,7 +264,7 @@ impl<'a> Display for FontStylesheetDisplay<'a> {
             writeln!(
                 f,
                 "\tsrc: url({:?}) format(\"woff2\");",
-                format!("{}{}", self.store_uri, entry.file_name)
+                format!("{}{}", self.store_uri, entry.woff2_file_name)
             )?;
             writeln!(f, "}}")?;
         }
@@ -281,7 +299,7 @@ impl FontEncoder {
         for data in self.woff2_subsets {
             entries.push(data.await??);
         }
-        entries.sort_by_cached_key(|x| x.file_name.to_string());
+        entries.sort_by_cached_key(|x| x.woff2_file_name.to_string());
 
         let fragment = {
             let mut data = Vec::new();
@@ -303,6 +321,7 @@ impl FontEncoder {
             font_style_text: self.font.font_style().to_string().into(),
             font_style: self.font.parsed_font_style(),
             font_weight: self.font.parsed_font_weight(),
+            weight_range: self.font.weight_range(),
             entries,
         })
     }

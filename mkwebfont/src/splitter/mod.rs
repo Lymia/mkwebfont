@@ -1,5 +1,5 @@
 use crate::{
-    splitter_plan::{FontFlags, LoadedSplitterPlan},
+    plan::{FontFlags, LoadedSplitterPlan},
     WebfontInfo,
 };
 use anyhow::Result;

@@ -1,4 +1,4 @@
-use crate::{data::DataStorage, quality_report::FontReport, splitter, splitter_plan::FontFlags};
+use crate::{data::DataStorage, plan::FontFlags, quality_report::FontReport, splitter};
 use anyhow::Result;
 use mkwebfont_common::join_set::JoinSet;
 use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
@@ -7,8 +7,11 @@ use std::path::Path;
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{debug, info, info_span, Instrument};
 
-pub use crate::splitter_plan::SplitterPlan;
-pub use mkwebfont_fontops::subsetter::{SubsetInfo, WebfontInfo};
+pub use crate::plan::SplitterPlan;
+pub use mkwebfont_fontops::{
+    font_info::{FontStyle, FontWeight},
+    subsetter::{SubsetInfo, WebfontInfo},
+};
 
 /// A loaded font.
 ///

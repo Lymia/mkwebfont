@@ -1,33 +1,25 @@
 use enumset::*;
 use mkwebfont_fontops::font_info::FontFaceWrapper;
-use roaring::RoaringBitmap;
 use std::{collections::HashSet, ops::Deref, sync::Arc};
+
+mod subsetter;
 
 /// A loaded configuration for font splitting.
 #[derive(Clone)]
 pub struct LoadedSplitterPlan(pub(crate) Arc<SplitterPlanData>);
+pub struct SplitterPlanData {
+    pub family_config: FontFamilyConfig,
+    pub flags: EnumSet<FontFlags>,
+    pub subset_specs: Vec<String>,
+}
 impl Deref for LoadedSplitterPlan {
     type Target = SplitterPlanData;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
-impl LoadedSplitterPlan {
-    pub fn apply_subsetting(&self, chars: RoaringBitmap) -> RoaringBitmap {
-        if self.subset.is_empty() {
-            chars
-        } else {
-            chars & self.subset.clone()
-        }
-    }
-}
 
-pub struct SplitterPlanData {
-    pub preload: RoaringBitmap,
-    pub family_config: FontFamilyConfig,
-    pub flags: EnumSet<FontFlags>,
-    pub subset: RoaringBitmap,
-}
+impl SplitterPlanData {}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FontFamilyConfig {
@@ -56,35 +48,17 @@ pub enum FontFlags {
 /// Represents a configuration for font splitting.
 #[derive(Clone, Debug)]
 pub struct SplitterPlan {
-    preload: RoaringBitmap,
     family_config: FontFamilyConfig,
     pub(crate) flags: EnumSet<FontFlags>,
-    subset: RoaringBitmap,
+    subset_specs: Vec<String>,
 }
 impl SplitterPlan {
     pub fn new() -> SplitterPlan {
         SplitterPlan {
-            preload: Default::default(),
             family_config: FontFamilyConfig::AllFonts,
             flags: Default::default(),
-            subset: Default::default(),
+            subset_specs: vec![],
         }
-    }
-
-    /// A set of characters that should be injected into the same font as the basic latin
-    /// characters. This is meant for use with common UI elements used across a website.
-    pub fn preload_chars(&mut self, chars: impl Iterator<Item = char>) -> &mut Self {
-        for ch in chars {
-            self.preload.insert(ch as u32);
-        }
-        self
-    }
-
-    pub fn subset_chars(&mut self, chars: impl Iterator<Item = char>) -> &mut Self {
-        for ch in chars {
-            self.subset.insert(ch as u32);
-        }
-        self
     }
 
     /// Sets a list of font families to whitelist. Font families not in the list will not be
@@ -145,12 +119,17 @@ impl SplitterPlan {
         self
     }
 
+    /// Adds a subset spec statement to this plan.
+    pub fn subset_spec(&mut self, spec: &str) -> &mut Self {
+        self.subset_specs.push(spec.to_string());
+        self
+    }
+
     pub fn build(&self) -> LoadedSplitterPlan {
         LoadedSplitterPlan(Arc::new(SplitterPlanData {
-            preload: self.preload.clone(),
             family_config: self.family_config.clone(),
             flags: self.flags,
-            subset: self.subset.clone(),
+            subset_specs: self.subset_specs.clone(),
         }))
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
-    apply_rules::RawNodeInfo, font_info::TextInfoBuilder, gather_css::CssCache,
-    webroot::RelaWebroot,
+    apply_rules::RawNodeInfo, gather_css::CssCache, webroot::RelaWebroot,
+    webroot_info::TextInfoBuilder,
 };
 use anyhow::Result;
 use arcstr::ArcStr;

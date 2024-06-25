@@ -1,23 +1,19 @@
-use crate::apply_rules::{ParsedFontStyle, ResolvedNodeProperties};
+use crate::{
+    apply_rules::{ParsedFontStyle, ResolvedNodeProperties},
+    rewrite_css::RewriteTargets,
+};
 use arcstr::ArcStr;
 use enumset::{EnumSet, EnumSetType};
 use mkwebfont_common::hashing::WyHashBuilder;
 use std::{
     collections::{HashMap, HashSet},
-    path::PathBuf,
     sync::Arc,
 };
 
 #[derive(Debug, Clone)]
-pub struct TextInfo {
+pub struct WebrootInfo {
     pub font_stacks: Vec<FontStackInfo>,
-    pub stylesheets: Vec<StylesheetInfo>,
-}
-
-#[derive(Debug, Clone)]
-pub struct StylesheetInfo {
-    pub path: PathBuf,
-    pub add_font_faces: bool,
+    pub(crate) targets: RewriteTargets,
 }
 
 #[derive(Debug, Clone)]
@@ -139,11 +135,11 @@ impl TextInfoBuilder {
         }
     }
 
-    pub fn build(&self) -> TextInfo {
+    pub fn build(&self, targets: &RewriteTargets) -> WebrootInfo {
         let mut keys: Vec<_> = self.stacks.keys().collect();
         keys.sort();
 
-        let mut out = TextInfo { font_stacks: vec![], stylesheets: vec![] };
+        let mut out = WebrootInfo { font_stacks: vec![], targets: targets.clone() };
         for key in keys {
             let stack = self.stacks.get(key).unwrap();
             let mut stack_keys: Vec<_> = stack.keys().collect();

@@ -41,7 +41,7 @@ Run the following command to create webfonts for a static website:
 # Assumes that you serve `https://example.com/` from a directory of `/srv/http/webroot`.
 # Adjust these paths for your use case
 mkdir -p /srv/http/webroot/static/webfonts
-mkwebfont --store /srv/http/webroot/static/webfonts --webroot /srv/http/webroot/ --subset
+mkwebfont --store /srv/http/webroot/static/webfonts --webroot /srv/http/webroot/ --subset --write-to-webroot
 ```
 
 A stylesheet marked with `rel="stylesheet mkwebfont"` will be automatically generated or modified to include the webfonts.
@@ -49,6 +49,8 @@ A stylesheet marked with `rel="stylesheet mkwebfont"` will be automatically gene
 Many advanced CSS features are not supposed, you will be warned if you use these. As a basic rule of thumb, do not use `var(--xx)`, or special values like `inherit` or `revert` for font-related CSS attributes. Consider using a CSS generator like SCSS to help avoid this if at all possible.
 
 **WARNING:** Many of these warnings are not yet implemented in the alpha version. Additionally, some lesser used (but still common) functionality like support for the `style=` attribute is both unimplemented and does not have warnings.
+
+**WARNING:** This *edits* the webroot rather than simply using it as a reference. In general, this functionality is designed to be called as part of a build process, not called on a manually constructed webroot. For that use, the basic usage instructions are far more appropriate.
 
 ## License
 

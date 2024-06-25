@@ -1,5 +1,5 @@
 use crate::gather_css::{parse_declarations, RawCssRule, RawCssRuleDeclarations};
-use anyhow::{Error, Result};
+use anyhow::Result;
 use arcstr::ArcStr;
 use ego_tree::NodeId;
 use enumset::{EnumSet, EnumSetType};
@@ -9,7 +9,7 @@ use lightningcss::{
     stylesheet::ParserOptions,
 };
 use mkwebfont_common::hashing::WyHashBuilder;
-use scraper::{selectable::Selectable, Element, ElementRef, Html, Selector};
+use scraper::{Element, ElementRef, Html, Selector};
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, LazyLock},

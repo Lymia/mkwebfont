@@ -60,6 +60,10 @@ impl Webroot {
             .await?)
     }
 
+    pub fn root(&self) -> &Path {
+        &self.0.root
+    }
+
     pub async fn load(&self, rela_root: Option<&Path>, path: &str) -> Result<ArcStr> {
         self.cache_read(&self.resolve(rela_root, path)?).await
     }
@@ -91,7 +95,7 @@ impl Webroot {
         Ok(RelaWebroot {
             root: self.clone(),
             parent: path.parent().unwrap().to_path_buf().into(),
-            rela_root: path.into(),
+            file_name: path.into(),
         })
     }
 }
@@ -100,7 +104,7 @@ impl Webroot {
 pub struct RelaWebroot {
     root: Webroot,
     parent: Arc<Path>,
-    rela_root: Arc<Path>,
+    file_name: Arc<Path>,
 }
 impl RelaWebroot {
     pub fn resolve(&self, path: &str) -> Result<PathBuf> {
@@ -124,6 +128,6 @@ impl RelaWebroot {
     }
 
     pub fn file_name(&self) -> &Arc<Path> {
-        &self.rela_root
+        &self.file_name
     }
 }

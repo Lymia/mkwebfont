@@ -7,6 +7,7 @@ use roaring::RoaringBitmap;
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Display, Formatter},
+    ops::RangeInclusive,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -282,6 +283,19 @@ impl FontFaceWrapper {
         self.0.parsed_font_weight
     }
 
+    pub fn weight_range(&self) -> RangeInclusive<u32> {
+        if let Some(axis) = self
+            .variations()
+            .iter()
+            .find(|x| x.axis == Some(AxisName::Weight))
+        {
+            *axis.range.start() as u32..=*axis.range.end() as u32
+        } else {
+            let weight = self.parsed_font_weight().as_num();
+            weight..=weight
+        }
+    }
+
     pub fn subset(&self, name: &str, chars: &RoaringBitmap) -> Result<Vec<u8>> {
         // Load the font into harfbuzz
         let blob = Blob::from_bytes(&self.0.font_data)?;
@@ -328,6 +342,7 @@ impl Display for FontFaceWrapper {
 pub struct FontFaceSet {
     list: Vec<FontFaceWrapper>,
     by_name: HashMap<String, FontFaceWrapper, WyHashBuilder>,
+    by_id: HashMap<FontId, FontFaceWrapper, WyHashBuilder>,
     ambigious: HashSet<String, WyHashBuilder>,
 }
 impl FontFaceSet {
@@ -347,6 +362,7 @@ impl FontFaceSet {
         let mut set = FontFaceSet {
             list: vec![],
             by_name: Default::default(),
+            by_id: Default::default(),
             ambigious: Default::default(),
         };
 
@@ -357,6 +373,7 @@ impl FontFaceSet {
             }
             set.push_name(font.font_family(), &font);
             set.push_name(&format!("{} {}", font.font_family(), font.font_style()), &font);
+            set.by_id.insert(font.font_id(), font);
         }
 
         set
@@ -364,6 +381,10 @@ impl FontFaceSet {
 
     pub fn as_list(&self) -> &[FontFaceWrapper] {
         &self.list
+    }
+
+    pub fn get_by_id(&self, id: FontId) -> Option<&FontFaceWrapper> {
+        self.by_id.get(&id)
     }
 
     pub fn resolve(&self, name: &str) -> Result<&FontFaceWrapper> {
