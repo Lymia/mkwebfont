@@ -392,7 +392,6 @@ impl CssCache {
         };
         let root_name: &str = &root_name;
         let span = info_span!("parse_css", name = root_name);
-        let _entry = span.enter();
 
         match self
             .cache
@@ -404,7 +403,7 @@ impl CssCache {
                         Err(e) => Err(e.to_string()),
                     }
                 }
-                .in_current_span(),
+                .instrument(span),
             )
             .await
         {

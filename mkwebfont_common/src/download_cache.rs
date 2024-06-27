@@ -28,7 +28,7 @@ static CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     cache_dir
 });
 
-#[derive(Clone, Encode, Decode)]
+#[derive(Clone, Encode, Decode, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct DownloadInfo {
     filename_prefix: String,
     filename_suffix: String,

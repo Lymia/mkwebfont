@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::RwLock;
-use tracing::{info, info_span};
+use tracing::{info, info_span, Instrument};
 
 #[derive(Debug, Clone)]
 pub struct WebrootInfoExtractor(Arc<WebrootInfoExtractorData>);
@@ -85,23 +85,27 @@ impl WebrootInfoExtractorData {
             None => "<unknown>".to_string(),
             Some(target) => target.to_string_lossy().to_string(),
         };
-        let span = info_span!("parse_html", name = file_name);
-        let _enter = span.enter();
 
-        let (data, root) = webroot.load_rela_raw(target).await?;
-        crate::extract_text::extract_text(
-            &data,
-            &root,
-            &self.css_cache,
-            inject_css,
-            self.builder.clone(),
-        )
-        .await?;
-        {
-            let mut write = self.target.write().await;
-            crate::rewrite_css::find_css_for_rewrite(&mut write, &data, &root)?;
+        let span = info_span!("parse_html", name = file_name);
+        async {
+            let (data, root) = webroot.load_rela_raw(target).await?;
+            crate::extract_text::extract_text(
+                &data,
+                &root,
+                &self.css_cache,
+                inject_css,
+                self.builder.clone(),
+            )
+            .await?;
+            {
+                let mut write = self.target.write().await;
+                crate::rewrite_css::find_css_for_rewrite(&mut write, &data, &root)?;
+            }
+
+            Ok(())
         }
-        Ok(())
+        .instrument(span)
+        .await
     }
 }
 impl Default for WebrootInfoExtractor {

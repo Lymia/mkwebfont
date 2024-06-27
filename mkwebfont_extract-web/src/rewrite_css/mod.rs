@@ -16,7 +16,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, LazyLock},
 };
-use tracing::warn;
+use tracing::{warn, Instrument};
 
 #[derive(Default, Debug, Clone)]
 pub struct RewriteTargets {
@@ -108,12 +108,14 @@ async fn perform_rewrite_for_root(
     {
         let ctx = ctx.clone();
         let root = webroot.rela(&path)?;
-        joins.spawn(async move { css_ops::process_css_path(&ctx, &root, append_fonts) });
+        joins.spawn(
+            async move { css_ops::process_css_path(&ctx, &root, append_fonts) }.in_current_span(),
+        );
     }
     for path in &targets.rewrite_html_style {
         let ctx = ctx.clone();
         let root = webroot.rela(&path)?;
-        joins.spawn(async move { process_html_path(&ctx, &root) });
+        joins.spawn(async move { process_html_path(&ctx, &root) }.in_current_span());
     }
     joins.join().await?;
     Ok(())
@@ -131,7 +133,10 @@ pub async fn perform_rewrite(targets: &RewriteTargets, ctx: Arc<RewriteContext>)
         let targets = targets.clone();
         let webroot = Webroot::new(root.to_path_buf())?;
         let ctx = ctx.clone();
-        joins.spawn(async move { perform_rewrite_for_root(&targets, &webroot, ctx).await });
+        joins.spawn(
+            async move { perform_rewrite_for_root(&targets, &webroot, ctx).await }
+                .in_current_span(),
+        );
     }
     joins.join().await?;
     Ok(())
@@ -191,6 +196,8 @@ pub fn find_css_for_rewrite(
                         .0,
                 ),
             );
+        } else if css_list.len() == 1 {
+            css_list_fonts.extend(css_list.drain(..));
         } else {
             warn!("Arbitrary adding @font-face declarations to the first stylesheet linked.");
             warn!("This is probably not what you want.");

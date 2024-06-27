@@ -1,6 +1,6 @@
 use crate::{data::DataStorage, plan::FontFlags, quality_report::FontReport, splitter};
 use anyhow::{bail, Result};
-use mkwebfont_common::join_set::JoinSet;
+use mkwebfont_common::{download_cache::DownloadInfo, hashing::WyHashSet, join_set::JoinSet};
 use mkwebfont_extract_web::{WebrootInfo, WebrootInfoExtractor};
 use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
 use roaring::RoaringBitmap;
@@ -79,6 +79,7 @@ pub struct LoadedFontSetBuilder {
     fonts: Vec<LoadedFont>,
     paths: Vec<PathBuf>,
     gfonts: Vec<String>,
+    webroot: Option<Webroot>,
 }
 impl LoadedFontSetBuilder {
     /// Creates a new empty builder.
@@ -99,6 +100,13 @@ impl LoadedFontSetBuilder {
     pub fn load_from_gfonts(mut self, fonts: impl IntoIterator<Item = impl AsRef<str>>) -> Self {
         self.gfonts
             .extend(fonts.into_iter().map(|x| x.as_ref().to_string()));
+        self
+    }
+
+    /// Loads the fonts required for a given webroot.
+    pub fn add_from_webroot(mut self, webroot: &Webroot) -> Self {
+        assert!(self.webroot.is_none());
+        self.webroot = Some(webroot.clone());
         self
     }
 
@@ -149,7 +157,14 @@ impl LoadedFontSetBuilder {
         fonts.extend(joins.join_vec().await?);
         fonts.extend(self.fonts);
 
+        if let Some(webroot) = self.webroot {
+            info!("Resolving remaining webroot fonts...");
+            let font_set = FontFaceSet::build(fonts.iter().map(|x| x.underlying.clone()));
+            fonts.extend(load_fonts_from_webroot(webroot, font_set).await?);
+        }
+
         let font_set = FontFaceSet::build(fonts.into_iter().map(|x| x.underlying));
+        info!("{} total fonts loaded!", font_set.as_list().len());
         Ok(LoadedFontSet { font_set })
     }
 }
@@ -165,6 +180,62 @@ impl LoadedFontSet {
     pub fn resolve(&self, name: &str) -> Result<LoadedFont> {
         Ok(LoadedFont { underlying: self.font_set.resolve(name)?.clone() })
     }
+}
+
+/// A fast function for loading remaining fonts in a webroot from Google Fonts
+async fn load_fonts_from_webroot(
+    webroot: Webroot,
+    existing: FontFaceSet,
+) -> Result<Vec<LoadedFont>> {
+    fn check_font(
+        existing: &FontFaceSet,
+        name: &str,
+        style: FontStyle,
+        weight: FontWeight,
+    ) -> Result<Option<&'static DownloadInfo>> {
+        if existing.resolve_by_style(name, style, weight).is_ok() {
+            Ok(None)
+        } else {
+            if let Some(font) = GfontsList::find_font(name) {
+                if let Some(style) = font.find_nearest_match(style, weight) {
+                    Ok(Some(&style.info))
+                } else {
+                    bail!("No such font exists on Google Fonts: {name} / {style} / {weight}");
+                }
+            } else {
+                bail!("No such font exists on Google Fonts: {name}");
+            }
+        }
+    }
+
+    let mut infos = WyHashSet::default();
+    for stacks in &webroot.0.font_stacks {
+        for font in &*stacks.stack {
+            for sample in &stacks.samples {
+                for style in sample.used_styles {
+                    for weight in &*sample.used_weights {
+                        if let Some(info) = check_font(&existing, font.as_str(), style, *weight)? {
+                            if infos.insert(info) {
+                                info!("Loading font: (Google Fonts) {font} / {style} / {weight}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut joins = JoinSet::new();
+    for info in infos {
+        joins.spawn(async move {
+            let data = info.load().await?;
+            LoadedFont::load(&data)
+        });
+    }
+
+    let fonts = joins.join_vec().await?;
+    info!("Loaded {} required font files from Google Fonts...", fonts.len());
+    Ok(fonts)
 }
 
 /// A fast function for loading fonts from Google Fonts.
@@ -277,13 +348,14 @@ impl Webroot {
 pub async fn process_webfont(
     plan: &SplitterPlan,
     fonts: &LoadedFontSet,
+    webroot: Option<&Webroot>,
 ) -> Result<Vec<WebfontInfo>> {
     let plan = plan.build();
 
     finish_preload().await?;
 
     let assigned = Arc::new(if plan.flags.contains(FontFlags::DoSubsetting) {
-        plan.calculate_subsets(&fonts.font_set, None)?
+        plan.calculate_subsets(&fonts.font_set, webroot.map(|x| &*x.0))?
     } else {
         AssignedSubsets::disabled().clone()
     });

@@ -131,7 +131,7 @@ impl Display for FontWeight {
 pub struct FontId(usize);
 impl FontId {
     fn new() -> Self {
-        const CURRENT_ID: AtomicUsize = AtomicUsize::new(0);
+        static CURRENT_ID: AtomicUsize = AtomicUsize::new(0);
         loop {
             let cur = CURRENT_ID.load(Ordering::Relaxed);
             assert_ne!(cur, usize::MAX);
@@ -434,7 +434,9 @@ impl FontFaceSet {
     ) -> Result<&FontFaceWrapper> {
         let mut near_match = Vec::new();
         for font in &self.list {
-            if font.font_family() == name && font.parsed_font_style().is_compatible(style) {
+            if font.font_family().eq_ignore_ascii_case(name)
+                && font.parsed_font_style().is_compatible(style)
+            {
                 if font.parsed_font_style() == style
                     && font.weight_range().contains(&weight.as_num())
                 {
@@ -449,12 +451,12 @@ impl FontFaceSet {
             .map(|x| {
                 (x, (x.parsed_font_style() == style, weight.dist_from_range(&x.weight_range())))
             })
-            .min_by_key(|x| x.1)
+            .max_by_key(|x| x.1)
             .map(|x| *x.0)
         {
             Ok(font)
         } else {
-            bail!("No fonts match specification: {name} / {style:?} / {weight:?}");
+            bail!("No fonts match specification: {name} / {style} / {weight}");
         }
     }
 

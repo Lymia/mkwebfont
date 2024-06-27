@@ -1,3 +1,9 @@
 area, datalist, head, link, param, script, style, title {
     display: none;
 }
+b, h1, h2, h3, h4, h5, h6, strong, th {
+    font-weight: bold;
+}
+address, em, i, var {
+    font-style: italic;
+}

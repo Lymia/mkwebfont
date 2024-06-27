@@ -1,4 +1,7 @@
-use std::hash::{BuildHasher, Hash, Hasher};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::{BuildHasher, Hash, Hasher},
+};
 use wyrand::WyHash;
 
 // we don't need a secret, and generating a secret involves primality checks. oww.
@@ -18,6 +21,9 @@ pub fn wyhash(seed: u64, data: &(impl Hash + ?Sized)) -> u64 {
     data.hash(&mut wyh);
     wyh.finish()
 }
+
+pub type WyHashSet<V> = HashSet<V, WyHashBuilder>;
+pub type WyHashMap<K, V> = HashMap<K, V, WyHashBuilder>;
 
 pub use wyrand::WyRand;
 

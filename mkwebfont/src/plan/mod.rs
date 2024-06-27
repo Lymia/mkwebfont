@@ -28,7 +28,7 @@ impl SplitterPlanData {
     pub fn calculate_subsets(
         &self,
         fonts: &FontFaceSet,
-        webroot: Option<WebrootInfo>,
+        webroot: Option<&WebrootInfo>,
     ) -> Result<AssignedSubsets> {
         let mut builder = SubsetDataBuilder::default();
         for spec in &self.subset_specs {

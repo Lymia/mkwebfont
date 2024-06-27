@@ -44,8 +44,6 @@ mkdir -p /srv/http/webroot/static/webfonts
 mkwebfont --store /srv/http/webroot/static/webfonts --webroot /srv/http/webroot/ --subset --write-to-webroot
 ```
 
-A stylesheet marked with `rel="stylesheet mkwebfont"` will be automatically generated or modified to include the webfonts.
-
 Many advanced CSS features are not supposed, you will be warned if you use these. As a basic rule of thumb, do not use `var(--xx)`, or special values like `inherit` or `revert` for font-related CSS attributes. Consider using a CSS generator like SCSS to help avoid this if at all possible.
 
 **WARNING:** Many of these warnings are not yet implemented in the alpha version. Additionally, some lesser used (but still common) functionality like support for the `style=` attribute is both unimplemented and does not have warnings.

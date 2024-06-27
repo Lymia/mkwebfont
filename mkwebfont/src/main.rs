@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use mkwebfont::{LoadedFontSetBuilder, SplitterPlan};
+use mkwebfont::{LoadedFontSetBuilder, SplitterPlan, Webroot};
 use mkwebfont_common::FILTER_SPEC;
 use mkwebfont_extract_web::RewriteContext;
 use std::{fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf, sync::Arc};
@@ -160,19 +160,22 @@ async fn main_impl(args: Args) -> Result<()> {
         ctx.subset_spec(&spec);
     }
 
+    // load webroot
+    let webroot = match args.webroot {
+        Some(root) => Some(Webroot::load(&root).await?),
+        None => None,
+    };
+
     // load fonts
     let mut fonts = LoadedFontSetBuilder::new();
     fonts = fonts.load_from_disk(&args.fonts);
     fonts = fonts.load_from_gfonts(&args.gfont);
+    if let Some(root) = &webroot {
+        fonts = fonts.add_from_webroot(&root);
+    }
 
     // process webfonts
-    let styles = mkwebfont::process_webfont(&ctx, &fonts.build().await?).await?;
-
-    let store_uri = if let Some(store_uri) = args.store_uri {
-        store_uri
-    } else {
-        String::new()
-    };
+    let styles = mkwebfont::process_webfont(&ctx, &fonts.build().await?, webroot.as_ref()).await?;
 
     // write webfonts to store and render css
     let count: usize = styles.iter().map(|x| x.subset_count()).sum();
@@ -185,7 +188,11 @@ async fn main_impl(args: Args) -> Result<()> {
     let ctx = RewriteContext {
         webfonts: styles.into_iter().map(Arc::new).collect(),
         store_path: store,
-        store_uri: Some(store_uri),
+        store_uri: Some(if let Some(store_uri) = args.store_uri {
+            store_uri
+        } else {
+            String::new()
+        }),
         ..RewriteContext::default()
     };
     let css = ctx.generate_font_css()?;

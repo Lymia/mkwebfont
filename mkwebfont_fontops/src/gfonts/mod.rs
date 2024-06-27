@@ -57,7 +57,7 @@ impl GfontInfo {
             .iter()
             .filter(|x| x.style.is_compatible(style))
             .map(|x| (x, (x.style == style, weight.dist_from_range(&x.weight))))
-            .min_by_key(|x| x.1)
+            .max_by_key(|x| x.1)
         {
             Some(info)
         } else {

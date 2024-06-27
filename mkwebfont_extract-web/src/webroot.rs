@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use tracing::debug;
+use tracing::{debug, Instrument};
 
 #[derive(Clone)]
 pub struct Webroot(Arc<WebrootData>);
@@ -54,9 +54,10 @@ impl Webroot {
         Ok(self
             .0
             .cache
-            .try_get_with::<_, io::Error>(path.to_path_buf(), async {
-                Ok(std::fs::read_to_string(path)?.into())
-            })
+            .try_get_with::<_, io::Error>(
+                path.to_path_buf(),
+                async { Ok(std::fs::read_to_string(path)?.into()) }.in_current_span(),
+            )
             .await?)
     }
 

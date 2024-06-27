@@ -72,11 +72,12 @@ impl SubsetDataBuilder {
         let mut current = text.clone();
         for i in 0..fonts.len() {
             ensure!(fonts[i].len() > 0, "Fonts lists cannot be empty!");
-            let mut available_codepoints = fonts[i][0].all_codepoints().clone();
+            let mut fulfilled_codepoints = fonts[i][0].all_codepoints().clone();
             for font in &fonts[i][1..] {
-                available_codepoints &= font.all_codepoints();
+                fulfilled_codepoints &= font.all_codepoints();
             }
-            let fulfilled_codepoints = available_codepoints & &current;
+            fulfilled_codepoints &= &current;
+            let fulfilled_codepoints = fulfilled_codepoints;
 
             for j in 0..fonts[i].len() {
                 self.get_subset_mut(fonts[i][j].font_id())
@@ -230,20 +231,28 @@ impl SubsetDataBuilder {
 
     /// This function expects that all fonts present in the `TextInfo` are loaded!!
     /// That is not the job of this function.
-    pub fn push_webroot_info(&mut self, fonts: &FontFaceSet, text: WebrootInfo) -> Result<()> {
-        for stack in text.font_stacks {
-            for sample in stack.samples {
+    pub fn push_webroot_info(&mut self, fonts: &FontFaceSet, text: &WebrootInfo) -> Result<()> {
+        for stack in &text.font_stacks {
+            for sample in &stack.samples {
                 let mut list = Vec::new();
                 for font in &*stack.stack {
-                    list.push(fonts.resolve_by_styles(
-                        &font,
-                        sample.used_styles,
-                        &sample.used_weights,
-                    ))
+                    list.push(
+                        fonts
+                            .resolve_by_styles(&font, sample.used_styles, &sample.used_weights)?
+                            .into_iter()
+                            .map(|x| x.clone())
+                            .collect(),
+                    )
                 }
+
+                let mut chars = RoaringBitmap::new();
+                for ch in sample.glyphs().chars() {
+                    chars.insert(ch as u32);
+                }
+                self.push_stack(chars, &list)?;
             }
         }
-        todo!()
+        Ok(())
     }
 
     pub fn build(self) -> AssignedSubsets {
