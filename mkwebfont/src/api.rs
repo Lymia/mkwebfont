@@ -3,17 +3,16 @@ use anyhow::Result;
 use mkwebfont_common::join_set::JoinSet;
 use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
 use roaring::RoaringBitmap;
-use std::path::Path;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{debug, info, info_span, Instrument};
 
+use crate::plan::AssignedSubsets;
 pub use crate::plan::SplitterPlan;
 pub use mkwebfont_fontops::{
     font_info::{FontStyle, FontWeight},
     subsetter::{SubsetInfo, WebfontInfo},
 };
-use crate::plan::AssignedSubsets;
 
 /// A loaded font.
 ///

@@ -46,10 +46,7 @@ struct SplitterState {
     preload_done: bool,
 }
 impl SplitterState {
-    async fn init(
-        font: &FontFaceWrapper,
-        assigned: &AssignedSubsets,
-    ) -> Result<SplitterState> {
+    async fn init(font: &FontFaceWrapper, assigned: &AssignedSubsets) -> Result<SplitterState> {
         let fulfilled = font.all_codepoints() - assigned.get_used_chars(font);
         Ok(SplitterState {
             font: font.clone(),

@@ -2,9 +2,11 @@ use anyhow::Result;
 use clap::Parser;
 use mkwebfont::{LoadedFontSetBuilder, SplitterPlan};
 use mkwebfont_common::FILTER_SPEC;
-use std::{fmt::Write, fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
+use std::{fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
+use std::sync::Arc;
 use tokio::runtime::Builder;
 use tracing::{error, info, warn};
+use mkwebfont_extract_web::RewriteContext;
 
 /// Generates webfonts for a given font.
 #[derive(Parser, Debug)]
@@ -174,12 +176,17 @@ async fn main_impl(args: Args) -> Result<()> {
     let count: usize = styles.iter().map(|x| x.subset_count()).sum();
     info!("Writing {count} files to store...");
 
-    let mut css = String::new();
     let store = args.store.unwrap();
-    for style in styles {
-        writeln!(css, "{}", style.render_css(&store_uri))?;
+    for style in &styles {
         style.write_to_store(&store)?;
     }
+    let ctx = RewriteContext {
+        webfonts: styles.into_iter().map(Arc::new).collect(),
+        store_path: store,
+        store_uri: Some(store_uri),
+        ..RewriteContext::default()
+    };
+    let css = ctx.generate_font_css()?;
 
     // write css to output
     if let Some(target) = args.output {

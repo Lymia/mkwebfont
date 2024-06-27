@@ -30,11 +30,11 @@ struct WebrootRewriteTargets {
     rewrite_css_path_fonts: HashSet<Arc<Path>, WyHashBuilder>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct RewriteContext {
     pub fallback_font_name: String,
     pub add_fallback: HashSet<Arc<[ArcStr]>, WyHashBuilder>,
-    pub webfonts: Vec<WebfontInfo>,
+    pub webfonts: Vec<Arc<WebfontInfo>>,
     pub store_path: PathBuf,
     pub store_uri: Option<String>,
 }

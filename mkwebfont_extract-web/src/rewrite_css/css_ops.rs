@@ -38,6 +38,11 @@ fn generate_font_face_stylesheet<'a, 'b>(
     store_uri: &str,
 ) -> StyleSheet<'a, 'b> {
     let mut sheet = StyleSheet::new(vec![], CssRuleList(vec![]), ParserOptions::default());
+    let store_prefix = if store_uri.is_empty() {
+        String::new()
+    } else {
+        format!("{store_uri}/")
+    };
     for font in &ctx.webfonts {
         let weight_range = font.weight_range();
         let weight_low = *weight_range.start();
@@ -77,7 +82,7 @@ fn generate_font_face_stylesheet<'a, 'b>(
                 .properties
                 .push(FontFaceProperty::Source(vec![Source::Url(UrlSource {
                     url: Url {
-                        url: format!("{store_uri}/{}", subset.woff2_file_name()).into(),
+                        url: format!("{store_prefix}{}", subset.woff2_file_name()).into(),
                         loc: DEFAULT_LOC_CSS,
                     },
                     format: Some(FontFormat::WOFF2),

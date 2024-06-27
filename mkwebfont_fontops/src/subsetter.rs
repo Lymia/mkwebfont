@@ -2,13 +2,7 @@ use crate::font_info::{FontFaceWrapper, FontStyle, FontWeight};
 use anyhow::*;
 use mkwebfont_common::hashing::{hash_fragment, hash_full};
 use roaring::RoaringBitmap;
-use std::{
-    fmt::{Display, Formatter},
-    fs,
-    ops::RangeInclusive,
-    path::Path,
-    sync::Arc,
-};
+use std::{fs, ops::RangeInclusive, path::Path, sync::Arc};
 use tokio::{task, task::JoinHandle};
 use tracing::{debug, Instrument};
 use unicode_blocks::find_unicode_block;
@@ -134,11 +128,6 @@ impl WebfontInfo {
         self.weight_range.clone()
     }
 
-    /// Returns a stylesheet appropriate for using this webfont.
-    pub fn render_css<'a>(&'a self, store_uri: &str) -> impl Display + 'a {
-        FontStylesheetDisplay { store_uri: store_uri.to_string(), sheet: self }
-    }
-
     /// Returns the number of subsets in the webfont.
     pub fn subset_count(&self) -> usize {
         self.entries.len()
@@ -156,26 +145,6 @@ impl WebfontInfo {
             bitmap.extend(&subset.subset);
         }
         bitmap
-    }
-}
-struct UnicodeRange<'a>(&'a [RangeInclusive<u32>]);
-impl<'a> Display for UnicodeRange<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut first = true;
-        for range in self.0 {
-            if first {
-                first = false;
-            } else {
-                f.write_str(", ")?;
-            }
-
-            if range.start() == range.end() {
-                write!(f, "U+{:X}", *range.start())?;
-            } else {
-                write!(f, "U+{:X}-{:X}", *range.start(), *range.end())?;
-            }
-        }
-        Result::Ok(())
     }
 }
 
@@ -242,33 +211,6 @@ impl SubsetInfo {
     /// Returns the .woff2 data as an array.
     pub fn woff2_data(&self) -> &[u8] {
         &self.woff2_data
-    }
-}
-
-struct FontStylesheetDisplay<'a> {
-    pub store_uri: String,
-    pub sheet: &'a WebfontInfo,
-}
-impl<'a> Display for FontStylesheetDisplay<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for entry in &self.sheet.entries {
-            writeln!(f, "@font-face {{")?;
-            writeln!(f, "\tfont-family: {:?};", self.sheet.font_family)?;
-            if self.sheet.font_style != FontStyle::Regular {
-                writeln!(f, "\tfont-style: {};", self.sheet.font_style)?;
-            }
-            if self.sheet.font_weight != FontWeight::Regular {
-                writeln!(f, "\tfont-weight: {};", self.sheet.font_weight)?;
-            }
-            writeln!(f, "\tunicode-range: {};", UnicodeRange(&entry.subset_ranges))?;
-            writeln!(
-                f,
-                "\tsrc: url({:?}) format(\"woff2\");",
-                format!("{}{}", self.store_uri, entry.woff2_file_name)
-            )?;
-            writeln!(f, "}}")?;
-        }
-        Result::Ok(())
     }
 }
 
