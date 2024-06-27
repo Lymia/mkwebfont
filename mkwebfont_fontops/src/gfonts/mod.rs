@@ -3,7 +3,12 @@ use bincode::{config::standard, Decode, Encode};
 use mkwebfont_common::{
     compression::zstd_decompress, download_cache::DownloadInfo, hashing::WyHashBuilder,
 };
-use std::{collections::HashMap, fmt::Debug, ops::RangeInclusive, sync::LazyLock};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display, Formatter},
+    ops::RangeInclusive,
+    sync::LazyLock,
+};
 
 #[derive(Debug, Clone, Decode, Encode)]
 pub struct GfontsList {
@@ -23,7 +28,7 @@ impl GfontsList {
         &*CACHE
     }
 
-    pub fn find_font(&self, name: &str) -> Option<&GfontInfo> {
+    pub fn find_font(name: &str) -> Option<&'static GfontInfo> {
         static CACHE: LazyLock<HashMap<&'static str, &'static GfontInfo, WyHashBuilder>> =
             LazyLock::new(|| {
                 let mut map = HashMap::default();
@@ -32,7 +37,7 @@ impl GfontsList {
                 }
                 map
             });
-        CACHE.get(name).cloned()
+        CACHE.get(name.to_lowercase().as_str()).cloned()
     }
 }
 
@@ -66,4 +71,15 @@ pub struct GfontStyleInfo {
     pub style: FontStyle,
     pub weight: RangeInclusive<u32>,
     pub info: DownloadInfo,
+}
+impl Display for GfontStyleInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let start = FontWeight::from_num(*self.weight.start());
+        let end = FontWeight::from_num(*self.weight.end());
+        if start == end {
+            write!(f, "{} / {start}", self.style)
+        } else {
+            write!(f, "{} / {start} to {end}", self.style)
+        }
+    }
 }

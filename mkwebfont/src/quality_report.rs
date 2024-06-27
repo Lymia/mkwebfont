@@ -1,8 +1,8 @@
 use crate::{data::DataStorage, WebfontInfo};
 use anyhow::Result;
 use mkwebfont_common::join_set::JoinSet;
-use std::sync::Arc;
 use mkwebfont_extract_web::RewriteContext;
+use std::sync::Arc;
 
 pub struct FontReport {
     heading: String,
@@ -111,10 +111,7 @@ async fn make_reports(style: &WebfontInfo) -> Result<FontReport> {
     }
 
     let heading = format!("{} {}", style.font_family(), style.font_style());
-    let ctx = RewriteContext {
-        webfonts: vec![style],
-        ..RewriteContext::default()
-    };
+    let ctx = RewriteContext { webfonts: vec![style], ..RewriteContext::default() };
     let css_bytes = ctx.generate_font_css()?.len();
     let report = joins.join().await?;
     Ok(FontReport { heading, css_bytes, report })

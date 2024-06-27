@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, LazyLock},
 };
 use tokio::sync::{Mutex, OnceCell};
-use tracing::warn;
+use tracing::{info, warn};
 
 static CACHE: LazyLock<Mutex<HashMap<RawHash, Arc<OnceCell<Arc<[u8]>>>, WyHashBuilder>>> =
     LazyLock::new(|| Mutex::new(HashMap::default()));
@@ -93,6 +93,7 @@ impl DownloadInfo {
             }
         }
 
+        info!("Downloading '{}'...", self.url);
         let req = ureq::get(&self.url).call()?;
         let mut file_data = Vec::new();
         req.into_reader()

@@ -1,14 +1,20 @@
 use crate::{data::DataStorage, plan::FontFlags, quality_report::FontReport, splitter};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use mkwebfont_common::join_set::JoinSet;
+use mkwebfont_extract_web::{WebrootInfo, WebrootInfoExtractor};
 use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
 use roaring::RoaringBitmap;
-use std::{path::Path, sync::Arc};
+use std::{
+    fmt::Debug,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{debug, info, info_span, Instrument};
 
 use crate::plan::AssignedSubsets;
 pub use crate::plan::SplitterPlan;
+use mkwebfont_fontops::gfonts::GfontsList;
 pub use mkwebfont_fontops::{
     font_info::{FontStyle, FontWeight},
     subsetter::{SubsetInfo, WebfontInfo},
@@ -17,7 +23,7 @@ pub use mkwebfont_fontops::{
 /// A loaded font.
 ///
 /// This may be used to filter font collections or simply subset multiple fonts in one operation.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LoadedFont {
     underlying: FontFaceWrapper,
 }
@@ -71,6 +77,8 @@ impl LoadedFont {
 #[derive(Default)]
 pub struct LoadedFontSetBuilder {
     fonts: Vec<LoadedFont>,
+    paths: Vec<PathBuf>,
+    gfonts: Vec<String>,
 }
 impl LoadedFontSetBuilder {
     /// Creates a new empty builder.
@@ -78,18 +86,20 @@ impl LoadedFontSetBuilder {
         Self::default()
     }
 
-    /// A fast function for loading fonts from disk.
-    pub async fn load_from_disk(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> Result<Self> {
-        let mut set = Self::new();
-        for font in load_fonts_from_disk(paths).await? {
-            set = set.add_font(font);
-        }
-        Ok(set)
+    /// Loads fonts from disk.
+    pub fn load_from_disk(mut self, paths: impl IntoIterator<Item = impl AsRef<Path>>) -> Self {
+        self.paths
+            .extend(paths.into_iter().map(|x| x.as_ref().to_path_buf()));
+        self
     }
 
-    /// Merges two font set builders.
-    pub fn merge(mut self, other: LoadedFontSetBuilder) {
-        self.fonts.extend(other.fonts);
+    /// Loads fonts from the Google Fonts repository.
+    ///
+    /// This does *NOT* use the Google Fonts service, but rather the repository on Github!
+    pub fn load_from_gfonts(mut self, fonts: impl IntoIterator<Item = impl AsRef<str>>) -> Self {
+        self.gfonts
+            .extend(fonts.into_iter().map(|x| x.as_ref().to_string()));
+        self
     }
 
     /// Adds a font to the font set buidler.
@@ -116,9 +126,31 @@ impl LoadedFontSetBuilder {
         Ok(self.add_fonts(&LoadedFont::load_path(path)?))
     }
 
+    /// Merges two font set builders.
+    pub fn merge(mut self, other: LoadedFontSetBuilder) {
+        self.fonts.extend(other.fonts);
+        self.paths.extend(other.paths);
+        self.gfonts.extend(other.gfonts);
+    }
+
     /// Builds the final font set.
-    pub fn build(self) -> LoadedFontSet {
-        LoadedFontSet { font_set: FontFaceSet::build(self.fonts.into_iter().map(|x| x.underlying)) }
+    pub async fn build(self) -> Result<LoadedFontSet> {
+        let mut joins = JoinSet::new();
+        if !self.paths.is_empty() {
+            let paths = self.paths;
+            joins.spawn(load_fonts_from_disk(paths));
+        }
+        if !self.gfonts.is_empty() {
+            let gfonts = self.gfonts;
+            joins.spawn(load_fonts_from_gfonts(gfonts));
+        }
+
+        let mut fonts = Vec::new();
+        fonts.extend(joins.join_vec().await?);
+        fonts.extend(self.fonts);
+
+        let font_set = FontFaceSet::build(fonts.into_iter().map(|x| x.underlying));
+        Ok(LoadedFontSet { font_set })
     }
 }
 
@@ -135,6 +167,37 @@ impl LoadedFontSet {
     }
 }
 
+/// A fast function for loading fonts from Google Fonts.
+async fn load_fonts_from_gfonts(
+    names: impl IntoIterator<Item = impl AsRef<str>>,
+) -> Result<Vec<LoadedFont>> {
+    let info = GfontsList::load();
+    let short_rev = &info.repo_revision[..7];
+    info!("Using Google Fonts repository from {} (r{short_rev})", info.repo_short_date);
+
+    let mut joins = JoinSet::new();
+    for name in names {
+        let name = name.as_ref();
+        let font_info = GfontsList::find_font(name);
+        if let Some(info) = font_info {
+            for style in &info.styles {
+                let name = name.to_string();
+                joins.spawn(async move {
+                    info!("Loading font: (Google Fonts) {name} / {style}");
+                    let data = style.info.load().await?;
+                    LoadedFont::load(&data)
+                })
+            }
+        } else {
+            bail!("No such font exists on Google Fonts: {name}");
+        }
+    }
+
+    let fonts = joins.join_vec().await?;
+    info!("Loaded {} font files from Google Fonts...", fonts.len());
+    Ok(fonts)
+}
+
 /// A fast function for loading fonts from disk.
 async fn load_fonts_from_disk(
     paths: impl IntoIterator<Item = impl AsRef<Path>>,
@@ -143,13 +206,13 @@ async fn load_fonts_from_disk(
     for path in paths {
         let path = path.as_ref().to_path_buf();
         joins.spawn(async move {
-            info!("Loading fonts: {}", path.display());
+            info!("Loading font: (File) {}", path.display());
             LoadedFont::load_path(&path)
         });
     }
 
     let fonts = joins.join_vec().await?;
-    info!("Loaded {} font families...", fonts.len());
+    info!("Loaded {} font files from disk...", fonts.len());
     Ok(fonts)
 }
 
@@ -198,6 +261,16 @@ impl SplitterPlan {
             ));
         }
         Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct Webroot(Arc<WebrootInfo>);
+impl Webroot {
+    pub async fn load(path: &Path) -> Result<Webroot> {
+        let extractor = WebrootInfoExtractor::new();
+        extractor.push_webroot(path, &[]).await?;
+        Ok(Webroot(Arc::new(extractor.build().await)))
     }
 }
 

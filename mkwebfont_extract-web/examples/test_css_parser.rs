@@ -9,7 +9,7 @@ async fn main() -> Result<()> {
         .with_writer(io::stderr)
         .init();
 
-    let extractor = mkwebfont_extract_web::TextExtractor::new();
+    let extractor = mkwebfont_extract_web::WebrootInfoExtractor::new();
     extractor
         .push_webroot(&PathBuf::from(std::env::args().skip(1).next().unwrap()), &[])
         .await?;

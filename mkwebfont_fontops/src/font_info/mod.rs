@@ -48,9 +48,9 @@ impl FontStyle {
 impl Display for FontStyle {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            FontStyle::Regular => f.write_str("normal"),
-            FontStyle::Italic => f.write_str("italic"),
-            FontStyle::Oblique => f.write_str("oblique"),
+            FontStyle::Regular => f.write_str("Normal"),
+            FontStyle::Italic => f.write_str("Italic"),
+            FontStyle::Oblique => f.write_str("Oblique"),
         }
     }
 }
@@ -76,10 +76,10 @@ impl FontWeight {
             x if x.contains("bold") => FontWeight::Bold,
             x if x.contains("extrabold") || x.contains("extra bold") => FontWeight::Numeric(800),
             x if x.contains("ultrabold") || x.contains("ultra bold") => FontWeight::Numeric(800),
-            x if x.contains("extrablack") || x.contains("extra black") => FontWeight::Numeric(950),
-            x if x.contains("ultrablack") || x.contains("ultra black") => FontWeight::Numeric(950),
             x if x.contains("black") => FontWeight::Numeric(900),
             x if x.contains("heavy") => FontWeight::Numeric(900),
+            x if x.contains("extrablack") || x.contains("extra black") => FontWeight::Numeric(950),
+            x if x.contains("ultrablack") || x.contains("ultra black") => FontWeight::Numeric(950),
             _ => FontWeight::Regular,
         }
     }
@@ -112,8 +112,16 @@ impl FontWeight {
 impl Display for FontWeight {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            FontWeight::Regular => f.write_str("normal"),
-            FontWeight::Bold => f.write_str("bold"),
+            FontWeight::Numeric(100) => f.write_str("Thin"),
+            FontWeight::Numeric(200) => f.write_str("Extra Light"),
+            FontWeight::Numeric(300) => f.write_str("Light"),
+            FontWeight::Numeric(400) | FontWeight::Regular => f.write_str("Regular"),
+            FontWeight::Numeric(500) => f.write_str("Medium"),
+            FontWeight::Numeric(600) => f.write_str("Semi-Bold"),
+            FontWeight::Numeric(700) | FontWeight::Bold => f.write_str("Bold"),
+            FontWeight::Numeric(800) => f.write_str("Extra-Bold"),
+            FontWeight::Numeric(900) => f.write_str("Black"),
+            FontWeight::Numeric(950) => f.write_str("Extra-Black"),
             FontWeight::Numeric(n) => write!(f, "{n}"),
         }
     }

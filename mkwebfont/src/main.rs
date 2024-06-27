@@ -2,11 +2,10 @@ use anyhow::Result;
 use clap::Parser;
 use mkwebfont::{LoadedFontSetBuilder, SplitterPlan};
 use mkwebfont_common::FILTER_SPEC;
-use std::{fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
-use std::sync::Arc;
+use mkwebfont_extract_web::RewriteContext;
+use std::{fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf, sync::Arc};
 use tokio::runtime::Builder;
 use tracing::{error, info, warn};
-use mkwebfont_extract_web::RewriteContext;
 
 /// Generates webfonts for a given font.
 #[derive(Parser, Debug)]
@@ -121,8 +120,8 @@ async fn main_impl(args: Args) -> Result<()> {
         error!("`--store <STORE>` parameter must be provided.");
         std::process::exit(1)
     }
-    if args.fonts.is_empty() {
-        warn!("No fonts were specified! An empty .css file will be generated.");
+    if args.fonts.is_empty() && args.gfont.is_empty() && args.webroot.is_none() {
+        warn!("No fonts sources were specified! An empty .css file will be generated.");
     }
     if !args.exclude.is_empty() && !args.include.is_empty() {
         warn!("Only one of `--family` and `--exclude` may be used in one invocation.");
@@ -159,12 +158,12 @@ async fn main_impl(args: Args) -> Result<()> {
     }
 
     // load fonts
-    let fonts = LoadedFontSetBuilder::load_from_disk(&args.fonts)
-        .await?
-        .build();
+    let mut fonts = LoadedFontSetBuilder::new();
+    fonts = fonts.load_from_disk(&args.fonts);
+    fonts = fonts.load_from_gfonts(&args.gfont);
 
     // process webfonts
-    let styles = mkwebfont::process_webfont(&ctx, &fonts).await?;
+    let styles = mkwebfont::process_webfont(&ctx, &fonts.build().await?).await?;
 
     let store_uri = if let Some(store_uri) = args.store_uri {
         store_uri
