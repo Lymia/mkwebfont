@@ -29,7 +29,7 @@ const DEFAULT_LOC_CSS: lightningcss::dependencies::Location =
 
 fn printer() -> PrinterOptions<'static> {
     let mut options = PrinterOptions::default();
-    options.minify = true;
+    options.minify = false;
     options
 }
 
