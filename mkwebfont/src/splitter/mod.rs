@@ -58,10 +58,16 @@ pub async fn split_webfont(
     }
 
     let info = encoder.produce_webfont().await?;
-    info!(
-        "Successfully split {} codepoints into {} subsets!",
-        font.all_codepoints().len(),
-        info.subsets().len(),
-    );
+    let codepoints = font.all_codepoints().len();
+    let subsets = info.subsets().len();
+    let remaining_codepoints = assigned.get_used_chars(font).len();
+    if codepoints == remaining_codepoints {
+        info!("Split {codepoints} codepoints into {subsets} subsets!");
+    } else {
+        info!(
+            "Split {remaining_codepoints} codepoints into {subsets} subsets! \
+             ({codepoints} codepoints before subsetting)"
+        );
+    }
     anyhow::Ok(info)
 }

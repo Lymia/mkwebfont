@@ -153,6 +153,9 @@ async fn main_impl(args: Args) -> Result<()> {
             ctx.gfonts_splitter();
         }
     }
+    if args.subset {
+        ctx.subset();
+    }
     for spec in args.subset_data {
         ctx.subset_spec(&spec);
     }

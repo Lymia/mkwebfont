@@ -374,30 +374,18 @@ impl Display for FontFaceWrapper {
 #[derive(Clone, Debug)]
 pub struct FontFaceSet {
     list: Vec<FontFaceWrapper>,
-    by_name: HashMap<String, FontFaceWrapper, WyHashBuilder>,
+    by_name: HashMap<String, Vec<FontFaceWrapper>, WyHashBuilder>,
     by_id: HashMap<FontId, FontFaceWrapper, WyHashBuilder>,
-    ambigious: HashSet<String, WyHashBuilder>,
 }
 impl FontFaceSet {
     fn push_name(&mut self, name: &str, font: &FontFaceWrapper) {
-        let name = name.to_lowercase();
-        if !self.ambigious.contains(&name) {
-            if self.by_name.contains_key(&name) {
-                self.by_name.remove(&name);
-                self.ambigious.insert(name);
-            } else {
-                self.by_name.insert(name, font.clone());
-            }
-        }
+        let lc_name = name.to_lowercase();
+        self.by_name.entry(lc_name).or_default().push(font.clone());
     }
 
     pub fn build(fonts: impl Iterator<Item = FontFaceWrapper>) -> FontFaceSet {
-        let mut set = FontFaceSet {
-            list: vec![],
-            by_name: Default::default(),
-            by_id: Default::default(),
-            ambigious: Default::default(),
-        };
+        let mut set =
+            FontFaceSet { list: vec![], by_name: Default::default(), by_id: Default::default() };
 
         for font in fonts {
             set.list.push(font.clone());
@@ -421,14 +409,20 @@ impl FontFaceSet {
     }
 
     pub fn resolve(&self, name: &str) -> Result<&FontFaceWrapper> {
-        let name = name.to_lowercase();
-        if self.ambigious.contains(&name) {
-            bail!("Font name {name:?} is ambigious!");
+        let resolve = self.resolve_all(name)?;
+        if resolve.len() == 1 {
+            Ok(&resolve[0])
         } else {
-            match self.by_name.get(&name) {
-                Some(v) => Ok(v),
-                None => bail!("Font name {name:?} does not exist."),
-            }
+            bail!("Font name {name:?} is ambigious!");
+        }
+    }
+
+    pub fn resolve_all(&self, name: &str) -> Result<&[FontFaceWrapper]> {
+        let lc_name = name.to_lowercase();
+        if let Some(list) = self.by_name.get(&lc_name) {
+            Ok(list.as_slice())
+        } else {
+            bail!("Font name {name:?} does not exist.");
         }
     }
 

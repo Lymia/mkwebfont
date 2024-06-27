@@ -62,7 +62,7 @@ impl SplitterState {
     }
 
     /// Applies a single subset
-    fn do_subset(&mut self, subset: &WebfontSubset, encoder: &mut FontEncoder) {
+    fn do_subset(&mut self, subset: &WebfontSubset, encoder: &mut FontEncoder, never_reject: bool) {
         if !self.processed_subsets.contains(&subset.name) {
             self.processed_subsets.insert(subset.name.clone());
 
@@ -70,7 +70,8 @@ impl SplitterState {
             let mut new_codepoints =
                 self.font.codepoints_in_set(&subset.map) - &self.fulfilled_codepoints;
 
-            if new_codepoints.len() as usize >= self.tuning.reject_subset_threshold {
+            if never_reject || new_codepoints.len() as usize >= self.tuning.reject_subset_threshold
+            {
                 if !self.preload_done {
                     let new = new_codepoints.clone() | &self.preload_codepoints;
                     if new != new_codepoints {
@@ -98,7 +99,7 @@ impl SplitterState {
         if !self.processed_groups.contains(&subset_group.name) {
             self.processed_groups.insert(subset_group.name.clone());
             for subset in &subset_group.subsets {
-                self.do_subset(subset, encoder);
+                self.do_subset(subset, encoder, false);
             }
         }
     }
@@ -189,7 +190,7 @@ impl SplitterState {
                 let subset = self.data.by_name.get(name).unwrap().clone();
                 if self.unique_available_ratio(&subset) > self.tuning.high_priority_ratio_threshold
                 {
-                    self.do_subset(&subset, encoder);
+                    self.do_subset(&subset, encoder, false);
                 }
             }
         }
@@ -246,6 +247,7 @@ impl SplitterState {
         self.do_subset(
             &WebfontSubset { name: format!("misc{}", self.misc_idx).into(), map: bitset },
             encoder,
+            true,
         );
     }
     fn generate_residual_blocks(&mut self, encoder: &mut FontEncoder) {
@@ -308,7 +310,7 @@ impl SplitterImplementation for GfSubsetSplitter {
             ctx.do_subset_group(&subset_group, encoder);
         }
         while let Some(subset) = ctx.select_next_subset() {
-            ctx.do_subset(&subset, encoder);
+            ctx.do_subset(&subset, encoder, false);
         }
         ctx.split_resiudal(encoder);
         Ok(())

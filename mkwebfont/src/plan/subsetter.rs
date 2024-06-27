@@ -72,12 +72,9 @@ impl SubsetDataBuilder {
         let mut current = text.clone();
         for i in 0..fonts.len() {
             ensure!(fonts[i].len() > 0, "Fonts lists cannot be empty!");
-            let available_codepoints = fonts[i][0].all_codepoints();
+            let mut available_codepoints = fonts[i][0].all_codepoints().clone();
             for font in &fonts[i][1..] {
-                ensure!(
-                    font.all_codepoints() == available_codepoints,
-                    "Fonts lists must have the same character sets."
-                );
+                available_codepoints &= font.all_codepoints();
             }
             let fulfilled_codepoints = available_codepoints & &current;
 
@@ -121,8 +118,10 @@ impl SubsetDataBuilder {
 
     fn load_fonts(fonts: &FontFaceSet, spec: &str) -> Result<Vec<FontFaceWrapper>> {
         let mut list = Vec::new();
-        for font in spec.split(',') {
-            list.push(fonts.resolve(font.trim())?.clone());
+        for font_name in spec.split(',') {
+            for font in fonts.resolve_all(font_name.trim())? {
+                list.push(font.clone());
+            }
         }
         Ok(list)
     }
@@ -179,6 +178,17 @@ impl SubsetDataBuilder {
         }
     }
 
+    fn split_two(spec: &str) -> Result<(&str, &str)> {
+        if !spec.contains(':') {
+            bail!("Incorrect subset data format.");
+        } else {
+            let mut split = spec.splitn(2, ':');
+            let fst = split.next().unwrap();
+            let snd = split.next().unwrap();
+            Ok((fst, snd))
+        }
+    }
+
     pub fn push_spec(&mut self, fonts: &FontFaceSet, spec: &str) -> Result<()> {
         if spec.starts_with("@") {
             let contents = std::fs::read_to_string(&spec[1..])?;
@@ -192,7 +202,8 @@ impl SubsetDataBuilder {
                     .all_exclusion
                     .extend(Self::load_charset(&spec[2..])?);
             } else {
-                self.push_exclusion(Self::load_charset(spec)?, &Self::load_fonts(fonts, spec)?);
+                let (fst, snd) = Self::split_two(spec)?;
+                self.push_exclusion(Self::load_charset(snd)?, &Self::load_fonts(fonts, fst)?);
             }
         } else if spec.starts_with("preload:") {
             let spec = &spec["preload:".len()..];
@@ -201,7 +212,8 @@ impl SubsetDataBuilder {
                     .all_preload
                     .extend(Self::load_charset(&spec[2..])?);
             } else {
-                self.push_preload(Self::load_charset(spec)?, &Self::load_fonts(fonts, spec)?);
+                let (fst, snd) = Self::split_two(spec)?;
+                self.push_preload(Self::load_charset(snd)?, &Self::load_fonts(fonts, fst)?);
             }
         } else {
             if spec.starts_with("*:") {
@@ -209,7 +221,8 @@ impl SubsetDataBuilder {
                     .all_subset
                     .extend(Self::load_charset(&spec[2..])?);
             } else {
-                self.push_stack(Self::load_charset(spec)?, &Self::load_fonts_list(fonts, spec)?)?;
+                let (fst, snd) = Self::split_two(spec)?;
+                self.push_stack(Self::load_charset(snd)?, &Self::load_fonts_list(fonts, fst)?)?;
             }
         }
         Ok(())
