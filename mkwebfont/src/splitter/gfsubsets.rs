@@ -1,4 +1,8 @@
-use crate::{data::DataStorage, plan::LoadedSplitterPlan, splitter::SplitterImplementation};
+use crate::{
+    data::DataStorage,
+    plan::{AssignedSubsets, LoadedSplitterPlan},
+    splitter::SplitterImplementation,
+};
 use anyhow::Result;
 use mkwebfont_common::model::subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup};
 use mkwebfont_fontops::{font_info::FontFaceWrapper, subsetter::FontEncoder};
@@ -32,26 +36,27 @@ const DEFAULT_TUNING: TuningParameters = TuningParameters {
 struct SplitterState {
     font: FontFaceWrapper,
     tuning: TuningParameters,
-    plan: LoadedSplitterPlan,
     data: Arc<WebfontData>,
 
     fulfilled_codepoints: RoaringBitmap,
+    preload_codepoints: RoaringBitmap,
     processed_subsets: HashSet<Arc<str>>,
     processed_groups: HashSet<Arc<str>>,
     misc_idx: usize,
     preload_done: bool,
 }
 impl SplitterState {
-    async fn init(font: &FontFaceWrapper, plan: &LoadedSplitterPlan) -> Result<SplitterState> {
-        let fulfilled = font.all_codepoints().clone();
-        let fulfilled = fulfilled.clone() - plan.apply_subsetting(fulfilled.clone());
-
+    async fn init(
+        font: &FontFaceWrapper,
+        assigned: &AssignedSubsets,
+    ) -> Result<SplitterState> {
+        let fulfilled = font.all_codepoints() - assigned.get_used_chars(font);
         Ok(SplitterState {
             font: font.clone(),
             tuning: DEFAULT_TUNING,
-            plan: plan.clone(),
             data: DataStorage::instance()?.gfsubsets().await?,
             fulfilled_codepoints: fulfilled,
+            preload_codepoints: assigned.get_preload_chars(font),
             processed_subsets: Default::default(),
             processed_groups: Default::default(),
             misc_idx: 0,
@@ -70,8 +75,7 @@ impl SplitterState {
 
             if new_codepoints.len() as usize >= self.tuning.reject_subset_threshold {
                 if !self.preload_done {
-                    let preload_list = self.plan.preload.clone();
-                    let new = new_codepoints.clone() | preload_list;
+                    let new = new_codepoints.clone() | &self.preload_codepoints;
                     if new != new_codepoints {
                         name = format!("{name}+pl");
                         debug!(
@@ -297,10 +301,11 @@ impl SplitterImplementation for GfSubsetSplitter {
     async fn split(
         &self,
         font: &FontFaceWrapper,
-        plan: &LoadedSplitterPlan,
+        _plan: &LoadedSplitterPlan,
+        assigned: &AssignedSubsets,
         encoder: &mut FontEncoder,
     ) -> Result<()> {
-        let mut ctx = SplitterState::init(font, plan).await?;
+        let mut ctx = SplitterState::init(font, assigned).await?;
         ctx.check_high_priority(encoder);
         while let Some(subset_group) = ctx.select_subset_group() {
             ctx.do_subset_group(&subset_group, encoder);

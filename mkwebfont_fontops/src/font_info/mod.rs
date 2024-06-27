@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use bincode::{Decode, Encode};
-use enumset::EnumSetType;
+use enumset::{EnumSet, EnumSetType};
 use hb_subset::{Blob, FontFace, SubsetInput};
 use mkwebfont_common::hashing::WyHashBuilder;
 use roaring::RoaringBitmap;
@@ -36,6 +36,14 @@ impl FontStyle {
             _ => FontStyle::Regular,
         }
     }
+
+    pub(crate) fn is_compatible(&self, other: FontStyle) -> bool {
+        match (*self, other) {
+            (Self::Regular, _) => true,
+            (Self::Oblique | Self::Italic, Self::Oblique | Self::Italic) => true,
+            _ => false,
+        }
+    }
 }
 impl Display for FontStyle {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -47,7 +55,7 @@ impl Display for FontStyle {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum FontWeight {
     Regular,
     Bold,
@@ -76,11 +84,28 @@ impl FontWeight {
         }
     }
 
+    pub fn from_num(num: u32) -> Self {
+        match num {
+            400 => FontWeight::Regular,
+            700 => FontWeight::Bold,
+            _ => FontWeight::Numeric(num),
+        }
+    }
+
     pub fn as_num(&self) -> u32 {
         match self {
             FontWeight::Regular => 400,
             FontWeight::Bold => 700,
             FontWeight::Numeric(n) => *n,
+        }
+    }
+
+    pub(crate) fn dist_from_range(&self, range: &RangeInclusive<u32>) -> u32 {
+        let num = self.as_num();
+        if range.contains(&num) {
+            0
+        } else {
+            range.start().abs_diff(num).min(range.end().abs_diff(num))
         }
     }
 }
@@ -397,5 +422,55 @@ impl FontFaceSet {
                 None => bail!("Font name {name:?} does not exist."),
             }
         }
+    }
+
+    pub fn resolve_by_style(
+        &self,
+        name: &str,
+        style: FontStyle,
+        weight: FontWeight,
+    ) -> Result<&FontFaceWrapper> {
+        let mut near_match = Vec::new();
+        for font in &self.list {
+            if font.font_family() == name && font.parsed_font_style().is_compatible(style) {
+                if font.parsed_font_style() == style
+                    && font.weight_range().contains(&weight.as_num())
+                {
+                    return Ok(font);
+                } else {
+                    near_match.push(font);
+                }
+            }
+        }
+        if let Some(font) = near_match
+            .iter()
+            .map(|x| {
+                (x, (x.parsed_font_style() == style, weight.dist_from_range(&x.weight_range())))
+            })
+            .min_by_key(|x| x.1)
+            .map(|x| *x.0)
+        {
+            Ok(font)
+        } else {
+            bail!("No fonts match specification: {name} / {style:?} / {weight:?}");
+        }
+    }
+
+    pub fn resolve_by_styles(
+        &self,
+        name: &str,
+        styles: EnumSet<FontStyle>,
+        weights: &[FontWeight],
+    ) -> Result<Vec<&FontFaceWrapper>> {
+        let mut ids: HashSet<_, WyHashBuilder> = HashSet::default();
+        for style in styles {
+            for weight in weights {
+                ids.insert(self.resolve_by_style(name, style, *weight)?.font_id());
+            }
+        }
+
+        let mut ids: Vec<_> = ids.into_iter().collect();
+        ids.sort();
+        Ok(ids.into_iter().flat_map(|x| self.get_by_id(x)).collect())
     }
 }

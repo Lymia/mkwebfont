@@ -1,5 +1,5 @@
 use crate::{
-    plan::{FontFlags, LoadedSplitterPlan},
+    plan::{AssignedSubsets, FontFlags, LoadedSplitterPlan},
     WebfontInfo,
 };
 use anyhow::Result;
@@ -14,6 +14,7 @@ pub trait SplitterImplementation {
         &self,
         font: &FontFaceWrapper,
         plan: &LoadedSplitterPlan,
+        assigned: &AssignedSubsets,
         encoder: &mut FontEncoder,
     ) -> Result<()>;
 }
@@ -23,10 +24,11 @@ impl SplitterImplementation for NullSplitter {
     async fn split(
         &self,
         font: &FontFaceWrapper,
-        plan: &LoadedSplitterPlan,
+        _plan: &LoadedSplitterPlan,
+        assigned: &AssignedSubsets,
         encoder: &mut FontEncoder,
     ) -> Result<()> {
-        encoder.add_subset("all", plan.apply_subsetting(font.all_codepoints().clone()));
+        encoder.add_subset("all", assigned.get_used_chars(font));
         Ok(())
     }
 }
@@ -34,19 +36,22 @@ impl SplitterImplementation for NullSplitter {
 /// The internal function that actually splits the webfont.
 pub async fn split_webfont(
     plan: &LoadedSplitterPlan,
+    assigned: &AssignedSubsets,
     font: &FontFaceWrapper,
 ) -> Result<WebfontInfo> {
     let mut encoder = FontEncoder::new(font.clone());
 
     if plan.flags.contains(FontFlags::NoSplitter) {
-        NullSplitter.split(font, plan, &mut encoder).await?
+        NullSplitter
+            .split(font, plan, assigned, &mut encoder)
+            .await?
     } else if plan.flags.contains(FontFlags::AdjacencySplitter) {
         adjacency::AdjacencySplitter
-            .split(font, plan, &mut encoder)
+            .split(font, plan, assigned, &mut encoder)
             .await?
     } else if plan.flags.contains(FontFlags::GfontsSplitter) {
         gfsubsets::GfSubsetSplitter
-            .split(font, plan, &mut encoder)
+            .split(font, plan, assigned, &mut encoder)
             .await?
     } else {
         unreachable!()

@@ -4,6 +4,7 @@ use mkwebfont_common::join_set::JoinSet;
 use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
 use roaring::RoaringBitmap;
 use std::path::Path;
+use std::sync::Arc;
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{debug, info, info_span, Instrument};
 
@@ -12,6 +13,7 @@ pub use mkwebfont_fontops::{
     font_info::{FontStyle, FontWeight},
     subsetter::{SubsetInfo, WebfontInfo},
 };
+use crate::plan::AssignedSubsets;
 
 /// A loaded font.
 ///
@@ -208,10 +210,17 @@ pub async fn process_webfont(
 
     finish_preload().await?;
 
+    let assigned = Arc::new(if plan.flags.contains(FontFlags::DoSubsetting) {
+        plan.calculate_subsets(&fonts.font_set, None)?
+    } else {
+        AssignedSubsets::disabled().clone()
+    });
+
     let mut joins = JoinSet::new();
     for font in fonts.font_set.as_list() {
         if plan.family_config.check_font(&font) {
             let plan = plan.clone();
+            let assigned = assigned.clone();
             let font = font.clone();
 
             let span = info_span!("split", "{font}");
@@ -219,7 +228,7 @@ pub async fn process_webfont(
 
             joins.spawn(
                 async move {
-                    let font = splitter::split_webfont(&plan, &font).await?;
+                    let font = splitter::split_webfont(&plan, &assigned, &font).await?;
                     let report = if plan.flags.contains(FontFlags::PrintReport) {
                         Some(FontReport::for_font(&font).await?)
                     } else {
@@ -239,8 +248,8 @@ pub async fn process_webfont(
         out.push(font);
         if let Some(report) = report {
             report.print();
+            eprintln!();
         }
-        eprintln!();
     }
     Ok(out)
 }

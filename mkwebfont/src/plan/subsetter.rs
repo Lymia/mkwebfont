@@ -66,16 +66,26 @@ impl SubsetDataBuilder {
         self.subsets.assigned_subsets.entry(id).or_default()
     }
 
-    fn push_stack(&mut self, text: RoaringBitmap, fonts: &[FontFaceWrapper]) -> Result<()> {
+    fn push_stack(&mut self, text: RoaringBitmap, fonts: &[Vec<FontFaceWrapper>]) -> Result<()> {
         let mut reverse_pass = Vec::new();
 
         let mut current = text.clone();
         for i in 0..fonts.len() {
-            let available_codepoints = fonts[i].all_codepoints();
+            ensure!(fonts[i].len() > 0, "Fonts lists cannot be empty!");
+            let available_codepoints = fonts[i][0].all_codepoints();
+            for font in &fonts[i][1..] {
+                ensure!(
+                    font.all_codepoints() == available_codepoints,
+                    "Fonts lists must have the same character sets."
+                );
+            }
             let fulfilled_codepoints = available_codepoints & &current;
-            self.get_subset_mut(fonts[i].font_id())
-                .subset
-                .extend(&fulfilled_codepoints);
+
+            for j in 0..fonts[i].len() {
+                self.get_subset_mut(fonts[i][j].font_id())
+                    .subset
+                    .extend(&fulfilled_codepoints);
+            }
             reverse_pass.push(fulfilled_codepoints.clone());
             current = current - fulfilled_codepoints;
         }
@@ -86,9 +96,11 @@ impl SubsetDataBuilder {
 
         for i in 0..fonts.len() {
             for j in 0..i {
-                self.get_subset_mut(fonts[j].font_id())
-                    .range_exclusions
-                    .extend(&reverse_pass[i]);
+                for k in 0..fonts[i].len() {
+                    self.get_subset_mut(fonts[j][k].font_id())
+                        .range_exclusions
+                        .extend(&reverse_pass[i]);
+                }
             }
         }
 
@@ -111,6 +123,14 @@ impl SubsetDataBuilder {
         let mut list = Vec::new();
         for font in spec.split(',') {
             list.push(fonts.resolve(font.trim())?.clone());
+        }
+        Ok(list)
+    }
+
+    fn load_fonts_list(fonts: &FontFaceSet, spec: &str) -> Result<Vec<Vec<FontFaceWrapper>>> {
+        let mut list = Vec::new();
+        for font in Self::load_fonts(fonts, spec)? {
+            list.push(vec![font]);
         }
         Ok(list)
     }
@@ -189,7 +209,7 @@ impl SubsetDataBuilder {
                     .all_subset
                     .extend(Self::load_charset(&spec[2..])?);
             } else {
-                self.push_stack(Self::load_charset(spec)?, &Self::load_fonts(fonts, spec)?)?;
+                self.push_stack(Self::load_charset(spec)?, &Self::load_fonts_list(fonts, spec)?)?;
             }
         }
         Ok(())
@@ -197,5 +217,23 @@ impl SubsetDataBuilder {
 
     /// This function expects that all fonts present in the `TextInfo` are loaded!!
     /// That is not the job of this function.
-    pub fn push_webroot_info(&mut self, fonts: &FontFaceSet, text: WebrootInfo) -> Result<()> {}
+    pub fn push_webroot_info(&mut self, fonts: &FontFaceSet, text: WebrootInfo) -> Result<()> {
+        for stack in text.font_stacks {
+            for sample in stack.samples {
+                let mut list = Vec::new();
+                for font in &*stack.stack {
+                    list.push(fonts.resolve_by_styles(
+                        &font,
+                        sample.used_styles,
+                        &sample.used_weights,
+                    ))
+                }
+            }
+        }
+        todo!()
+    }
+
+    pub fn build(self) -> AssignedSubsets {
+        self.subsets
+    }
 }

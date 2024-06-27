@@ -13,6 +13,7 @@ readme = "README.md"
 [dependencies]
 cssparser = "0.33"
 ego-tree = "0.6"
+html5ever = "0.26"
 lightningcss = { version = "1.0.0-alpha.57", features = ["into_owned"] }
 moka = { version = "0.12", features = ["future"] }
 scraper = "0.19.0"

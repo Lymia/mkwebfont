@@ -1,4 +1,8 @@
-use crate::{data::DataStorage, plan::LoadedSplitterPlan, splitter::SplitterImplementation};
+use crate::{
+    data::DataStorage,
+    plan::{AssignedSubsets, LoadedSplitterPlan},
+    splitter::SplitterImplementation,
+};
 use anyhow::Result;
 use mkwebfont_fontops::{font_info::FontFaceWrapper, subsetter::FontEncoder};
 use roaring::RoaringBitmap;
@@ -13,10 +17,11 @@ impl SplitterImplementation for AdjacencySplitter {
     async fn split(
         &self,
         font: &FontFaceWrapper,
-        plan: &LoadedSplitterPlan,
+        _plan: &LoadedSplitterPlan,
+        assigned: &AssignedSubsets,
         encoder: &mut FontEncoder,
     ) -> Result<()> {
-        let all_chars = plan.apply_subsetting(font.all_codepoints().clone());
+        let all_chars = assigned.get_used_chars(font);
 
         let adjacency = DataStorage::instance()?.adjacency_array().await?;
 

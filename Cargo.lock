@@ -1474,6 +1474,7 @@ dependencies = [
  "ego-tree",
  "enumset",
  "glob",
+ "html5ever",
  "lightningcss",
  "mkwebfont_common",
  "mkwebfont_fontops",

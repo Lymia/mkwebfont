@@ -1,11 +1,9 @@
-use crate::font_info::FontStyle;
+use crate::font_info::{FontStyle, FontWeight};
 use bincode::{config::standard, Decode, Encode};
-use mkwebfont_common::{compression::zstd_decompress, download_cache::DownloadInfo};
-use std::{
-    fmt::Debug,
-    ops::RangeInclusive,
-    sync::{Arc, LazyLock},
+use mkwebfont_common::{
+    compression::zstd_decompress, download_cache::DownloadInfo, hashing::WyHashBuilder,
 };
+use std::{collections::HashMap, fmt::Debug, ops::RangeInclusive, sync::LazyLock};
 
 #[derive(Debug, Clone, Decode, Encode)]
 pub struct GfontsList {
@@ -15,14 +13,26 @@ pub struct GfontsList {
     pub fonts: Vec<GfontInfo>,
 }
 impl GfontsList {
-    pub fn load() -> Arc<GfontsList> {
-        static CACHE: LazyLock<Arc<GfontsList>> = LazyLock::new(|| {
+    pub fn load() -> &'static GfontsList {
+        static CACHE: LazyLock<GfontsList> = LazyLock::new(|| {
             let data = include_bytes!("gfonts_list.bin.zst");
             let decompressed = zstd_decompress(data).unwrap();
             let out = bincode::decode_from_slice(&decompressed, standard()).unwrap();
-            Arc::new(out.0)
+            out.0
         });
-        CACHE.clone()
+        &*CACHE
+    }
+
+    pub fn find_font(&self, name: &str) -> Option<&GfontInfo> {
+        static CACHE: LazyLock<HashMap<&'static str, &'static GfontInfo, WyHashBuilder>> =
+            LazyLock::new(|| {
+                let mut map = HashMap::default();
+                for font in &GfontsList::load().fonts {
+                    map.insert(font.name.as_str(), font);
+                }
+                map
+            });
+        CACHE.get(name).cloned()
     }
 }
 
@@ -30,6 +40,25 @@ impl GfontsList {
 pub struct GfontInfo {
     pub name: String,
     pub styles: Vec<GfontStyleInfo>,
+}
+impl GfontInfo {
+    pub fn find_nearest_match(
+        &self,
+        style: FontStyle,
+        weight: FontWeight,
+    ) -> Option<&GfontStyleInfo> {
+        if let Some((info, _)) = self
+            .styles
+            .iter()
+            .filter(|x| x.style.is_compatible(style))
+            .map(|x| (x, (x.style == style, weight.dist_from_range(&x.weight))))
+            .min_by_key(|x| x.1)
+        {
+            Some(info)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone, Decode, Encode)]

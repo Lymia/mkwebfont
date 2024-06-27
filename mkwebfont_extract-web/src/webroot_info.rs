@@ -2,9 +2,11 @@ use crate::{
     apply_rules::{ParsedFontStyle, ResolvedNodeProperties},
     rewrite_css::RewriteTargets,
 };
+use anyhow::Result;
 use arcstr::ArcStr;
-use enumset::{EnumSet, EnumSetType};
+use enumset::EnumSet;
 use mkwebfont_common::hashing::WyHashBuilder;
+use mkwebfont_fontops::font_info::{FontStyle, FontWeight};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -36,8 +38,8 @@ impl FontStackInfo {
 
 #[derive(Debug, Clone)]
 pub struct TextSample {
-    pub used_styles: EnumSet<TextSampleStyle>,
-    pub used_weights: Arc<[i32]>,
+    pub used_styles: EnumSet<FontStyle>,
+    pub used_weights: Arc<[FontWeight]>,
     pub content: Vec<ArcStr>,
 }
 impl TextSample {
@@ -53,13 +55,6 @@ impl TextSample {
     }
 }
 
-#[derive(EnumSetType, Debug)]
-pub enum TextSampleStyle {
-    Normal,
-    Italics,
-    Oblique,
-}
-
 #[derive(Debug, Default)]
 pub struct TextInfoBuilder {
     stacks: HashMap<
@@ -69,7 +64,7 @@ pub struct TextInfoBuilder {
     >,
     cached_strs: HashSet<ArcStr, WyHashBuilder>,
     cached_stacks: HashSet<Arc<[ArcStr]>, WyHashBuilder>,
-    cached_weights: HashSet<Arc<[i32]>, WyHashBuilder>,
+    cached_weights: HashSet<Arc<[FontWeight]>, WyHashBuilder>,
 }
 impl TextInfoBuilder {
     fn intern_str(&mut self, str: &str) -> ArcStr {
@@ -91,8 +86,12 @@ impl TextInfoBuilder {
         }
     }
 
-    fn intern_weights(&mut self, weights: &HashSet<i32, WyHashBuilder>) -> Arc<[i32]> {
-        let mut weights: Vec<_> = weights.iter().cloned().collect();
+    fn intern_weights(&mut self, weights: &HashSet<i32, WyHashBuilder>) -> Arc<[FontWeight]> {
+        let mut weights = weights
+            .iter()
+            .map(|x| -> Result<FontWeight> { Ok(FontWeight::from_num((*x).try_into()?)) })
+            .collect::<Result<Vec<_>>>()
+            .expect("Negative font weights not supported.");
         weights.sort();
         let arc: Arc<[_]> = weights.into();
         if let Some(x) = self.cached_weights.get(&arc) {
@@ -109,9 +108,9 @@ impl TextInfoBuilder {
                 .font_style
                 .iter()
                 .map(|x| match x {
-                    ParsedFontStyle::Normal => TextSampleStyle::Normal,
-                    ParsedFontStyle::Italic => TextSampleStyle::Italics,
-                    ParsedFontStyle::Oblique => TextSampleStyle::Oblique,
+                    ParsedFontStyle::Normal => FontStyle::Regular,
+                    ParsedFontStyle::Italic => FontStyle::Italic,
+                    ParsedFontStyle::Oblique => FontStyle::Oblique,
                 })
                 .collect(),
             weights: self.intern_weights(&properties.font_weight),
@@ -163,6 +162,6 @@ impl TextInfoBuilder {
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 struct TextSampleKey {
-    styles: EnumSet<TextSampleStyle>,
-    weights: Arc<[i32]>,
+    styles: EnumSet<FontStyle>,
+    weights: Arc<[FontWeight]>,
 }

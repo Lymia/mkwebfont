@@ -1,8 +1,13 @@
+use crate::plan::subsetter::SubsetDataBuilder;
+use anyhow::Result;
 use enumset::*;
-use mkwebfont_fontops::font_info::FontFaceWrapper;
+use mkwebfont_extract_web::WebrootInfo;
+use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
 use std::{collections::HashSet, ops::Deref, sync::Arc};
 
 mod subsetter;
+
+pub use subsetter::AssignedSubsets;
 
 /// A loaded configuration for font splitting.
 #[derive(Clone)]
@@ -19,7 +24,22 @@ impl Deref for LoadedSplitterPlan {
     }
 }
 
-impl SplitterPlanData {}
+impl SplitterPlanData {
+    pub fn calculate_subsets(
+        &self,
+        fonts: &FontFaceSet,
+        webroot: Option<WebrootInfo>,
+    ) -> Result<AssignedSubsets> {
+        let mut builder = SubsetDataBuilder::default();
+        for spec in &self.subset_specs {
+            builder.push_spec(fonts, &spec)?;
+        }
+        if let Some(webroot) = webroot {
+            builder.push_webroot_info(fonts, webroot)?;
+        }
+        Ok(builder.build())
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FontFamilyConfig {
@@ -43,6 +63,7 @@ pub enum FontFlags {
     NoSplitter,
     GfontsSplitter,
     AdjacencySplitter,
+    DoSubsetting,
 }
 
 /// Represents a configuration for font splitting.
@@ -116,6 +137,12 @@ impl SplitterPlan {
 
     pub fn adjacency_splitter(&mut self) -> &mut Self {
         self.flags.insert(FontFlags::AdjacencySplitter);
+        self
+    }
+
+    /// Enables subsetting.
+    pub fn subset(&mut self) -> &mut Self {
+        self.flags.insert(FontFlags::DoSubsetting);
         self
     }
 

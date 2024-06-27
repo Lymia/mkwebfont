@@ -36,8 +36,8 @@ struct Args {
     /// Include only certain font families.
     ///
     /// This is useful when working with TrueType Font Collections.
-    #[arg(short = 'f', long)]
-    family: Vec<String>,
+    #[arg(short = 'I', long)]
+    include: Vec<String>,
 
     /// Exclude certain font families.
     ///
@@ -57,7 +57,7 @@ struct Args {
     splitter: Option<SplitterImpl>,
 
     /// Automatically downloads a font family by name from Google Fonts.
-    #[arg(long)]
+    #[arg(short = 'f', long)]
     gfont: Vec<String>,
 
     /// The webroot to automatically generate webfonts for.
@@ -122,7 +122,7 @@ async fn main_impl(args: Args) -> Result<()> {
     if args.fonts.is_empty() {
         warn!("No fonts were specified! An empty .css file will be generated.");
     }
-    if !args.exclude.is_empty() && !args.family.is_empty() {
+    if !args.exclude.is_empty() && !args.include.is_empty() {
         warn!("Only one of `--family` and `--exclude` may be used in one invocation.");
         std::process::exit(1)
     }
@@ -133,7 +133,7 @@ async fn main_impl(args: Args) -> Result<()> {
         ctx.blacklist_fonts(&args.exclude);
     }
     if !args.exclude.is_empty() {
-        ctx.whitelist_fonts(&args.family);
+        ctx.whitelist_fonts(&args.include);
     }
     if args.print_report {
         ctx.print_report();
@@ -152,12 +152,9 @@ async fn main_impl(args: Args) -> Result<()> {
             ctx.gfonts_splitter();
         }
     }
-    /*for subset in args.subset {
-        ctx.subset_chars(subset.chars());
+    for spec in args.subset_data {
+        ctx.subset_spec(&spec);
     }
-    for subset in args.subset_from {
-        ctx.subset_chars(std::fs::read_to_string(subset)?.chars());
-    }*/
 
     // load fonts
     let fonts = LoadedFontSetBuilder::load_from_disk(&args.fonts)
