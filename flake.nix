@@ -24,6 +24,11 @@
                 sha256 = "sha256-Bm97H+OjVPUvUeWCxb9iFAEFPWH8aoe1gW4G+615ZBg=";
             };
 
+            rust-platform = pkgs.makeRustPlatform {
+                cargo = pkgs.buildPackages.rust-bin.beta.latest.default;
+                rustc = pkgs.buildPackages.rust-bin.beta.latest.default;
+            };
+
             mkwebfont-data = pkgs.stdenv.mkDerivation {
                 pname = "mkwebfont-data";
                 version = "0.1.0";
@@ -36,7 +41,7 @@
                 '';
             };
 
-            mkwebfont-common = (pkgs: flags: pkgs.rustPlatform.buildRustPackage {
+            mkwebfont-common = (pkgs: flags: rust-platform.buildRustPackage {
                 pname = "mkwebfont";
                 version = "0.2.0";
                 src = ./.;
@@ -72,7 +77,7 @@
                 makeBinaryWrapper ${mkwebfont-unwrapped}/bin/mkwebfont $out/bin/mkwebfont-no_data
             '';
 
-            rust-shell = pkgs.buildPackages.rust-bin.stable.latest.default.override {
+            rust-shell = pkgs.buildPackages.rust-bin.beta.latest.default.override {
                 targets = [ "x86_64-pc-windows-gnu" ];
             };
         in rec {
@@ -82,7 +87,7 @@
             };
 
             devShells.default = pkgs.mkShell {
-                buildInputs = [ rust-shell pkgs.zig pkgs.cargo-zigbuild ];
+                buildInputs = [ rust-shell pkgs.zig pkgs.cargo-zigbuild pkgs.rustPlatform.bindgenHook ];
             };
         }
     );
