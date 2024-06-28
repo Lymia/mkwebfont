@@ -120,12 +120,12 @@ async fn main_impl(args: Args) -> Result<()> {
         error!("`--store <STORE>` parameter must be provided.");
         std::process::exit(1)
     }
-    if args.fonts.is_empty() && args.gfont.is_empty() && args.webroot.is_none() {
-        warn!("No fonts sources were specified! An empty .css file will be generated.");
-    }
     if !args.exclude.is_empty() && !args.include.is_empty() {
         warn!("Only one of `--family` and `--exclude` may be used in one invocation.");
         std::process::exit(1)
+    }
+    if args.fonts.is_empty() && args.gfont.is_empty() && args.webroot.is_none() {
+        warn!("No fonts sources were specified! An empty .css file will be generated.");
     }
 
     // prepare webfont generation context
@@ -182,30 +182,44 @@ async fn main_impl(args: Args) -> Result<()> {
     info!("Writing {count} files to store...");
 
     let store = args.store.unwrap();
+    if !store.exists() {
+        std::fs::create_dir_all(&store)?;
+    }
     for style in &styles {
         style.write_to_store(&store)?;
     }
+
+    // write webfonts to the webroot.
     let ctx = RewriteContext {
         webfonts: styles.into_iter().map(Arc::new).collect(),
         store_path: store,
-        store_uri: Some(if let Some(store_uri) = args.store_uri {
-            store_uri
+        store_uri: if let Some(store_uri) = args.store_uri {
+            Some(store_uri)
         } else {
-            String::new()
-        }),
+            None
+        },
         ..RewriteContext::default()
     };
-    let css = ctx.generate_font_css()?;
+    if args.write_to_webroot {
+        if let Some(webroot) = &webroot {
+            webroot.rewrite_webroot(ctx.clone()).await?;
+        } else {
+            warn!("`--write-to-webroot` specified with no webroot. Ignoring.");
+        }
+    }
 
     // write css to output
     if let Some(target) = args.output {
         info!("Writing CSS to '{}'...", target.display());
+        let css = ctx.generate_font_css()?;
         std::fs::write(target, css)?;
     } else if let Some(target) = args.append {
         info!("Appending CSS to '{}'...", target.display());
         let mut file = OpenOptions::new().write(true).append(true).open(target)?;
+        let css = ctx.generate_font_css()?;
         file.write_all(css.as_bytes())?
-    } else {
+    } else if !webroot.is_some() || !args.write_to_webroot {
+        let css = ctx.generate_font_css()?;
         println!("{}", css);
     }
 

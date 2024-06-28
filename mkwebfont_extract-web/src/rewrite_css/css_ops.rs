@@ -18,7 +18,7 @@ use lightningcss::{
     traits::{ToCss, Zero},
     values::{angle::Angle, size::Size2D, url::Url},
 };
-use mkwebfont_common::paths::get_relative_from;
+use mkwebfont_common::paths::{get_relative_from, is_superpath};
 use mkwebfont_fontops::font_info::FontStyle;
 use std::borrow::Cow;
 use tracing::{debug, info};
@@ -151,6 +151,12 @@ fn find_store_uri<'a>(ctx: &'a RewriteContext, root: &RelaWebroot) -> Result<Cow
     if let Some(uri) = &ctx.store_uri {
         Ok(Cow::Borrowed(uri.as_str()))
     } else {
+        if !is_superpath(root.root().root(), &ctx.store_path)? {
+            bail!(
+                "Store path must be subdirectory of the webroot, \
+                 or `--store-uri` must be provided."
+            );
+        }
         Ok(Cow::Owned(get_relative_from(&root.file_name(), &ctx.store_path)?))
     }
 }

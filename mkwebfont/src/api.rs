@@ -1,7 +1,7 @@
 use crate::{data::DataStorage, plan::FontFlags, quality_report::FontReport, splitter};
 use anyhow::{bail, Result};
 use mkwebfont_common::{download_cache::DownloadInfo, hashing::WyHashSet, join_set::JoinSet};
-use mkwebfont_extract_web::{WebrootInfo, WebrootInfoExtractor};
+use mkwebfont_extract_web::{RewriteContext, WebrootInfo, WebrootInfoExtractor};
 use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
 use roaring::RoaringBitmap;
 use std::{
@@ -342,6 +342,10 @@ impl Webroot {
         let extractor = WebrootInfoExtractor::new();
         extractor.push_webroot(path, &[]).await?;
         Ok(Webroot(Arc::new(extractor.build().await)))
+    }
+
+    pub async fn rewrite_webroot(&self, ctx: RewriteContext) -> Result<()> {
+        self.0.rewrite_webroot(ctx).await
     }
 }
 

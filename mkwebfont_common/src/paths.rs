@@ -5,6 +5,12 @@ pub fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
+pub fn is_superpath(parent: &Path, child: &Path) -> Result<bool> {
+    let parent = parent.canonicalize()?;
+    let child = child.canonicalize()?;
+    Ok(child.starts_with(parent))
+}
+
 pub fn get_relative_fragment(parent: &Path, child: &Path) -> Result<String> {
     let parent = parent.canonicalize()?;
     let child = child.canonicalize()?;
@@ -34,6 +40,7 @@ pub fn get_relative_from(root: &Path, target: &Path) -> Result<String> {
 
         if target.starts_with(accum) {
             let fragment = get_relative_fragment(accum, &target)?;
+            super_frag.pop();
             return Ok(format!("{super_frag}{fragment}"));
         }
 
