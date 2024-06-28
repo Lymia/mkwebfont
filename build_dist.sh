@@ -1,6 +1,6 @@
 #!/bin/sh
 
-VERSION="0.2.0-alpha1"
+VERSION="0.2.0-alpha2"
 
 rm -v mkwebfont*.AppImage
 rm -rfv dist

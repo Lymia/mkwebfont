@@ -38,7 +38,7 @@ cc = "1.0"
 unicode-blocks = "0.1"
 
 # Crates in the workspace
-mkwebfont_common = { version = "0.2.0-alpha1", path = "mkwebfont_common" }
+mkwebfont_common = { version = "0.3.0", path = "mkwebfont_common" }
 mkwebfont_extract-web = { version = "0.1.0", path = "mkwebfont_extract-web" }
 mkwebfont_fontops = { version = "0.1.0", path = "mkwebfont_fontops" }
-mkwebfont_hb-subset = { version = "0.3.0", path = "mkwebfont_hb-subset" }
+mkwebfont_hb-subset = { version = "0.4.0", path = "mkwebfont_hb-subset" }
