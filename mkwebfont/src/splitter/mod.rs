@@ -39,22 +39,24 @@ pub async fn split_webfont(
     assigned: &AssignedSubsets,
     font: &FontFaceWrapper,
 ) -> Result<WebfontInfo> {
-    let mut encoder = FontEncoder::new(font.clone());
+    let mut encoder = FontEncoder::new(font.clone(), assigned.get_range_exclusion(font));
 
-    if plan.flags.contains(FontFlags::NoSplitter) {
-        NullSplitter
-            .split(font, plan, assigned, &mut encoder)
-            .await?
-    } else if plan.flags.contains(FontFlags::AdjacencySplitter) {
-        adjacency::AdjacencySplitter
-            .split(font, plan, assigned, &mut encoder)
-            .await?
-    } else if plan.flags.contains(FontFlags::GfontsSplitter) {
-        gfsubsets::GfSubsetSplitter
-            .split(font, plan, assigned, &mut encoder)
-            .await?
-    } else {
-        unreachable!()
+    if !assigned.get_used_chars(font).is_empty() {
+        if plan.flags.contains(FontFlags::NoSplitter) {
+            NullSplitter
+                .split(font, plan, assigned, &mut encoder)
+                .await?
+        } else if plan.flags.contains(FontFlags::AdjacencySplitter) {
+            adjacency::AdjacencySplitter
+                .split(font, plan, assigned, &mut encoder)
+                .await?
+        } else if plan.flags.contains(FontFlags::GfontsSplitter) {
+            gfsubsets::GfSubsetSplitter
+                .split(font, plan, assigned, &mut encoder)
+                .await?
+        } else {
+            unreachable!()
+        }
     }
 
     let info = encoder.produce_webfont().await?;

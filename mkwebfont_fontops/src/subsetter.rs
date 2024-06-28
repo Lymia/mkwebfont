@@ -157,13 +157,19 @@ pub struct SubsetInfo {
     woff2_data: Vec<u8>,
 }
 impl SubsetInfo {
-    fn new(font: &FontFaceWrapper, name: &str, subset: RoaringBitmap, woff2_data: Vec<u8>) -> Self {
+    fn new(
+        font: &FontFaceWrapper,
+        name: &str,
+        subset: RoaringBitmap,
+        woff2_data: Vec<u8>,
+        range_exclusions: &RoaringBitmap,
+    ) -> Self {
         let font_name = extract_name(font.font_family());
         let font_style = extract_name(font.font_style());
         let font_version = extract_version(font.font_version());
         let is_regular = font_style.to_lowercase() == "regular";
 
-        let subset_ranges = decode_range(&subset, &font.all_codepoints());
+        let subset_ranges = decode_range(&subset, range_exclusions);
 
         SubsetInfo {
             name: name.to_string(),
@@ -217,20 +223,23 @@ impl SubsetInfo {
 pub struct FontEncoder {
     font: FontFaceWrapper,
     woff2_subsets: Vec<JoinHandle<Result<SubsetInfo>>>,
+    range_exclusion: Arc<RoaringBitmap>,
 }
 impl FontEncoder {
-    pub fn new(font: FontFaceWrapper) -> Self {
-        FontEncoder { font, woff2_subsets: Vec::new() }
+    pub fn new(font: FontFaceWrapper, range_exclusion: RoaringBitmap) -> Self {
+        let range_exclusion = Arc::new(range_exclusion);
+        FontEncoder { font, woff2_subsets: Vec::new(), range_exclusion }
     }
 
     pub fn add_subset(&mut self, name: &str, codepoints: RoaringBitmap) {
         let name = name.to_string();
         let font = self.font.clone();
+        let range_exclusion = self.range_exclusion.clone();
         self.woff2_subsets.push(task::spawn(
             async move {
                 debug!("Encoding subset '{name}' with {} codepoints.", codepoints.len());
                 let subset_woff2 = font.subset(&name, &codepoints)?;
-                Ok(SubsetInfo::new(&font, &name, codepoints, subset_woff2))
+                Ok(SubsetInfo::new(&font, &name, codepoints, subset_woff2, &range_exclusion))
             }
             .in_current_span(),
         ));

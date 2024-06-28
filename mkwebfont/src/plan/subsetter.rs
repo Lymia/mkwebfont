@@ -47,6 +47,15 @@ impl AssignedSubsets {
         }
     }
 
+    pub fn get_range_exclusion(&self, font: &FontFaceWrapper) -> RoaringBitmap {
+        if self.disabled {
+            font.all_codepoints().clone()
+        } else {
+            let info = self.get_subset(font.font_id());
+            self.get_used_chars(font) | &info.range_exclusions
+        }
+    }
+
     pub fn get_preload_chars(&self, font: &FontFaceWrapper) -> RoaringBitmap {
         if self.disabled {
             RoaringBitmap::new()
