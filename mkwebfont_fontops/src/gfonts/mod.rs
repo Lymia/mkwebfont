@@ -83,3 +83,14 @@ impl Display for GfontStyleInfo {
         }
     }
 }
+
+#[derive(Debug, Clone, Decode, Encode)]
+pub struct FallbackInfo {
+    pub fonts: Vec<FallbackFontSource>,
+}
+
+#[derive(Debug, Clone, Decode, Encode)]
+pub struct FallbackFontSource {
+    pub name: String,
+    pub codepoints: Vec<u32>,
+}

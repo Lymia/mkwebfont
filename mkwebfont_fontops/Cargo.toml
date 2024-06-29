@@ -25,7 +25,7 @@ include = [
 brotli = { version = "6.0", features = ["ffi-api"] }
 
 # Unicode data
-unicode-blocks = { workspace = true}
+unicode-blocks = { workspace = true }
 
 # Common Dependencies
 anyhow = { workspace = true }
@@ -44,6 +44,9 @@ mkwebfont_hb-subset = { workspace = true }
 [dev-dependencies]
 chrono = "0.4"
 git2 = { version = "0.19", default-features = false }
+
+# Unicode data
+unicode-properties = { workspace = true }
 
 # Common Dependencies
 glob = { workspace = true }

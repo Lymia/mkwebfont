@@ -3,7 +3,7 @@ use chrono::DateTime;
 use git2::Repository;
 use glob::glob;
 use mkwebfont_common::{
-    compression::zstd_compress, download_cache::DownloadInfo, join_set::JoinSet, FILTER_SPEC,
+    compression::zstd_compress, download_cache::DownloadInfo, join_set::JoinSet,
 };
 use mkwebfont_fontops::{
     font_info::{AxisName, FontFaceWrapper},
@@ -12,10 +12,12 @@ use mkwebfont_fontops::{
 use std::{collections::HashMap, io, path::PathBuf};
 use tracing::{error, info};
 
+// TODO: https://dl.rimin.moe/paste/lymia/NotoSerifDivesAkuru-_0hqwpxg8zdnbzn3k927znd1h3pa7pqws434mhnhazqighd89aicc.ttf
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(FILTER_SPEC)
+        .with_env_filter("info")
         .with_writer(io::stderr)
         .init();
 
@@ -96,7 +98,6 @@ async fn main() -> Result<()> {
         "mkwebfont_fontops/src/gfonts/gfonts_list.bin.zst",
         zstd_compress(&bincode::encode_to_vec(&font_info, bincode::config::standard())?)?,
     )?;
-    info!("Font info: {font_info:#?}");
     info!("Revision: {rev}");
     info!("Revision Date: {rev_date}");
     info!("Found {fonts_len} font files, and {font_faces_len} font faces.");

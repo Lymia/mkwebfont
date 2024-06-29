@@ -50,6 +50,15 @@ Many advanced CSS features are not supposed, you will be warned if you use these
 
 **WARNING:** This *edits* the webroot rather than simply using it as a reference. In general, this functionality is designed to be called as part of a build process, not called on a manually constructed webroot. For that use, the basic usage instructions are far more appropriate.
 
+### Fallback Font
+
+When used on a static webpage, mkwebfont will generate a fallback webfont for all characters not available to render using user-provided fonts. The vast majority of Unicode characters are supported. The following fonts are used to create this fallback (in the following order):
+
+* [Noto fonts](https://en.wikipedia.org/wiki/Noto_fonts) (Preferring Sans over Serif)
+* [Kurinto Sans](https://www.kurinto.com/typefaces.htm)
+* [Bablestone Han](https://www.babelstone.co.uk/Fonts/index.html)
+* [Adobe Blank](https://github.com/adobe-fonts/adobe-blank) (**WARNING:** This is a fallback that does not render anything)
+
 ## License
 
 This project is licensed under the Apache License Version 2.0.

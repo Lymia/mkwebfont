@@ -161,7 +161,12 @@ struct FontFaceData {
     filename_hint: Option<String>,
 }
 impl FontFaceWrapper {
-    pub fn load(filename_hint: Option<String>, buffer: Vec<u8>) -> Result<Vec<FontFaceWrapper>> {
+    pub fn load(
+        filename_hint: Option<String>,
+        buffer: impl Into<Arc<[u8]>>,
+    ) -> Result<Vec<FontFaceWrapper>> {
+        let buffer: Arc<[u8]> = buffer.into();
+
         let is_woff = buffer.len() >= 4 && &buffer[0..4] == b"wOFF";
         let is_woff2 = buffer.len() >= 4 && &buffer[0..4] == b"wOF2";
         let is_collection = buffer.len() >= 4 && &buffer[0..4] == b"ttcf";
@@ -170,10 +175,8 @@ impl FontFaceWrapper {
             bail!("woff/woff2 input is not supported. Please convert to .ttf or .otf first.");
         }
 
-        let data: Arc<[u8]> = buffer.into();
-
         let mut fonts = Vec::new();
-        if let Some(font) = Self::load_for_font(filename_hint.clone(), data.clone(), 0)? {
+        if let Some(font) = Self::load_for_font(filename_hint.clone(), buffer.clone(), 0)? {
             fonts.push(font);
         } else {
             bail!("No glyphs in first font?");
@@ -181,7 +184,7 @@ impl FontFaceWrapper {
 
         if is_collection {
             let mut i = 1;
-            while let Some(x) = Self::load_for_font(filename_hint.clone(), data.clone(), i)? {
+            while let Some(x) = Self::load_for_font(filename_hint.clone(), buffer.clone(), i)? {
                 fonts.push(x);
                 i += 1;
             }

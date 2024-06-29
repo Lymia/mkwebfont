@@ -36,6 +36,7 @@ cc = "1.0"
 
 # Unicode data
 unicode-blocks = "0.1"
+unicode-properties = "0.1"
 
 # Crates in the workspace
 mkwebfont_common = { version = "0.3.0", path = "mkwebfont_common" }
