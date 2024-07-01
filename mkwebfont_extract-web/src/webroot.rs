@@ -25,6 +25,10 @@ impl Webroot {
     }
 
     pub fn resolve(&self, rela_root: Option<&Path>, mut path: &str) -> Result<PathBuf> {
+        if path.contains('?') {
+            path = path.split('?').next().unwrap();
+        }
+
         let resolved_root = if path.starts_with("/") || rela_root.is_none() {
             while path.starts_with("/") {
                 path = &path[1..];
