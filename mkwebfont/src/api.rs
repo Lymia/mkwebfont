@@ -30,7 +30,7 @@ pub struct LoadedFont {
 impl LoadedFont {
     /// Loads all fonts present in a given binary font data.
     pub fn load(font_data: &[u8]) -> Result<Vec<Self>> {
-        Ok(FontFaceWrapper::load(None, font_data.into())?
+        Ok(FontFaceWrapper::load(None, font_data)?
             .into_iter()
             .map(|x| LoadedFont { underlying: x })
             .collect())
