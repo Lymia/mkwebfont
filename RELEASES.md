@@ -1,3 +1,7 @@
+# Version 0.2.0-alpha3 (2024-07-01)
+
+* Minor bugfixes.
+
 # Version 0.2.0-alpha2 (2024-06-27)
 
 * Added support for downloading fonts from Google Fonts by name.
