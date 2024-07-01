@@ -1,3 +1,4 @@
+pub mod character_set;
 pub mod compression;
 pub mod download_cache;
 pub mod hashing;
