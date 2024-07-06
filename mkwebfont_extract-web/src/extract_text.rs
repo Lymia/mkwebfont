@@ -4,6 +4,7 @@ use crate::{
 };
 use anyhow::Result;
 use arcstr::ArcStr;
+use mkwebfont_common::hashing::WyHashSet;
 use scraper::Html;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -16,7 +17,7 @@ pub async fn extract_text(
     css_cache: &CssCache,
     inject_css: &[ArcStr],
     builder: Arc<RwLock<TextInfoBuilder>>,
-) -> Result<()> {
+) -> Result<WyHashSet<Arc<[ArcStr]>>> {
     let rules = css_cache
         .get_rules_from_document(&data, root, inject_css)
         .await?;
@@ -58,9 +59,9 @@ pub async fn extract_text(
     }
 
     let mut lock = builder.write().await;
+    let mut stacks = WyHashSet::default();
     for (props, sample) in samples {
-        lock.push_sample(&props, &sample);
+        stacks.extend(lock.push_sample(&props, &sample));
     }
-
-    Ok(())
+    Ok(stacks)
 }

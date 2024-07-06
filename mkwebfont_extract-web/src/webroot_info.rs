@@ -102,7 +102,11 @@ impl TextInfoBuilder {
         }
     }
 
-    pub fn push_sample(&mut self, properties: &ResolvedNodeProperties, additional_text: &[ArcStr]) {
+    pub fn push_sample(
+        &mut self,
+        properties: &ResolvedNodeProperties,
+        additional_text: &[ArcStr],
+    ) -> Vec<Arc<[ArcStr]>> {
         let key = TextSampleKey {
             styles: properties
                 .font_style
@@ -122,8 +126,10 @@ impl TextInfoBuilder {
             .map(|x| self.intern_str(&x))
             .collect();
 
+        let mut result = Vec::new();
         for stack in &properties.font_stack {
             let stack = self.intern_stack(stack);
+            result.push(stack.clone());
             let texts = self
                 .stacks
                 .entry(stack)
@@ -132,6 +138,7 @@ impl TextInfoBuilder {
                 .or_default();
             texts.extend(content.iter().cloned());
         }
+        result
     }
 
     pub fn build(&self, targets: &RewriteTargets) -> WebrootInfo {

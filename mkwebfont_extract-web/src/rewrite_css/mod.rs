@@ -8,11 +8,13 @@ use html5ever::{
     tree_builder::NodeOrText,
     Attribute,
 };
-use mkwebfont_common::{hashing::WyHashBuilder, join_set::JoinSet};
+use mkwebfont_common::{
+    hashing::{WyHashMap, WyHashSet},
+    join_set::JoinSet,
+};
 use mkwebfont_fontops::subsetter::WebfontInfo;
 use scraper::{Html, Selector};
 use std::{
-    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{Arc, LazyLock},
 };
@@ -20,20 +22,20 @@ use tracing::{warn, Instrument};
 
 #[derive(Default, Debug, Clone)]
 pub struct RewriteTargets {
-    targets: HashMap<Arc<Path>, WebrootRewriteTargets, WyHashBuilder>,
+    targets: WyHashMap<Arc<Path>, WebrootRewriteTargets>,
 }
 
 #[derive(Default, Debug, Clone)]
 struct WebrootRewriteTargets {
-    rewrite_html_style: HashSet<Arc<Path>, WyHashBuilder>,
-    rewrite_css_path: HashSet<Arc<Path>, WyHashBuilder>,
-    rewrite_css_path_fonts: HashSet<Arc<Path>, WyHashBuilder>,
+    rewrite_html_style: WyHashSet<Arc<Path>>,
+    rewrite_css_path: WyHashSet<Arc<Path>>,
+    rewrite_css_path_fonts: WyHashSet<Arc<Path>>,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct RewriteContext {
     pub fallback_font_name: String,
-    pub add_fallback: HashSet<Arc<[ArcStr]>, WyHashBuilder>,
+    pub add_fallback: WyHashSet<Arc<[ArcStr]>>,
     pub webfonts: Vec<Arc<WebfontInfo>>,
     pub store_path: PathBuf,
     pub store_uri: Option<String>,
@@ -146,6 +148,7 @@ pub fn find_css_for_rewrite(
     targets: &mut RewriteTargets,
     document: &ArcStr,
     root: &RelaWebroot,
+    _used_stacks: WyHashSet<Arc<[ArcStr]>>,
 ) -> Result<()> {
     static SELECTOR: LazyLock<Selector> =
         LazyLock::new(|| Selector::parse("style,link[rel~=stylesheet],*[style]").unwrap());

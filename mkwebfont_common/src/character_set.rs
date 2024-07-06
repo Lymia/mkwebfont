@@ -1,6 +1,6 @@
-use std::fmt::{Debug, Formatter};
-use bincode::{Decode, Encode};
 use crate::hashing::WyHashSet;
+use bincode::{Decode, Encode};
+use std::fmt::{Debug, Formatter};
 
 #[derive(Clone, Eq, PartialEq, Default)]
 pub struct CharacterSet(WyHashSet<u32>);

@@ -89,7 +89,7 @@ impl WebrootInfoExtractorData {
         let span = info_span!("parse_html", name = file_name);
         async {
             let (data, root) = webroot.load_rela_raw(target).await?;
-            crate::extract_text::extract_text(
+            let used_stacks = crate::extract_text::extract_text(
                 &data,
                 &root,
                 &self.css_cache,
@@ -99,7 +99,7 @@ impl WebrootInfoExtractorData {
             .await?;
             {
                 let mut write = self.target.write().await;
-                crate::rewrite_css::find_css_for_rewrite(&mut write, &data, &root)?;
+                crate::rewrite_css::find_css_for_rewrite(&mut write, &data, &root, used_stacks)?;
             }
 
             Ok(())
