@@ -1,9 +1,11 @@
 use crate::{data::DataStorage, plan::FontFlags, quality_report::FontReport, splitter};
 use anyhow::{bail, Result};
-use mkwebfont_common::{download_cache::DownloadInfo, hashing::WyHashSet, join_set::JoinSet};
+use mkwebfont_common::{
+    character_set::CharacterSet, download_cache::DownloadInfo, hashing::WyHashSet,
+    join_set::JoinSet,
+};
 use mkwebfont_extract_web::{RewriteContext, WebrootInfo, WebrootInfoExtractor};
 use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
-use roaring::RoaringBitmap;
 use std::{
     fmt::Debug,
     path::{Path, PathBuf},
@@ -48,7 +50,7 @@ impl LoadedFont {
     }
 
     /// Returns the list of codepoints in the loaded font.
-    pub fn codepoints(&self) -> RoaringBitmap {
+    pub fn codepoints(&self) -> CharacterSet {
         self.underlying.all_codepoints().clone()
     }
 

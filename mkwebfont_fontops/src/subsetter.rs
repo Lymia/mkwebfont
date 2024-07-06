@@ -1,7 +1,9 @@
 use crate::font_info::{FontFaceWrapper, FontStyle, FontWeight};
 use anyhow::*;
-use mkwebfont_common::hashing::{hash_fragment, hash_full};
-use roaring::RoaringBitmap;
+use mkwebfont_common::{
+    character_set::CharacterSet,
+    hashing::{hash_fragment, hash_full},
+};
 use std::{fs, ops::RangeInclusive, path::Path, sync::Arc};
 use tokio::{task, task::JoinHandle};
 use tracing::{debug, Instrument};
@@ -47,7 +49,7 @@ fn is_same_block(ch_a: char, ch_b: char) -> bool {
     false
 }
 
-fn decode_range(bitmap: &RoaringBitmap, all_chars: &RoaringBitmap) -> Vec<RangeInclusive<u32>> {
+fn decode_range(bitmap: &CharacterSet, all_chars: &CharacterSet) -> Vec<RangeInclusive<u32>> {
     let mut range_start = None;
     let mut range_last = '\u{fffff}';
     let mut ranges = Vec::new();
@@ -139,8 +141,8 @@ impl WebfontInfo {
     }
 
     /// Returns the bitset of characters in the webfont.
-    pub fn all_chars(&self) -> RoaringBitmap {
-        let mut bitmap = RoaringBitmap::new();
+    pub fn all_chars(&self) -> CharacterSet {
+        let mut bitmap = CharacterSet::new();
         for subset in &self.entries {
             bitmap.extend(&subset.subset);
         }
@@ -152,7 +154,7 @@ impl WebfontInfo {
 pub struct SubsetInfo {
     name: String,
     woff2_file_name: String,
-    subset: RoaringBitmap,
+    subset: CharacterSet,
     subset_ranges: Vec<RangeInclusive<u32>>,
     woff2_data: Vec<u8>,
 }
@@ -160,9 +162,9 @@ impl SubsetInfo {
     fn new(
         font: &FontFaceWrapper,
         name: &str,
-        subset: RoaringBitmap,
+        subset: CharacterSet,
         woff2_data: Vec<u8>,
-        range_exclusions: &RoaringBitmap,
+        range_exclusions: &CharacterSet,
     ) -> Self {
         let font_name = extract_name(font.font_family());
         let font_style = extract_name(font.font_style());
@@ -205,7 +207,7 @@ impl SubsetInfo {
     }
 
     /// Returns the characters this subset applies to.
-    pub fn subset(&self) -> &RoaringBitmap {
+    pub fn subset(&self) -> &CharacterSet {
         &self.subset
     }
 
@@ -223,15 +225,15 @@ impl SubsetInfo {
 pub struct FontEncoder {
     font: FontFaceWrapper,
     woff2_subsets: Vec<JoinHandle<Result<SubsetInfo>>>,
-    range_exclusion: Arc<RoaringBitmap>,
+    range_exclusion: Arc<CharacterSet>,
 }
 impl FontEncoder {
-    pub fn new(font: FontFaceWrapper, range_exclusion: RoaringBitmap) -> Self {
+    pub fn new(font: FontFaceWrapper, range_exclusion: CharacterSet) -> Self {
         let range_exclusion = Arc::new(range_exclusion);
         FontEncoder { font, woff2_subsets: Vec::new(), range_exclusion }
     }
 
-    pub fn add_subset(&mut self, name: &str, codepoints: RoaringBitmap) {
+    pub fn add_subset(&mut self, name: &str, codepoints: CharacterSet) {
         let name = name.to_string();
         let font = self.font.clone();
         let range_exclusion = self.range_exclusion.clone();

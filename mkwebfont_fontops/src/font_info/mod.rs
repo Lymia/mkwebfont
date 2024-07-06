@@ -2,8 +2,7 @@ use anyhow::{bail, Result};
 use bincode::{Decode, Encode};
 use enumset::{EnumSet, EnumSetType};
 use hb_subset::{Blob, FontFace, SubsetInput};
-use mkwebfont_common::hashing::WyHashBuilder;
-use roaring::RoaringBitmap;
+use mkwebfont_common::{character_set::CharacterSet, hashing::WyHashBuilder};
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Display, Formatter},
@@ -155,7 +154,7 @@ struct FontFaceData {
     variations: Vec<VariationAxis>,
     parsed_font_style: FontStyle,
     parsed_font_weight: FontWeight,
-    available_codepoints: RoaringBitmap,
+    available_codepoints: CharacterSet,
     font_data: Arc<[u8]>,
     font_index: u32,
     filename_hint: Option<String>,
@@ -236,7 +235,7 @@ impl FontFaceWrapper {
             FontWeight::infer(&font_style)
         };
 
-        let mut available_codepoints = RoaringBitmap::new();
+        let mut available_codepoints = CharacterSet::new();
         for char in &font_face.covered_codepoints()? {
             available_codepoints.insert(char as u32);
         }
@@ -288,10 +287,10 @@ impl FontFaceWrapper {
         }))))
     }
 
-    pub fn codepoints_in_set(&self, set: &RoaringBitmap) -> RoaringBitmap {
+    pub fn codepoints_in_set(&self, set: &CharacterSet) -> CharacterSet {
         self.0.available_codepoints.clone() & set
     }
-    pub fn all_codepoints(&self) -> &RoaringBitmap {
+    pub fn all_codepoints(&self) -> &CharacterSet {
         &self.0.available_codepoints
     }
     pub fn font_id(&self) -> FontId {
@@ -332,7 +331,7 @@ impl FontFaceWrapper {
         }
     }
 
-    pub fn subset(&self, name: &str, chars: &RoaringBitmap) -> Result<Vec<u8>> {
+    pub fn subset(&self, name: &str, chars: &CharacterSet) -> Result<Vec<u8>> {
         // Load the font into harfbuzz
         let blob = Blob::from_bytes(&self.0.font_data)?;
         let mut font = FontFace::new_with_index(blob, self.0.font_index)?;

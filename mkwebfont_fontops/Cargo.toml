@@ -32,7 +32,6 @@ anyhow = { workspace = true }
 arcstr = { workspace = true }
 bincode = { workspace = true }
 enumset = { workspace = true }
-roaring = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

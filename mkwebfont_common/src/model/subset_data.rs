@@ -1,6 +1,8 @@
-use crate::model::data_package::{DataSection, DataSectionEncoder};
+use crate::{
+    character_set::CharacterSet,
+    model::data_package::{DataSection, DataSectionEncoder},
+};
 use bincode::{Decode, Encode};
-use roaring::RoaringBitmap;
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone, Debug)]
@@ -19,7 +21,7 @@ pub struct WebfontSubsetGroup {
 #[derive(Clone, Debug)]
 pub struct WebfontSubset {
     pub name: Arc<str>,
-    pub map: RoaringBitmap,
+    pub map: CharacterSet,
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -35,7 +37,7 @@ pub struct RawSubsets {
 }
 
 fn convert_subset(name: &str, chars: &str) -> Arc<WebfontSubset> {
-    let mut bitmap = RoaringBitmap::new();
+    let mut bitmap = CharacterSet::new();
     for ch in chars.chars() {
         bitmap.insert(ch as u32);
     }

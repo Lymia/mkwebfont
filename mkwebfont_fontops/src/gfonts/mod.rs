@@ -1,7 +1,8 @@
 use crate::font_info::{FontStyle, FontWeight};
 use bincode::{config::standard, Decode, Encode};
 use mkwebfont_common::{
-    compression::zstd_decompress, download_cache::DownloadInfo, hashing::WyHashBuilder,
+    character_set::CompressedCharacterSet, compression::zstd_decompress,
+    download_cache::DownloadInfo, hashing::WyHashBuilder,
 };
 use std::{
     collections::HashMap,
@@ -92,5 +93,5 @@ pub struct FallbackInfo {
 #[derive(Debug, Clone, Decode, Encode)]
 pub struct FallbackFontSource {
     pub name: String,
-    pub codepoints: Vec<u32>,
+    pub codepoints: CompressedCharacterSet,
 }

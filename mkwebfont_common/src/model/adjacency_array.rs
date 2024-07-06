@@ -1,10 +1,10 @@
 use crate::{
+    character_set::CharacterSet,
     hashing::WyHashBuilder,
     model::data_package::{DataSection, DataSectionEncoder},
 };
 use anyhow::Result;
 use bincode::{Decode, Encode};
-use roaring::RoaringBitmap;
 use std::collections::HashMap;
 use tracing::{debug, info};
 
@@ -87,7 +87,7 @@ pub struct AdjacencyArrayBuilder {
     data: Vec<u32>,
 }
 impl AdjacencyArrayBuilder {
-    pub fn new(glyphs: &RoaringBitmap) -> Self {
+    pub fn new(glyphs: &CharacterSet) -> Self {
         let mut codepoint_list = Vec::new();
         let mut places = HashMap::default();
         for glyph in glyphs {
@@ -109,7 +109,7 @@ impl AdjacencyArrayBuilder {
         AdjacencyArrayBuilder { codepoint_list, places, data }
     }
 
-    pub fn push_vector(&mut self, bitmap: &RoaringBitmap, chars: &[u32], tmp: &mut Vec<usize>) {
+    pub fn push_vector(&mut self, bitmap: &CharacterSet, chars: &[u32], tmp: &mut Vec<usize>) {
         tmp.clear();
         for glyph in bitmap {
             if let Some(glyph) = self.places.get(&chars[glyph as usize]) {

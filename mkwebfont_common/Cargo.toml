@@ -12,7 +12,6 @@ readme = "README.md"
 
 [dependencies]
 blake3 = { version = "1.5", features = ["pure"] }
-roaring = "0.10"
 wyrand = { version = "=0.2.0", features = ["wyhash"] } # low usage crate, pin version
 zstd = { version = "0.13", features = ["zstdmt"] }
 

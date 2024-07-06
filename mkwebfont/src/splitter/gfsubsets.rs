@@ -4,10 +4,12 @@ use crate::{
     splitter::SplitterImplementation,
 };
 use anyhow::Result;
-use mkwebfont_common::model::subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup};
+use mkwebfont_common::{
+    character_set::CharacterSet,
+    model::subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup},
+};
 use mkwebfont_fontops::{font_info::FontFaceWrapper, subsetter::FontEncoder};
 use ordered_float::OrderedFloat;
-use roaring::RoaringBitmap;
 use std::{collections::HashSet, sync::Arc};
 use tracing::debug;
 use unicode_blocks::find_unicode_block;
@@ -38,8 +40,8 @@ struct SplitterState {
     tuning: TuningParameters,
     data: Arc<WebfontData>,
 
-    fulfilled_codepoints: RoaringBitmap,
-    preload_codepoints: RoaringBitmap,
+    fulfilled_codepoints: CharacterSet,
+    preload_codepoints: CharacterSet,
     processed_subsets: HashSet<Arc<str>>,
     processed_groups: HashSet<Arc<str>>,
     misc_idx: usize,
@@ -198,7 +200,7 @@ impl SplitterState {
 
     /// Splits the residual class into transient subsets that will be merged again to form the
     /// final `misc` subsets.
-    fn generate_transient_subsets(&mut self) -> Vec<RoaringBitmap> {
+    fn generate_transient_subsets(&mut self) -> Vec<CharacterSet> {
         let mut remaining = self.font.all_codepoints() - &self.fulfilled_codepoints;
         let mut subsets = Vec::new();
 
@@ -218,7 +220,7 @@ impl SplitterState {
 
         // create remaining transient subsets by block
         while let Some(seed) = remaining.min() {
-            let mut subset = RoaringBitmap::new();
+            let mut subset = CharacterSet::new();
             remaining.remove(seed);
             subset.insert(seed);
 
@@ -242,7 +244,7 @@ impl SplitterState {
 
         subsets
     }
-    fn push_residual_block(&mut self, encoder: &mut FontEncoder, bitset: RoaringBitmap) {
+    fn push_residual_block(&mut self, encoder: &mut FontEncoder, bitset: CharacterSet) {
         self.misc_idx += 1;
         self.do_subset(
             &WebfontSubset { name: format!("misc{}", self.misc_idx).into(), map: bitset },
@@ -267,7 +269,7 @@ impl SplitterState {
 
         // Repeately take subsets from the list until all are consumed
         while !transient.is_empty() {
-            let mut new_subset = RoaringBitmap::new();
+            let mut new_subset = CharacterSet::new();
 
             let mut i = 0;
             while i < transient.len() {

@@ -1,25 +1,25 @@
 use anyhow::*;
+use mkwebfont_common::character_set::CharacterSet;
 use mkwebfont_extract_web::WebrootInfo;
 use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper, FontId};
-use roaring::RoaringBitmap;
 use std::{collections::HashMap, sync::LazyLock};
 
 #[derive(Clone, Debug, Default)]
 struct SubsetInfo {
-    subset: RoaringBitmap,
-    exclusion: RoaringBitmap,
-    preload: RoaringBitmap,
-    range_exclusions: RoaringBitmap,
+    subset: CharacterSet,
+    exclusion: CharacterSet,
+    preload: CharacterSet,
+    range_exclusions: CharacterSet,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct AssignedSubsets {
     disabled: bool,
     assigned_subsets: HashMap<FontId, SubsetInfo>,
-    all_subset: RoaringBitmap,
-    all_exclusion: RoaringBitmap,
-    all_preload: RoaringBitmap,
-    fallback_required: RoaringBitmap,
+    all_subset: CharacterSet,
+    all_exclusion: CharacterSet,
+    all_preload: CharacterSet,
+    fallback_required: CharacterSet,
 }
 impl AssignedSubsets {
     pub fn disabled() -> &'static AssignedSubsets {
@@ -36,7 +36,7 @@ impl AssignedSubsets {
         self.assigned_subsets.get(&id).unwrap_or_else(|| &EMPTY)
     }
 
-    pub fn get_used_chars(&self, font: &FontFaceWrapper) -> RoaringBitmap {
+    pub fn get_used_chars(&self, font: &FontFaceWrapper) -> CharacterSet {
         if self.disabled {
             font.all_codepoints().clone()
         } else {
@@ -47,7 +47,7 @@ impl AssignedSubsets {
         }
     }
 
-    pub fn get_range_exclusion(&self, font: &FontFaceWrapper) -> RoaringBitmap {
+    pub fn get_range_exclusion(&self, font: &FontFaceWrapper) -> CharacterSet {
         if self.disabled {
             font.all_codepoints().clone()
         } else {
@@ -56,9 +56,9 @@ impl AssignedSubsets {
         }
     }
 
-    pub fn get_preload_chars(&self, font: &FontFaceWrapper) -> RoaringBitmap {
+    pub fn get_preload_chars(&self, font: &FontFaceWrapper) -> CharacterSet {
         if self.disabled {
-            RoaringBitmap::new()
+            CharacterSet::new()
         } else {
             let info = self.get_subset(font.font_id());
             self.get_used_chars(font) & (&info.preload | &self.all_preload)
@@ -75,7 +75,7 @@ impl SubsetDataBuilder {
         self.subsets.assigned_subsets.entry(id).or_default()
     }
 
-    fn push_stack(&mut self, text: RoaringBitmap, fonts: &[Vec<FontFaceWrapper>]) -> Result<()> {
+    fn push_stack(&mut self, text: CharacterSet, fonts: &[Vec<FontFaceWrapper>]) -> Result<()> {
         let mut reverse_pass = Vec::new();
 
         let mut current = text.clone();
@@ -114,13 +114,13 @@ impl SubsetDataBuilder {
         Ok(())
     }
 
-    fn push_exclusion(&mut self, text: RoaringBitmap, fonts: &[FontFaceWrapper]) {
+    fn push_exclusion(&mut self, text: CharacterSet, fonts: &[FontFaceWrapper]) {
         for font in fonts {
             self.get_subset_mut(font.font_id()).exclusion.extend(&text);
         }
     }
 
-    fn push_preload(&mut self, text: RoaringBitmap, fonts: &[FontFaceWrapper]) {
+    fn push_preload(&mut self, text: CharacterSet, fonts: &[FontFaceWrapper]) {
         for font in fonts {
             self.get_subset_mut(font.font_id()).preload.extend(&text);
         }
@@ -144,9 +144,9 @@ impl SubsetDataBuilder {
         Ok(list)
     }
 
-    fn load_charset(spec: &str) -> Result<RoaringBitmap> {
-        fn chars_to_bitmap(chars: &str) -> RoaringBitmap {
-            let mut roaring = RoaringBitmap::new();
+    fn load_charset(spec: &str) -> Result<CharacterSet> {
+        fn chars_to_bitmap(chars: &str) -> CharacterSet {
+            let mut roaring = CharacterSet::new();
             for ch in chars.chars() {
                 roaring.insert(ch as u32);
             }
@@ -156,7 +156,7 @@ impl SubsetDataBuilder {
         if spec.starts_with("@") {
             Ok(chars_to_bitmap(&std::fs::read_to_string(&spec[1..])?))
         } else if spec.starts_with("#") {
-            let mut roaring = RoaringBitmap::new();
+            let mut roaring = CharacterSet::new();
             for section in spec[1..].split(',') {
                 let section = section.trim();
                 let (start, end) = if section.starts_with("U+") {
@@ -254,7 +254,7 @@ impl SubsetDataBuilder {
                     )
                 }
 
-                let mut chars = RoaringBitmap::new();
+                let mut chars = CharacterSet::new();
                 for ch in sample.glyphs().chars() {
                     chars.insert(ch as u32);
                 }

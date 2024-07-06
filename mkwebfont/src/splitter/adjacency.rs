@@ -4,8 +4,8 @@ use crate::{
     splitter::SplitterImplementation,
 };
 use anyhow::Result;
+use mkwebfont_common::character_set::CharacterSet;
 use mkwebfont_fontops::{font_info::FontFaceWrapper, subsetter::FontEncoder};
-use roaring::RoaringBitmap;
 
 const TUNING_SUBSET_SIZE: usize = 100;
 const TUNING_SUBSET_OVERHEAD: f64 = 2.0;
@@ -65,7 +65,7 @@ impl SplitterImplementation for AdjacencySplitter {
             }
             println!("{str:?}");
 
-            let mut bitmap = RoaringBitmap::new();
+            let mut bitmap = CharacterSet::new();
             for ch in subset {
                 bitmap.insert(ch);
             }

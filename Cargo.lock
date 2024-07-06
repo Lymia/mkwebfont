@@ -369,12 +369,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bytemuck"
-version = "1.16.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b236fc92302c97ed75b38da1f4917b5cdda4984745740f153a5d3059e48d725e"
-
-[[package]]
 name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1437,7 +1431,6 @@ dependencies = [
  "mkwebfont_extract-web",
  "mkwebfont_fontops",
  "ordered-float",
- "roaring",
  "serde",
  "tokio",
  "tracing",
@@ -1455,7 +1448,6 @@ dependencies = [
  "bincode",
  "blake3",
  "directories",
- "roaring",
  "tokio",
  "tracing",
  "ureq",
@@ -1500,7 +1492,6 @@ dependencies = [
  "glob",
  "mkwebfont_common",
  "mkwebfont_hb-subset",
- "roaring",
  "serde",
  "tokio",
  "tracing",
@@ -1526,11 +1517,9 @@ dependencies = [
  "async-recursion",
  "clap",
  "flate2",
- "mkwebfont",
  "mkwebfont_common",
  "ordered-float",
  "reqwest",
- "roaring",
  "serde",
  "serde_json",
  "tokio",
@@ -2213,16 +2202,6 @@ name = "rle-decode-fast"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3582f63211428f83597b51b2ddb88e2a91a9d52d12831f9d08f5e624e8977422"
-
-[[package]]
-name = "roaring"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7699249cc2c7d71939f30868f47e9d7add0bdc030d90ee10bfd16887ff8bb1c8"
-dependencies = [
- "bytemuck",
- "byteorder",
-]
 
 [[package]]
 name = "rustc-demangle"
