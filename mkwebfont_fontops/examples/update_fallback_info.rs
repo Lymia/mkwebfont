@@ -1,6 +1,12 @@
 use anyhow::Result;
-use mkwebfont_fontops::{font_info::FontFaceWrapper, gfonts::GfontsList};
-use roaring::RoaringBitmap;
+use mkwebfont_common::{character_set::CharacterSet, compression::zstd_compress};
+use mkwebfont_fontops::{
+    font_info::FontFaceWrapper,
+    gfonts::{
+        fallback_info::{FallbackFontSource, FallbackInfo},
+        gfonts_list::GfontsList,
+    },
+};
 use std::io;
 use tracing::{error, info};
 use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
@@ -213,12 +219,12 @@ async fn main() -> Result<()> {
         return Ok(());
     };
 
-    let mut all_chars = RoaringBitmap::new();
+    let mut all_chars = CharacterSet::new();
     for i in 0..0x110000 {
         if let Some(ch) = char::from_u32(i) {
             if let Some(_) = unicode_blocks::find_unicode_block(ch) {
                 if ch.general_category_group() != GeneralCategoryGroup::Other {
-                    all_chars.push(i);
+                    all_chars.insert(i);
                 }
             }
         }
@@ -249,6 +255,7 @@ async fn main() -> Result<()> {
     }
     gfont!("Adobe Blank");
 
+    let mut fallback_info = FallbackInfo { fonts: vec![] };
     for loaded in fonts {
         let font_name = loaded[0].font_family();
         let mut available = loaded[0].all_codepoints().clone();
@@ -265,7 +272,19 @@ async fn main() -> Result<()> {
             fulfilled.len(),
             all_chars.len(),
         );
+
+        fallback_info.fonts.push(FallbackFontSource {
+            name: font_name.to_string(),
+            codepoints: fulfilled.compressed(),
+        })
     }
+
+    println!("{fallback_info:#?}");
+
+    std::fs::write(
+        "mkwebfont_fontops/src/gfonts/fallback_info.bin.zst",
+        zstd_compress(&bincode::encode_to_vec(&fallback_info, bincode::config::standard())?)?,
+    )?;
 
     Ok(())
 }

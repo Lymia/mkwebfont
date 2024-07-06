@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bincode::config;
-use mkwebfont_common::compression::zstd_compress;
+use mkwebfont_common::{character_set::CharacterSet, compression::zstd_compress};
 use mkwebfont_fontops::gfonts::gfonts_subsets::{RawSubset, RawSubsets};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, io};
@@ -37,18 +37,16 @@ async fn main() -> Result<()> {
                 .iter()
                 .map(|x| char::from_u32(*x).unwrap()),
         );
-        let mut chars: Vec<_> = chars.into_iter().collect();
-        chars.sort();
 
-        let mut str = String::new();
+        let mut str = CharacterSet::new();
         for char in chars {
-            str.push(char);
+            str.insert(char as u32);
         }
 
         reencoded.subsets.push(RawSubset {
             name: subset.name.clone(),
             group: subset.group.clone(),
-            chars: str,
+            chars: str.compressed(),
         });
     }
 

@@ -1,5 +1,8 @@
 use bincode::{config::standard, Decode, Encode};
-use mkwebfont_common::{character_set::CharacterSet, compression::zstd_decompress};
+use mkwebfont_common::{
+    character_set::{CharacterSet, CompressedCharacterSet},
+    compression::zstd_decompress,
+};
 use std::{
     collections::HashMap,
     sync::{Arc, LazyLock},
@@ -41,7 +44,7 @@ pub struct WebfontSubset {
 pub struct RawSubset {
     pub name: String,
     pub group: Option<String>,
-    pub chars: String,
+    pub chars: CompressedCharacterSet,
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -49,12 +52,8 @@ pub struct RawSubsets {
     pub subsets: Vec<RawSubset>,
 }
 
-fn convert_subset(name: &str, chars: &str) -> Arc<WebfontSubset> {
-    let mut bitmap = CharacterSet::new();
-    for ch in chars.chars() {
-        bitmap.insert(ch as u32);
-    }
-    Arc::new(WebfontSubset { name: name.into(), map: bitmap })
+fn convert_subset(name: &str, chars: &CompressedCharacterSet) -> Arc<WebfontSubset> {
+    Arc::new(WebfontSubset { name: name.into(), map: CharacterSet::decompress(chars) })
 }
 fn build_by_name(subsets: &[Arc<WebfontSubset>]) -> HashMap<Arc<str>, Arc<WebfontSubset>> {
     let mut by_name = HashMap::new();

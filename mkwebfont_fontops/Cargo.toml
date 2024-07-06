@@ -31,7 +31,6 @@ unicode-blocks = { workspace = true }
 
 # Common Dependencies
 anyhow = { workspace = true }
-arcstr = { workspace = true }
 bincode = { workspace = true }
 enumset = { workspace = true }
 tokio = { workspace = true }

@@ -1269,7 +1269,6 @@ name = "mkwebfont_fontops"
 version = "0.1.1"
 dependencies = [
  "anyhow",
- "arcstr",
  "bincode",
  "brotli",
  "cc",

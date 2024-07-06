@@ -200,5 +200,10 @@ impl Iterator for CharacterSetIntoIter {
 ///
 /// This does not take less memory, but compresses better, as it is delta encoded and not in a
 /// random order as a [`HashSet`] would be.
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Encode, Decode)]
 pub struct CompressedCharacterSet(Vec<u32>);
+impl Debug for CompressedCharacterSet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[compressed set of {} characters]", self.0.len())
+    }
+}
