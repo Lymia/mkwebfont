@@ -1,4 +1,4 @@
-use crate::{data::DataStorage, plan::FontFlags, quality_report::FontReport, splitter};
+use crate::{data::DataStorage, plan::FontFlags, splitter};
 use anyhow::{bail, Result};
 use mkwebfont_common::{
     character_set::CharacterSet, download_cache::DownloadInfo, hashing::WyHashSet,
@@ -303,16 +303,6 @@ impl SplitterPlan {
     pub async fn preload(&self) -> Result<()> {
         let span = info_span!("preload");
         let _enter = span.enter();
-        if self.flags.contains(FontFlags::PrintReport) {
-            FINISH_PRELOAD.lock().await.push(tokio::spawn(
-                async {
-                    debug!("Preloading validation list...");
-                    DataStorage::instance()?.validation_list().await?;
-                    Ok(())
-                }
-                .in_current_span(),
-            ));
-        }
         if self.flags.contains(FontFlags::GfontsSplitter) {
             FINISH_PRELOAD.lock().await.push(tokio::spawn(
                 async {
@@ -378,13 +368,7 @@ pub async fn process_webfont(
 
             joins.spawn(
                 async move {
-                    let font = splitter::split_webfont(&plan, &assigned, &font).await?;
-                    let report = if plan.flags.contains(FontFlags::PrintReport) {
-                        Some(FontReport::for_font(&font).await?)
-                    } else {
-                        None
-                    };
-                    Ok((font, report))
+                    Ok(splitter::split_webfont(&plan, &assigned, &font).await?)
                 }
                 .in_current_span(),
             );
@@ -393,13 +377,5 @@ pub async fn process_webfont(
         }
     }
 
-    let mut out = Vec::new();
-    for (font, report) in joins.join().await? {
-        out.push(font);
-        if let Some(report) = report {
-            report.print();
-            eprintln!();
-        }
-    }
-    Ok(out)
+    joins.join().await
 }

@@ -10,8 +10,8 @@ pub struct BitsetSectionBuilder {
     source: String,
     compressed: Vec<CompressedCharacterSet>,
 
-    used_cd_idx: u16,
-    used_cd: Box<[u16; 0x110000]>,
+    used_cd_idx: u8,
+    used_cd: Box<[u8; 0x110000]>,
     filtered: Box<[bool; 0x110000]>,
 }
 impl BitsetSectionBuilder {
@@ -39,7 +39,7 @@ impl BitsetSectionBuilder {
 
     pub fn push_sample(&mut self, str: &str) {
         let idx = self.used_cd_idx;
-        if idx == u16::MAX {
+        if idx == u8::MAX {
             self.used_cd_idx = 0;
             *self.used_cd = [0; 0x110000];
         } else {

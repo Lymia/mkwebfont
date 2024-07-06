@@ -5,6 +5,7 @@ use std::{
     fmt::{Debug, Formatter},
     ops::{BitAnd, BitOr, BitXor, Sub},
 };
+use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign, SubAssign};
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct CharacterSet(WyHashSet<u32>);
@@ -13,7 +14,7 @@ impl CharacterSet {
         Self::default()
     }
 
-    pub fn insert(&mut self, character: u32) -> bool {
+    pub fn  insert(&mut self, character: u32) -> bool {
         self.0.insert(character)
     }
 
@@ -31,6 +32,10 @@ impl CharacterSet {
 
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    pub fn min(&self) -> Option<u32> {
+        self.0.iter().min().cloned()
     }
 
     /// Returns an iterator.
@@ -99,25 +104,20 @@ impl Extend<u32> for CharacterSet {
     }
 }
 
-impl<'a> BitAnd<&'a CharacterSet> for CharacterSet {
-    type Output = CharacterSet;
-    fn bitand(mut self, rhs: &'a CharacterSet) -> Self::Output {
+impl<'a> BitAndAssign<&'a CharacterSet> for CharacterSet {
+    fn bitand_assign(&mut self, rhs: &'a CharacterSet) {
         self.0.retain(|x| rhs.contains(*x));
-        self
     }
 }
-impl<'a> BitOr<&'a CharacterSet> for CharacterSet {
-    type Output = CharacterSet;
-    fn bitor(mut self, rhs: &'a CharacterSet) -> Self::Output {
+impl<'a> BitOrAssign<&'a CharacterSet> for CharacterSet {
+    fn bitor_assign(&mut self, rhs: &'a CharacterSet) {
         for char in rhs {
             self.insert(char);
         }
-        self
     }
 }
-impl<'a> BitXor<&'a CharacterSet> for CharacterSet {
-    type Output = CharacterSet;
-    fn bitxor(mut self, rhs: &'a CharacterSet) -> Self::Output {
+impl<'a> BitXorAssign<&'a CharacterSet> for CharacterSet {
+    fn bitxor_assign(&mut self, rhs: &'a CharacterSet) {
         for char in rhs {
             if !self.contains(char) {
                 self.insert(char);
@@ -125,25 +125,44 @@ impl<'a> BitXor<&'a CharacterSet> for CharacterSet {
                 self.remove(char);
             }
         }
-        self
     }
 }
-impl<'a> Sub<&'a CharacterSet> for CharacterSet {
-    type Output = CharacterSet;
-    fn sub(mut self, rhs: &'a CharacterSet) -> Self::Output {
+impl<'a> SubAssign<&'a CharacterSet> for CharacterSet {
+    fn sub_assign(&mut self, rhs: &'a CharacterSet) {
         for char in rhs {
             self.remove(char);
         }
-        self
     }
 }
 
 macro_rules! bitops {
-    ($trait_name:ident, $trait_func:ident) => {
+    ($trait_name:ident, $trait_func:ident, $assign_trait:ident, $assign_func:ident) => {
+        impl $assign_trait for CharacterSet {
+            fn $assign_func(&mut self, rhs: CharacterSet) {
+                $assign_trait::$assign_func(self, &rhs);
+            }
+        }
+        impl<'a> $assign_trait<CharacterSet> for &'a mut CharacterSet {
+            fn $assign_func(&mut self, rhs: CharacterSet) {
+                $assign_trait::$assign_func(*self, &rhs);
+            }
+        }
+        impl<'a, 'b> $assign_trait<&'a CharacterSet> for &'b mut CharacterSet {
+            fn $assign_func(&mut self, rhs: &'a CharacterSet) {
+                $assign_trait::$assign_func(*self, rhs);
+            }
+        }
         impl $trait_name for CharacterSet {
             type Output = CharacterSet;
             fn $trait_func(self, rhs: CharacterSet) -> Self::Output {
                 $trait_name::$trait_func(self, &rhs)
+            }
+        }
+        impl<'a> $trait_name<&'a CharacterSet> for CharacterSet {
+            type Output = CharacterSet;
+            fn $trait_func(mut self, rhs: &'a CharacterSet) -> Self::Output {
+                $assign_trait::$assign_func(&mut self, rhs);
+                self
             }
         }
         impl<'a> $trait_name<CharacterSet> for &'a CharacterSet {
@@ -160,10 +179,10 @@ macro_rules! bitops {
         }
     };
 }
-bitops!(BitAnd, bitand);
-bitops!(BitOr, bitor);
-bitops!(BitXor, bitxor);
-bitops!(Sub, sub);
+bitops!(BitAnd, bitand, BitAndAssign, bitand_assign);
+bitops!(BitOr, bitor, BitOrAssign, bitor_assign);
+bitops!(BitXor, bitxor, BitXorAssign, bitxor_assign);
+bitops!(Sub, sub, SubAssign, sub_assign);
 
 /// The iterator for [`CharacterSet`]
 pub struct CharacterSetIter<'a>(Iter<'a, u32>);

@@ -46,13 +46,6 @@ struct Args {
     #[arg(short = 'E', long)]
     exclude: Vec<String>,
 
-    /// Prints a report about how much network the generated webfonts would use in common
-    /// situations.
-    ///
-    /// This is primarily used for benchmarking purposes.
-    #[arg(long)]
-    print_report: bool,
-
     /// Explicitly sets the splitting algorithm used.
     #[arg(long)]
     splitter: Option<SplitterImpl>,
@@ -135,9 +128,6 @@ async fn main_impl(args: Args) -> Result<()> {
     }
     if !args.exclude.is_empty() {
         ctx.whitelist_fonts(&args.include);
-    }
-    if args.print_report {
-        ctx.print_report();
     }
     match args.splitter {
         Some(SplitterImpl::None) => {

@@ -59,7 +59,6 @@ impl FontFamilyConfig {
 
 #[derive(EnumSetType, Debug)]
 pub enum FontFlags {
-    PrintReport,
     NoSplitter,
     GfontsSplitter,
     AdjacencySplitter,
@@ -116,12 +115,6 @@ impl SplitterPlan {
         self.family_config = FontFamilyConfig::Blacklist(
             fonts.into_iter().map(|x| x.as_ref().to_string()).collect(),
         );
-        self
-    }
-
-    /// Prints a report of how much download size the font uses on average
-    pub fn print_report(&mut self) -> &mut Self {
-        self.flags.insert(FontFlags::PrintReport);
         self
     }
 
