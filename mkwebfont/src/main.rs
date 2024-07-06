@@ -100,7 +100,6 @@ enum SplitterImpl {
     Default,
     None,
     Gfonts,
-    Adjacency,
 }
 
 async fn main_impl(args: Args) -> Result<()> {
@@ -135,9 +134,6 @@ async fn main_impl(args: Args) -> Result<()> {
         }
         Some(SplitterImpl::Gfonts) => {
             ctx.gfonts_splitter();
-        }
-        Some(SplitterImpl::Adjacency) => {
-            ctx.adjacency_splitter();
         }
         _ => {
             ctx.gfonts_splitter();

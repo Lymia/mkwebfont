@@ -38,7 +38,6 @@ unicode-blocks = { workspace = true}
 anyhow = { workspace = true }
 enumset = { workspace = true }
 tokio = { workspace = true }
-serde = { workspace = true }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 tracing-subscriber = { workspace = true, optional = true }

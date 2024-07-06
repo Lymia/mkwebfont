@@ -61,7 +61,6 @@ impl FontFamilyConfig {
 pub enum FontFlags {
     NoSplitter,
     GfontsSplitter,
-    AdjacencySplitter,
     DoSubsetting,
 }
 
@@ -125,11 +124,6 @@ impl SplitterPlan {
 
     pub fn gfonts_splitter(&mut self) -> &mut Self {
         self.flags.insert(FontFlags::GfontsSplitter);
-        self
-    }
-
-    pub fn adjacency_splitter(&mut self) -> &mut Self {
-        self.flags.insert(FontFlags::AdjacencySplitter);
         self
     }
 

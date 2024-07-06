@@ -1,4 +1,4 @@
-use crate::{data::DataStorage, plan::FontFlags, splitter};
+use crate::{plan::FontFlags, splitter};
 use anyhow::{bail, Result};
 use mkwebfont_common::{
     character_set::CharacterSet, download_cache::DownloadInfo, hashing::WyHashSet,
@@ -11,12 +11,11 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use tokio::{sync::Mutex, task::JoinHandle};
-use tracing::{debug, info, info_span, Instrument};
+use tracing::{info, info_span, Instrument};
 
 use crate::plan::AssignedSubsets;
 pub use crate::plan::SplitterPlan;
-use mkwebfont_fontops::gfonts::GfontsList;
+use mkwebfont_fontops::gfonts::gfonts_list::GfontsList;
 pub use mkwebfont_fontops::{
     font_info::{FontStyle, FontWeight},
     subsetter::{SubsetInfo, WebfontInfo},
@@ -289,44 +288,6 @@ async fn load_fonts_from_disk(
     Ok(fonts)
 }
 
-/// Helper for preloading.
-const FINISH_PRELOAD: Mutex<Vec<JoinHandle<Result<()>>>> = Mutex::const_new(Vec::new());
-async fn finish_preload() -> Result<()> {
-    for join in FINISH_PRELOAD.lock().await.drain(..) {
-        join.await??;
-    }
-    Ok(())
-}
-
-impl SplitterPlan {
-    /// Preload resources required for this subsetting plan.
-    pub async fn preload(&self) -> Result<()> {
-        let span = info_span!("preload");
-        let _enter = span.enter();
-        if self.flags.contains(FontFlags::GfontsSplitter) {
-            FINISH_PRELOAD.lock().await.push(tokio::spawn(
-                async {
-                    debug!("Preloading gfsubsets...");
-                    DataStorage::instance()?.gfsubsets().await?;
-                    Ok(())
-                }
-                .in_current_span(),
-            ));
-        }
-        if self.flags.contains(FontFlags::AdjacencySplitter) {
-            FINISH_PRELOAD.lock().await.push(tokio::spawn(
-                async {
-                    debug!("Preloading adjacency list...");
-                    DataStorage::instance()?.adjacency_array().await?;
-                    Ok(())
-                }
-                .in_current_span(),
-            ));
-        }
-        Ok(())
-    }
-}
-
 #[derive(Clone)]
 pub struct Webroot(Arc<WebrootInfo>);
 impl Webroot {
@@ -348,8 +309,6 @@ pub async fn process_webfont(
 ) -> Result<Vec<WebfontInfo>> {
     let plan = plan.build();
 
-    finish_preload().await?;
-
     let assigned = Arc::new(if plan.flags.contains(FontFlags::DoSubsetting) {
         plan.calculate_subsets(&fonts.font_set, webroot.map(|x| &*x.0))?
     } else {
@@ -367,10 +326,8 @@ pub async fn process_webfont(
             let _enter = span.enter();
 
             joins.spawn(
-                async move {
-                    Ok(splitter::split_webfont(&plan, &assigned, &font).await?)
-                }
-                .in_current_span(),
+                async move { Ok(splitter::split_webfont(&plan, &assigned, &font).await?) }
+                    .in_current_span(),
             );
         } else {
             info!("Font family is excluded: {}", font)

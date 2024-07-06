@@ -1,20 +1,21 @@
-use crate::hashing::{WyHashBuilder, WyHashSet};
 use bincode::{Decode, Encode};
 use std::{
-    collections::hash_set::{IntoIter, Iter},
+    collections::{
+        btree_set::{IntoIter, Iter},
+        BTreeSet,
+    },
     fmt::{Debug, Formatter},
-    ops::{BitAnd, BitOr, BitXor, Sub},
+    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Sub, SubAssign},
 };
-use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign, SubAssign};
 
-#[derive(Clone, Eq, PartialEq)]
-pub struct CharacterSet(WyHashSet<u32>);
+#[derive(Clone, Eq, PartialEq, Default)]
+pub struct CharacterSet(BTreeSet<u32>);
 impl CharacterSet {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn  insert(&mut self, character: u32) -> bool {
+    pub fn insert(&mut self, character: u32) -> bool {
         self.0.insert(character)
     }
 
@@ -62,21 +63,14 @@ impl CharacterSet {
 
     /// Compresses a character set.
     pub fn compressed(&self) -> CompressedCharacterSet {
-        let mut sorted: Vec<_> = self.iter().collect();
-        sorted.sort();
-
-        if sorted.len() >= 2 {
-            for i in (1..sorted.len()).rev() {
-                sorted[i] -= sorted[i - 1];
+        let mut data: Vec<_> = self.iter().collect();
+        if data.len() >= 2 {
+            for i in (1..data.len()).rev() {
+                data[i] -= data[i - 1];
             }
         }
 
-        CompressedCharacterSet(sorted)
-    }
-}
-impl Default for CharacterSet {
-    fn default() -> Self {
-        CharacterSet(WyHashSet::with_capacity_and_hasher(128, WyHashBuilder::default()))
+        CompressedCharacterSet(data)
     }
 }
 impl Debug for CharacterSet {

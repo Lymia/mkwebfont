@@ -1,14 +1,14 @@
 use crate::{
-    data::DataStorage,
     plan::{AssignedSubsets, LoadedSplitterPlan},
     splitter::SplitterImplementation,
 };
 use anyhow::Result;
-use mkwebfont_common::{
-    character_set::CharacterSet,
-    model::subset_data::{WebfontData, WebfontSubset, WebfontSubsetGroup},
+use mkwebfont_common::character_set::CharacterSet;
+use mkwebfont_fontops::{
+    font_info::FontFaceWrapper,
+    gfonts::gfonts_subsets::{WebfontData, WebfontSubset, WebfontSubsetGroup},
+    subsetter::FontEncoder,
 };
-use mkwebfont_fontops::{font_info::FontFaceWrapper, subsetter::FontEncoder};
 use ordered_float::OrderedFloat;
 use std::{collections::HashSet, sync::Arc};
 use tracing::debug;
@@ -38,7 +38,7 @@ const DEFAULT_TUNING: TuningParameters = TuningParameters {
 struct SplitterState {
     font: FontFaceWrapper,
     tuning: TuningParameters,
-    data: Arc<WebfontData>,
+    data: &'static WebfontData,
 
     fulfilled_codepoints: CharacterSet,
     preload_codepoints: CharacterSet,
@@ -53,7 +53,7 @@ impl SplitterState {
         Ok(SplitterState {
             font: font.clone(),
             tuning: DEFAULT_TUNING,
-            data: DataStorage::instance()?.gfsubsets().await?,
+            data: WebfontData::load(),
             fulfilled_codepoints: fulfilled,
             preload_codepoints: assigned.get_preload_chars(font),
             processed_subsets: Default::default(),

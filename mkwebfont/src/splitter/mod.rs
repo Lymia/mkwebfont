@@ -6,7 +6,6 @@ use anyhow::Result;
 use mkwebfont_fontops::{font_info::FontFaceWrapper, subsetter::FontEncoder};
 use tracing::info;
 
-mod adjacency;
 mod gfsubsets;
 
 pub trait SplitterImplementation {
@@ -44,10 +43,6 @@ pub async fn split_webfont(
     if !assigned.get_used_chars(font).is_empty() {
         if plan.flags.contains(FontFlags::NoSplitter) {
             NullSplitter
-                .split(font, plan, assigned, &mut encoder)
-                .await?
-        } else if plan.flags.contains(FontFlags::AdjacencySplitter) {
-            adjacency::AdjacencySplitter
                 .split(font, plan, assigned, &mut encoder)
                 .await?
         } else if plan.flags.contains(FontFlags::GfontsSplitter) {

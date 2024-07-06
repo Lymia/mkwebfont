@@ -1,15 +1,28 @@
-use crate::{
-    character_set::CharacterSet,
-    model::data_package::{DataSection, DataSectionEncoder},
+use bincode::{config::standard, Decode, Encode};
+use mkwebfont_common::{character_set::CharacterSet, compression::zstd_decompress};
+use std::{
+    collections::HashMap,
+    sync::{Arc, LazyLock},
 };
-use bincode::{Decode, Encode};
-use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone, Debug)]
 pub struct WebfontData {
     pub by_name: HashMap<Arc<str>, Arc<WebfontSubset>>,
     pub subsets: Vec<Arc<WebfontSubset>>,
     pub groups: Vec<Arc<WebfontSubsetGroup>>,
+}
+impl WebfontData {
+    pub fn load<'a>() -> &'a WebfontData {
+        static CACHE: LazyLock<WebfontData> = LazyLock::new(|| {
+            let data = include_bytes!("gfonts_subsets.bin.zst");
+            let decompressed = zstd_decompress(data).unwrap();
+            let out: RawSubsets = bincode::decode_from_slice(&decompressed, standard())
+                .unwrap()
+                .0;
+            out.build()
+        });
+        &*CACHE
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -71,17 +84,8 @@ fn split_groups(
     (no_group, groups)
 }
 
-pub fn build_from_table(table: HashMap<String, String>) -> WebfontData {
-    let subsets: Vec<_> = table
-        .into_iter()
-        .map(|(k, v)| convert_subset(&k, &v))
-        .collect();
-    let by_name = build_by_name(&subsets);
-    WebfontData { by_name, subsets, groups: vec![] }
-}
-
 impl RawSubsets {
-    pub fn build(&self) -> WebfontData {
+    fn build(&self) -> WebfontData {
         let groups: HashMap<_, _> = self
             .subsets
             .iter()
@@ -95,21 +99,5 @@ impl RawSubsets {
         let by_name = build_by_name(&subsets);
         let (subsets, groups) = split_groups(&groups, subsets);
         WebfontData { by_name, subsets, groups }
-    }
-}
-
-/// Serialization code
-impl RawSubsets {
-    const TYPE_TAG: &'static str = "RawSubsets";
-
-    pub fn serialize(self, tag: &str) -> anyhow::Result<DataSection> {
-        let mut encoder = DataSectionEncoder::new(tag, Self::TYPE_TAG);
-        encoder.insert_bincode("*", &self);
-        Ok(encoder.build())
-    }
-
-    pub fn deserialize(mut section: DataSection) -> anyhow::Result<Self> {
-        section.type_check(Self::TYPE_TAG)?;
-        Ok(section.take_bincode("*")?)
     }
 }

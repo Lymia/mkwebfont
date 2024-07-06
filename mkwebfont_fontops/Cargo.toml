@@ -21,6 +21,8 @@ include = [
 ]
 
 [dependencies]
+toml = "0.8 "
+
 # Linking-only dependencies (Rust implementation, used by woff2)
 brotli = { version = "6.0", features = ["ffi-api"] }
 
@@ -32,7 +34,6 @@ anyhow = { workspace = true }
 arcstr = { workspace = true }
 bincode = { workspace = true }
 enumset = { workspace = true }
-serde = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 
@@ -44,12 +45,15 @@ mkwebfont_hb-subset = { workspace = true }
 chrono = "0.4"
 git2 = { version = "0.19", default-features = false }
 
+# Serde-related
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+
 # Unicode data
 unicode-properties = { workspace = true }
 
 # Common Dependencies
 glob = { workspace = true }
-tokio = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 [build-dependencies]

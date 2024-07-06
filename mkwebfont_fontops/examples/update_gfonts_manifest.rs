@@ -7,7 +7,7 @@ use mkwebfont_common::{
 };
 use mkwebfont_fontops::{
     font_info::{AxisName, FontFaceWrapper},
-    gfonts::{GfontInfo, GfontStyleInfo, GfontsList},
+    gfonts::gfonts_list::{GfontInfo, GfontStyleInfo, GfontsList},
 };
 use std::{collections::HashMap, io, path::PathBuf};
 use tracing::{error, info};
