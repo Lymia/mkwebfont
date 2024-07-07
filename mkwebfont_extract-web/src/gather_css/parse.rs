@@ -21,6 +21,7 @@ use mkwebfont_common::hashing::WyHashBuilder;
 use moka::future::{Cache, CacheBuilder};
 use scraper::Selector;
 use std::{borrow::Cow, path::Path, sync::Arc};
+use lightningcss::properties::font::GenericFontFamily;
 use tracing::{info_span, warn, Instrument};
 
 // TODO: Figure out how `inherit` et al are represented.
@@ -45,17 +46,25 @@ pub struct RawCssRuleDeclarations {
 }
 
 /// Parses CSS font families into the form used in the rest of this subcrate.
-pub fn parse_font_families(families: &[FontFamily<'_>]) -> Arc<[ArcStr]> {
+pub fn parse_font_families(families: &[FontFamily<'_>]) -> Option<Arc<[ArcStr]>> {
     let mut new = Vec::new();
     for family in families {
         match family {
+            FontFamily::Generic(GenericFontFamily::Inherit) => {
+                warn!("`font-family: inherit;` is not handled properly.");
+            }
             FontFamily::Generic(_) => {
                 warn!("Generic font families are ignored: {family:?}")
             }
             FontFamily::FamilyName(name) => new.push(name.to_lowercase().into()),
         }
     }
-    new.into()
+    if new.is_empty() {
+        warn!("Empty fonts list (excluding generics). Treating as `inherit`.");
+        None
+    } else {
+        Some(new.into())
+    }
 }
 
 /// Parses the list of declarations in a CSS rule into only the ones we need.
@@ -100,13 +109,13 @@ pub fn parse_declarations(style: &DeclarationBlock) -> Result<Option<RawCssRuleD
             }
 
             Property::Font(font) => {
-                raw_declarations.font_stack = Some(parse_font_families(&font.family));
+                raw_declarations.font_stack = parse_font_families(&font.family);
                 raw_declarations.font_weight = parse_font_weight(&font.weight);
                 raw_declarations.font_style = Some(font.style.clone());
                 is_interesting = true;
             }
             Property::FontFamily(family) => {
-                raw_declarations.font_stack = Some(parse_font_families(&family));
+                raw_declarations.font_stack = parse_font_families(&family);
                 is_interesting = true;
             }
             Property::FontWeight(weight) => {

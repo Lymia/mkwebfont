@@ -144,7 +144,9 @@ fn rewrite_properties_for_fallback(
     {
         match property {
             Property::FontFamily(family) => {
-                let families = parse_font_families(&family);
+                let Some(families) = parse_font_families(&family) else {
+                    continue;
+                };
                 let init_len = family.len();
                 family.retain(|x| matches!(x, FontFamily::FamilyName(_)));
                 if init_len != family.len() {
