@@ -64,18 +64,19 @@ fn generate_font_face_stylesheet<'a, 'b>(
                     continue 'font_loop;
                 }
             }
-        }
-        if let Some(used_stacks) = &used_stacks {
-            'outer: {
-                for stack in &**used_stacks {
-                    if stack
-                        .iter()
-                        .any(|x| x.as_str() == &font.font_family().to_lowercase())
-                    {
-                        break 'outer;
+        } else {
+            if let Some(used_stacks) = &used_stacks {
+                'outer: {
+                    for stack in &**used_stacks {
+                        if stack
+                            .iter()
+                            .any(|x| x.as_str() == &font.font_family().to_lowercase())
+                        {
+                            break 'outer;
+                        }
                     }
+                    continue 'font_loop;
                 }
-                continue 'font_loop;
             }
         }
 

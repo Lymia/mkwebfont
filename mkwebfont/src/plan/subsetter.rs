@@ -134,13 +134,13 @@ impl SubsetDataBuilder {
         for font_stack in fonts {
             let mut new_stack = Vec::new();
             for font in font_stack.as_ref() {
-                new_stack.push(ArcStr::from(font.font_family().to_string()));
+                new_stack.push(ArcStr::from(font.font_family().to_lowercase()));
             }
             *self
                 .subsets
                 .fallback_info
                 .entry(new_stack.into())
-                .or_default() &= &current;
+                .or_default() |= &current;
         }
 
         Ok(())
