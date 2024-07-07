@@ -31,6 +31,7 @@ struct WebrootRewriteTargets {
     rewrite_html_style: WyHashSet<Arc<Path>>,
     rewrite_css_path: WyHashSet<Arc<Path>>,
     rewrite_css_path_fonts: WyHashSet<Arc<Path>>,
+    used_stacks: WyHashMap<Arc<Path>, WyHashSet<Arc<[ArcStr]>>>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -111,8 +112,11 @@ async fn perform_rewrite_for_root(
     {
         let ctx = ctx.clone();
         let root = webroot.rela(&path)?;
+
+        let used_stacks = targets.used_stacks.get(path).cloned();
         joins.spawn(
-            async move { css_ops::process_css_path(&ctx, &root, append_fonts) }.in_current_span(),
+            async move { css_ops::process_css_path(&ctx, &root, append_fonts, used_stacks.as_ref()) }
+                .in_current_span(),
         );
     }
     for path in &targets.rewrite_html_style {
@@ -149,7 +153,7 @@ pub fn find_css_for_rewrite(
     targets: &mut RewriteTargets,
     document: &ArcStr,
     root: &RelaWebroot,
-    _used_stacks: WyHashSet<Arc<[ArcStr]>>,
+    used_stacks: WyHashSet<Arc<[ArcStr]>>,
 ) -> Result<()> {
     static SELECTOR: LazyLock<Selector> =
         LazyLock::new(|| Selector::parse("style,link[rel~=stylesheet],*[style]").unwrap());
@@ -218,7 +222,13 @@ pub fn find_css_for_rewrite(
             warn!("Path {} is used for @font-face generation only on some pages.", path.display());
             warn!("This may have unpredictable results.");
         }
-        root_target.rewrite_css_path_fonts.insert(path.into());
+        let path: Arc<Path> = path.into();
+        root_target.rewrite_css_path_fonts.insert(path.clone());
+        root_target
+            .used_stacks
+            .entry(path)
+            .or_default()
+            .extend(used_stacks.iter().cloned());
     }
 
     Ok(())

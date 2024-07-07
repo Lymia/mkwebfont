@@ -3,7 +3,10 @@ use arcstr::ArcStr;
 use mkwebfont_common::{character_set::CharacterSet, hashing::WyHashMap};
 use mkwebfont_extract_web::WebrootInfo;
 use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper, FontId};
-use std::sync::{Arc, LazyLock};
+use std::{
+    fmt::Debug,
+    sync::{Arc, LazyLock},
+};
 
 #[derive(Clone, Debug, Default)]
 struct SubsetInfo {

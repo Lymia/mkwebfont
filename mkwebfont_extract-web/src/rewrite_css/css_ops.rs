@@ -1,5 +1,6 @@
 use crate::{gather_css::parse_font_families, webroot::RelaWebroot, RewriteContext};
 use anyhow::{bail, Result};
+use arcstr::ArcStr;
 use lightningcss::{
     declaration::DeclarationBlock,
     printer::PrinterOptions,
@@ -18,9 +19,12 @@ use lightningcss::{
     traits::{ToCss, Zero},
     values::{angle::Angle, size::Size2D, url::Url},
 };
-use mkwebfont_common::paths::{get_relative_from, is_superpath};
+use mkwebfont_common::{
+    hashing::WyHashSet,
+    paths::{get_relative_from, is_superpath},
+};
 use mkwebfont_fontops::font_info::FontStyle;
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 use tracing::{debug, info};
 
 const DEFAULT_LOC: Location = Location { source_index: 0, line: 0, column: 0 };
@@ -36,6 +40,8 @@ fn printer() -> PrinterOptions<'static> {
 fn generate_font_face_stylesheet<'a, 'b>(
     ctx: &RewriteContext,
     store_uri: &str,
+    used_stacks: Option<&WyHashSet<Arc<[ArcStr]>>>,
+    fallback_needed: bool,
 ) -> StyleSheet<'a, 'b> {
     let mut sheet = StyleSheet::new(vec![], CssRuleList(vec![]), ParserOptions::default());
     let store_prefix = if store_uri.is_empty() {
@@ -43,7 +49,36 @@ fn generate_font_face_stylesheet<'a, 'b>(
     } else {
         format!("{store_uri}/")
     };
-    for font in &ctx.webfonts {
+    'font_loop: for font in &ctx.webfonts {
+        if font.font_family() == &ctx.fallback_font_name {
+            if !fallback_needed {
+                continue;
+            }
+            if let Some(used_stacks) = &used_stacks {
+                'outer: {
+                    for stack in &**used_stacks {
+                        if ctx.fallback_info.contains_key(stack) {
+                            break 'outer;
+                        }
+                    }
+                    continue 'font_loop;
+                }
+            }
+        }
+        if let Some(used_stacks) = &used_stacks {
+            'outer: {
+                for stack in &**used_stacks {
+                    if stack
+                        .iter()
+                        .any(|x| x.as_str() == &font.font_family().to_lowercase())
+                    {
+                        break 'outer;
+                    }
+                }
+                continue 'font_loop;
+            }
+        }
+
         let weight_range = font.weight_range();
         let weight_low = *weight_range.start();
         let weight_high = *weight_range.end();
@@ -142,8 +177,14 @@ fn rewrite_for_fallback(ctx: &RewriteContext, css: &mut [CssRule]) -> bool {
     rewritten
 }
 
-fn add_font_faces(css: &mut StyleSheet, ctx: &RewriteContext, store_url: &str) {
-    let sheet = generate_font_face_stylesheet(ctx, store_url);
+fn add_font_faces(
+    css: &mut StyleSheet,
+    ctx: &RewriteContext,
+    store_url: &str,
+    used_stacks: Option<&WyHashSet<Arc<[ArcStr]>>>,
+    fallback_needed: bool,
+) {
+    let sheet = generate_font_face_stylesheet(ctx, store_url, used_stacks, fallback_needed);
     css.rules.0.extend(sheet.rules.0);
 }
 
@@ -161,7 +202,13 @@ fn find_store_uri<'a>(ctx: &'a RewriteContext, root: &RelaWebroot) -> Result<Cow
     }
 }
 
-fn rewrite_css(ctx: &RewriteContext, root: &RelaWebroot, append_fonts: bool) -> Result<()> {
+fn rewrite_css(
+    ctx: &RewriteContext,
+    root: &RelaWebroot,
+    append_fonts: bool,
+    used_stacks: Option<&WyHashSet<Arc<[ArcStr]>>>,
+    fallback_needed: bool,
+) -> Result<()> {
     let data = std::fs::read_to_string(root.file_name())?;
     let mut sheet =
         StyleSheet::parse(&data, ParserOptions::default()).map_err(|x| x.into_owned())?;
@@ -177,7 +224,7 @@ fn rewrite_css(ctx: &RewriteContext, root: &RelaWebroot, append_fonts: bool) -> 
             root.file_name().display(),
             ctx.store_path.display(),
         );
-        add_font_faces(&mut sheet, ctx, &find_store_uri(ctx, root)?);
+        add_font_faces(&mut sheet, ctx, &find_store_uri(ctx, root)?, used_stacks, fallback_needed);
         rewritten = true;
     }
     if rewritten {
@@ -189,8 +236,18 @@ fn rewrite_css(ctx: &RewriteContext, root: &RelaWebroot, append_fonts: bool) -> 
     Ok(())
 }
 
-fn generate_css(ctx: &RewriteContext, root: &RelaWebroot) -> Result<()> {
-    let sheet = generate_font_face_stylesheet(ctx, &find_store_uri(ctx, root)?);
+fn generate_css(
+    ctx: &RewriteContext,
+    root: &RelaWebroot,
+    used_stacks: Option<&WyHashSet<Arc<[ArcStr]>>>,
+    fallback_needed: bool,
+) -> Result<()> {
+    let sheet = generate_font_face_stylesheet(
+        ctx,
+        &find_store_uri(ctx, root)?,
+        used_stacks,
+        fallback_needed,
+    );
     info!("Writing @font-face CSS to {}...", root.file_name().display());
     std::fs::write(root.file_name(), sheet.to_css(printer())?.code)?;
     Ok(())
@@ -200,7 +257,7 @@ pub fn generate_font_css(ctx: &RewriteContext) -> Result<String> {
     let Some(store_uri) = &ctx.store_uri else {
         bail!("`--store_uri` is required for generating detached font CSS.")
     };
-    let sheet = generate_font_face_stylesheet(ctx, &store_uri);
+    let sheet = generate_font_face_stylesheet(ctx, &store_uri, None, false);
     Ok(sheet.to_css(printer())?.code)
 }
 
@@ -231,15 +288,16 @@ pub fn process_css_path(
     ctx: &RewriteContext,
     root: &RelaWebroot,
     append_fonts: bool,
+    used_stacks: Option<&WyHashSet<Arc<[ArcStr]>>>,
 ) -> Result<()> {
     if !root.file_name().exists() {
         if !append_fonts {
             // Warned about in gather_css
             Ok(())
         } else {
-            generate_css(ctx, root)
+            generate_css(ctx, root, used_stacks, true)
         }
     } else {
-        rewrite_css(ctx, root, append_fonts)
+        rewrite_css(ctx, root, append_fonts, used_stacks, true)
     }
 }

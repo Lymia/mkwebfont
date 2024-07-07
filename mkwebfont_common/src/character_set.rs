@@ -46,6 +46,12 @@ impl CharacterSet {
         self.0.iter().min().cloned()
     }
 
+    pub fn debug_str(&self) -> String {
+        self.iter_sorted()
+            .map(|x| char::from_u32(x).unwrap())
+            .collect()
+    }
+
     /// Returns an iterator.
     pub fn iter(&self) -> CharacterSetIter {
         CharacterSetIter(self.0.iter())
@@ -65,19 +71,18 @@ impl CharacterSet {
 
     /// Decompresses the character set.
     pub fn decompress(data: &CompressedCharacterSet) -> Self {
-        let iter = data.0.iter().cloned().take(1).chain(
-            data.0
-                .iter()
-                .skip(1)
-                .zip(data.0.iter())
-                .map(|(cur, prev)| *cur + *prev),
-        );
-        CharacterSet(iter.collect())
+        let mut data = data.0.clone();
+        if data.len() >= 2 {
+            for i in 1..data.len() {
+                data[i] += data[i - 1];
+            }
+        }
+        CharacterSet(data.into_iter().collect())
     }
 
     /// Compresses a character set.
     pub fn compressed(&self) -> CompressedCharacterSet {
-        let mut data: Vec<_> = self.iter().collect();
+        let mut data: Vec<_> = self.iter_sorted().collect();
         if data.len() >= 2 {
             for i in (1..data.len()).rev() {
                 data[i] -= data[i - 1];

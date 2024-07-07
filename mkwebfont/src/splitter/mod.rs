@@ -83,6 +83,7 @@ pub async fn make_fallback_font(
     assigned: &AssignedSubsets,
 ) -> Result<Vec<WebfontInfo>> {
     let chars = assigned.get_fallback_chars().clone();
+    info!("Characters for fallback: {:?}", chars.debug_str());
     if chars.is_empty() {
         Ok(Vec::new())
     } else {
