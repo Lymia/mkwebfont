@@ -54,7 +54,7 @@ fn decode_range(bitmap: &CharacterSet, all_chars: &CharacterSet) -> Vec<RangeInc
     let mut range_last = '\u{fffff}';
     let mut ranges = Vec::new();
 
-    for ch in bitmap {
+    for ch in bitmap.iter_sorted() {
         let ch = char::from_u32(ch).expect("Invalid char in RoaringBitmap");
         if let Some(start) = range_start {
             let next = char::from_u32(range_last as u32 + 1).unwrap();

@@ -1,15 +1,13 @@
+use crate::hashing::WyHashSet;
 use bincode::{Decode, Encode};
 use std::{
-    collections::{
-        btree_set::{IntoIter, Iter},
-        BTreeSet,
-    },
+    collections::hash_set::{IntoIter, Iter},
     fmt::{Debug, Formatter},
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Sub, SubAssign},
 };
 
 #[derive(Clone, Eq, PartialEq, Default)]
-pub struct CharacterSet(BTreeSet<u32>);
+pub struct CharacterSet(WyHashSet<u32>);
 impl CharacterSet {
     pub fn new() -> Self {
         Self::default()
@@ -51,6 +49,13 @@ impl CharacterSet {
     /// Returns an iterator.
     pub fn iter(&self) -> CharacterSetIter {
         CharacterSetIter(self.0.iter())
+    }
+
+    /// Returns an iterator.
+    pub fn iter_sorted(&self) -> std::vec::IntoIter<u32> {
+        let mut vec: Vec<_> = self.iter().collect();
+        vec.sort();
+        vec.into_iter()
     }
 
     /// Converts this into an iterator.
