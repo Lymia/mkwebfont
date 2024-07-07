@@ -1,3 +1,7 @@
+# Version 0.2.0-alpha5 (2024-07-07)
+
+* Fix issue with the fallback font.
+
 # Version 0.2.0-alpha4 (2024-07-07)
 
 * Various bugfixes.
