@@ -11,7 +11,16 @@
         let
             nixpkgsImport = import nixpkgs {
                 system = "x86_64-linux";
-                overlays = [ rust-overlay.overlays.default ];
+                overlays = [
+                    rust-overlay.overlays.default
+                    (final: prev: {
+                        cargo-zigbuild = prev.cargo-zigbuild.overrideAttrs       {
+                          postInstall = ''
+                            wrapProgram $out/bin/cargo-zigbuild --prefix PATH : ${prev.zig_0_11}/bin
+                          '';
+                        };
+                    })
+                ];
             };
             pkgs = nixpkgsImport;
 
@@ -46,7 +55,7 @@
             };
 
             devShells.default = pkgs.mkShell {
-                buildInputs = [ rust-shell pkgs.zig pkgs.cargo-zigbuild pkgs.rustPlatform.bindgenHook ];
+                buildInputs = [ rust-shell pkgs.cargo-zigbuild pkgs.rustPlatform.bindgenHook ];
             };
         }
     );
