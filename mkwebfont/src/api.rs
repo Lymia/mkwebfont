@@ -1,11 +1,20 @@
-use crate::{plan::FontFlags, splitter};
+use crate::{
+    plan::{AssignedSubsets, FontFlags},
+    splitter,
+};
 use anyhow::{bail, Result};
+use arcstr::ArcStr;
 use mkwebfont_common::{
-    character_set::CharacterSet, download_cache::DownloadInfo, hashing::WyHashSet,
+    character_set::CharacterSet,
+    download_cache::DownloadInfo,
+    hashing::{WyHashMap, WyHashSet},
     join_set::JoinSet,
 };
 use mkwebfont_extract_web::{RewriteContext, WebrootInfo, WebrootInfoExtractor};
-use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
+use mkwebfont_fontops::{
+    font_info::{FontFaceSet, FontFaceWrapper},
+    gfonts::gfonts_list::GfontsList,
+};
 use std::{
     fmt::Debug,
     path::{Path, PathBuf},
@@ -13,9 +22,8 @@ use std::{
 };
 use tracing::{info, info_span, Instrument};
 
-use crate::plan::AssignedSubsets;
 pub use crate::plan::SplitterPlan;
-use mkwebfont_fontops::gfonts::gfonts_list::GfontsList;
+use crate::splitter::FALLBACK_FONT_NAME;
 pub use mkwebfont_fontops::{
     font_info::{FontStyle, FontWeight},
     subsetter::{SubsetInfo, WebfontInfo},
@@ -178,8 +186,13 @@ pub struct LoadedFontSet {
 }
 impl LoadedFontSet {
     /// Retrieves a font by name.
-    pub fn resolve(&self, name: &str) -> Result<LoadedFont> {
-        Ok(LoadedFont { underlying: self.font_set.resolve(name)?.clone() })
+    pub fn resolve(&self, name: &str) -> Result<Vec<LoadedFont>> {
+        Ok(self
+            .font_set
+            .resolve_all(name)?
+            .into_iter()
+            .map(|x| LoadedFont { underlying: x.clone() })
+            .collect())
     }
 }
 
@@ -288,7 +301,7 @@ async fn load_fonts_from_disk(
     Ok(fonts)
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Webroot(Arc<WebrootInfo>);
 impl Webroot {
     pub async fn load(path: &Path) -> Result<Webroot> {
@@ -302,11 +315,71 @@ impl Webroot {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct WebfontResults {
+    pub webfonts: Vec<Arc<WebfontInfo>>,
+    fallback_info: WyHashMap<Arc<[ArcStr]>, CharacterSet>,
+    webroot: Option<Webroot>,
+}
+impl WebfontResults {
+    fn rewrite_ctx(&self, store_path: PathBuf, store_uri: Option<String>) -> RewriteContext {
+        RewriteContext {
+            fallback_font_name: FALLBACK_FONT_NAME.to_string(),
+            fallback_info: self.fallback_info.clone(),
+            webfonts: self.webfonts.clone(),
+            store_path,
+            store_uri,
+        }
+    }
+
+    pub fn has_webroot(&self) -> bool {
+        self.webroot.is_some()
+    }
+
+    pub async fn rewrite_webroot(
+        &self,
+        store_path: impl AsRef<Path>,
+        store_uri: Option<impl AsRef<str>>,
+    ) -> Result<()> {
+        let rewrite_ctx = self.rewrite_ctx(
+            store_path.as_ref().to_path_buf(),
+            store_uri.map(|x| x.as_ref().to_string()),
+        );
+        if let Some(webroot) = &self.webroot {
+            webroot.rewrite_webroot(rewrite_ctx).await
+        } else {
+            bail!("No webroot is available.");
+        }
+    }
+
+    pub fn produce_css(
+        &self,
+        store_path: impl AsRef<Path>,
+        store_uri: Option<impl AsRef<str>>,
+    ) -> Result<String> {
+        if store_uri.is_none() {
+            bail!("Cannot generate detached .css files without an explicit store URI.")
+        }
+        let rewrite_ctx = self.rewrite_ctx(
+            store_path.as_ref().to_path_buf(),
+            Some(store_uri.unwrap().as_ref().to_string()),
+        );
+        rewrite_ctx.generate_font_css()
+    }
+
+    pub fn write_webfonts(&self, store_path: impl AsRef<Path>) -> Result<()> {
+        for font in &self.webfonts {
+            font.write_to_store(store_path.as_ref())?;
+        }
+        Ok(())
+    }
+}
+
 pub async fn process_webfont(
     plan: &SplitterPlan,
     fonts: &LoadedFontSet,
     webroot: Option<&Webroot>,
-) -> Result<Vec<WebfontInfo>> {
+) -> Result<WebfontResults> {
     let plan = plan.build();
 
     let assigned = Arc::new(if plan.flags.contains(FontFlags::DoSubsetting) {
@@ -326,13 +399,26 @@ pub async fn process_webfont(
             let _enter = span.enter();
 
             joins.spawn(
-                async move { Ok(splitter::split_webfont(&plan, &assigned, &font).await?) }
+                async move { Ok(vec![splitter::split_webfont(&plan, &assigned, &font).await?]) }
                     .in_current_span(),
             );
         } else {
             info!("Font family is excluded: {}", font)
         }
     }
+    {
+        let span = info_span!("split", "(fallback font)");
+        let _enter = span.enter();
+        let assigned = assigned.clone();
+        joins.spawn(
+            async move { splitter::make_fallback_font(&plan, &assigned).await }.in_current_span(),
+        );
+    }
 
-    joins.join().await
+    let webfonts = joins.join_vec().await?.into_iter().map(Arc::new).collect();
+    Ok(WebfontResults {
+        webfonts,
+        fallback_info: assigned.get_fallback_info().clone(),
+        webroot: webroot.cloned(),
+    })
 }

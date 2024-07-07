@@ -2,8 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use mkwebfont::{LoadedFontSetBuilder, SplitterPlan, Webroot};
 use mkwebfont_common::FILTER_SPEC;
-use mkwebfont_extract_web::RewriteContext;
-use std::{fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf, sync::Arc};
+use std::{fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
 use tokio::runtime::Builder;
 use tracing::{error, info, warn};
 
@@ -164,31 +163,24 @@ async fn main_impl(args: Args) -> Result<()> {
     let styles = mkwebfont::process_webfont(&ctx, &fonts.build().await?, webroot.as_ref()).await?;
 
     // write webfonts to store and render css
-    let count: usize = styles.iter().map(|x| x.subset_count()).sum();
+    let count: usize = styles.webfonts.iter().map(|x| x.subset_count()).sum();
     info!("Writing {count} files to store...");
 
     let store = args.store.unwrap();
     if !store.exists() {
         std::fs::create_dir_all(&store)?;
     }
-    for style in &styles {
-        style.write_to_store(&store)?;
-    }
+    styles.write_webfonts(&store)?;
 
     // write webfonts to the webroot.
-    let ctx = RewriteContext {
-        webfonts: styles.into_iter().map(Arc::new).collect(),
-        store_path: store,
-        store_uri: if let Some(store_uri) = args.store_uri {
-            Some(store_uri)
-        } else {
-            None
-        },
-        ..RewriteContext::default()
+    let store_uri = if let Some(store_uri) = args.store_uri {
+        Some(store_uri)
+    } else {
+        None
     };
     if args.write_to_webroot {
-        if let Some(webroot) = &webroot {
-            webroot.rewrite_webroot(ctx.clone()).await?;
+        if webroot.is_some() {
+            styles.rewrite_webroot(&store, store_uri.as_ref()).await?;
         } else {
             warn!("`--write-to-webroot` specified with no webroot. Ignoring.");
         }
@@ -197,15 +189,15 @@ async fn main_impl(args: Args) -> Result<()> {
     // write css to output
     if let Some(target) = args.output {
         info!("Writing CSS to '{}'...", target.display());
-        let css = ctx.generate_font_css()?;
+        let css = styles.produce_css(&store, store_uri.as_ref())?;
         std::fs::write(target, css)?;
     } else if let Some(target) = args.append {
         info!("Appending CSS to '{}'...", target.display());
         let mut file = OpenOptions::new().write(true).append(true).open(target)?;
-        let css = ctx.generate_font_css()?;
+        let css = styles.produce_css(&store, store_uri.as_ref())?;
         file.write_all(css.as_bytes())?
     } else if !webroot.is_some() || !args.write_to_webroot {
-        let css = ctx.generate_font_css()?;
+        let css = styles.produce_css(&store, store_uri.as_ref())?;
         println!("{}", css);
     }
 

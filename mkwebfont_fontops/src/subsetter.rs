@@ -110,6 +110,12 @@ impl WebfontInfo {
         Ok(())
     }
 
+    /// Sets the name of this subset info.
+    pub fn with_family_name(mut self, name: impl ToString) -> WebfontInfo {
+        self.font_family = name.to_string().into();
+        self
+    }
+
     pub fn font_family(&self) -> &str {
         &self.font_family
     }

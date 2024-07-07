@@ -1,13 +1,15 @@
 use anyhow::Result;
-use mkwebfont_common::{character_set::CharacterSet, compression::zstd_compress};
+use mkwebfont_common::{
+    character_set::CharacterSet, compression::zstd_compress, download_cache::DownloadInfo,
+};
 use mkwebfont_fontops::{
     font_info::FontFaceWrapper,
     gfonts::{
-        fallback_info::{FallbackFontSource, FallbackInfo},
+        fallback_info::{FallbackComponent, FallbackDownloadSource, FallbackInfo},
         gfonts_list::GfontsList,
     },
 };
-use std::io;
+use std::{io, path::PathBuf};
 use tracing::{error, info};
 use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
 
@@ -116,7 +118,6 @@ const FALLBACK_FONTS: &[&str] = &[
     "Noto Sans Nabataean",
     "Noto Sans Nag Mundari",
     "Noto Sans Nandinagari",
-    "Noto Nastaliq Urdu",
     "Noto Sans New Tai Lue",
     "Noto Sans Newa",
     "Noto Sans Nko",
@@ -239,7 +240,8 @@ async fn main() -> Result<()> {
             for style in &font.styles {
                 loaded.extend(FontFaceWrapper::load(None, style.info.load().await?)?);
             }
-            fonts.push(loaded);
+            let source = FallbackDownloadSource::GFonts($name.to_string());
+            fonts.push((source, loaded));
         }};
     }
     for font_name in FALLBACK_FONTS {
@@ -247,16 +249,20 @@ async fn main() -> Result<()> {
     }
     for extra_font in EXTRA_FONTS_NAMES {
         let mut loaded = Vec::new();
+        let mut downloads = Vec::new();
         for style in *extra_font {
             let path = format!("{repo_path}/{style}");
-            loaded.extend(FontFaceWrapper::load(None, std::fs::read(path)?)?);
+            loaded.extend(FontFaceWrapper::load(None, std::fs::read(&path)?)?);
+
+            let uri = format!("{uri_prefix}/{style}");
+            downloads.push(DownloadInfo::for_file(&PathBuf::from(path), &uri)?);
         }
-        fonts.push(loaded);
+        fonts.push((FallbackDownloadSource::Download(downloads), loaded));
     }
     gfont!("Adobe Blank");
 
     let mut fallback_info = FallbackInfo { fonts: vec![] };
-    for loaded in fonts {
+    for (source, loaded) in fonts {
         let font_name = loaded[0].font_family();
         let mut available = loaded[0].all_codepoints().clone();
         for font in &loaded[1..] {
@@ -273,8 +279,9 @@ async fn main() -> Result<()> {
             all_chars.len(),
         );
 
-        fallback_info.fonts.push(FallbackFontSource {
+        fallback_info.fonts.push(FallbackComponent {
             name: font_name.to_string(),
+            source,
             codepoints: fulfilled.compressed(),
         })
     }

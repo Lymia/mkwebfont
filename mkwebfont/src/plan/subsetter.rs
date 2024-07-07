@@ -1,8 +1,9 @@
 use anyhow::*;
-use mkwebfont_common::character_set::CharacterSet;
+use arcstr::ArcStr;
+use mkwebfont_common::{character_set::CharacterSet, hashing::WyHashMap};
 use mkwebfont_extract_web::WebrootInfo;
 use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper, FontId};
-use std::{collections::HashMap, sync::LazyLock};
+use std::sync::{Arc, LazyLock};
 
 #[derive(Clone, Debug, Default)]
 struct SubsetInfo {
@@ -15,11 +16,13 @@ struct SubsetInfo {
 #[derive(Clone, Debug, Default)]
 pub struct AssignedSubsets {
     disabled: bool,
-    assigned_subsets: HashMap<FontId, SubsetInfo>,
+    assigned_subsets: WyHashMap<FontId, SubsetInfo>,
     all_subset: CharacterSet,
     all_exclusion: CharacterSet,
     all_preload: CharacterSet,
+
     fallback_required: CharacterSet,
+    fallback_info: WyHashMap<Arc<[ArcStr]>, CharacterSet>,
 }
 impl AssignedSubsets {
     pub fn disabled() -> &'static AssignedSubsets {
@@ -64,6 +67,14 @@ impl AssignedSubsets {
             self.get_used_chars(font) & (&info.preload | &self.all_preload)
         }
     }
+
+    pub fn get_fallback_chars(&self) -> &CharacterSet {
+        &self.fallback_required
+    }
+
+    pub fn get_fallback_info(&self) -> &WyHashMap<Arc<[ArcStr]>, CharacterSet> {
+        &self.fallback_info
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -75,21 +86,27 @@ impl SubsetDataBuilder {
         self.subsets.assigned_subsets.entry(id).or_default()
     }
 
-    fn push_stack(&mut self, text: CharacterSet, fonts: &[Vec<FontFaceWrapper>]) -> Result<()> {
+    pub fn push_stack(
+        &mut self,
+        text: CharacterSet,
+        fonts: &[impl AsRef<[FontFaceWrapper]>],
+    ) -> Result<()> {
         let mut reverse_pass = Vec::new();
 
         let mut current = text.clone();
         for i in 0..fonts.len() {
-            ensure!(fonts[i].len() > 0, "Fonts lists cannot be empty!");
-            let mut fulfilled_codepoints = fonts[i][0].all_codepoints().clone();
-            for font in &fonts[i][1..] {
+            let font = fonts[i].as_ref();
+
+            ensure!(font.len() > 0, "Fonts lists cannot be empty!");
+            let mut fulfilled_codepoints = font[0].all_codepoints().clone();
+            for font in &font[1..] {
                 fulfilled_codepoints &= font.all_codepoints();
             }
             fulfilled_codepoints &= &current;
             let fulfilled_codepoints = fulfilled_codepoints;
 
-            for j in 0..fonts[i].len() {
-                self.get_subset_mut(fonts[i][j].font_id())
+            for j in 0..font.len() {
+                self.get_subset_mut(font[j].font_id())
                     .subset
                     .extend(&fulfilled_codepoints);
             }
@@ -98,17 +115,29 @@ impl SubsetDataBuilder {
         }
 
         if !current.is_empty() {
-            self.subsets.fallback_required.extend(current);
+            self.subsets.fallback_required.extend(&current);
         }
 
         for i in 0..fonts.len() {
             for j in 0..i {
-                for k in 0..fonts[i].len() {
-                    self.get_subset_mut(fonts[j][k].font_id())
+                for k in 0..fonts[i].as_ref().len() {
+                    self.get_subset_mut(fonts[j].as_ref()[k].font_id())
                         .range_exclusions
                         .extend(&reverse_pass[i]);
                 }
             }
+        }
+
+        for font_stack in fonts {
+            let mut new_stack = Vec::new();
+            for font in font_stack.as_ref() {
+                new_stack.push(ArcStr::from(font.font_family().to_string()));
+            }
+            *self
+                .subsets
+                .fallback_info
+                .entry(new_stack.into())
+                .or_default() &= &current;
         }
 
         Ok(())
@@ -243,7 +272,7 @@ impl SubsetDataBuilder {
     pub fn push_webroot_info(&mut self, fonts: &FontFaceSet, text: &WebrootInfo) -> Result<()> {
         for stack in &text.font_stacks {
             for sample in &stack.samples {
-                let mut list = Vec::new();
+                let mut list: Vec<Vec<_>> = Vec::new();
                 for font in &*stack.stack {
                     list.push(
                         fonts

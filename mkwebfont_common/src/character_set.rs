@@ -19,6 +19,15 @@ impl CharacterSet {
         self.0.insert(character)
     }
 
+    pub fn intersects(&self, other: &CharacterSet) -> bool {
+        for char in &self.0 {
+            if other.contains(*char) {
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn remove(&mut self, character: u32) -> bool {
         self.0.remove(&character)
     }
@@ -56,7 +65,7 @@ impl CharacterSet {
                 .iter()
                 .skip(1)
                 .zip(data.0.iter())
-                .map(|(cur, prev)| *cur - *prev),
+                .map(|(cur, prev)| *cur + *prev),
         );
         CharacterSet(iter.collect())
     }

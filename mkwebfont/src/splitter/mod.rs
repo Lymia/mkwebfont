@@ -1,9 +1,15 @@
 use crate::{
-    plan::{AssignedSubsets, FontFlags, LoadedSplitterPlan},
+    plan::{AssignedSubsets, FontFlags, LoadedSplitterPlan, SubsetDataBuilder},
     WebfontInfo,
 };
 use anyhow::Result;
-use mkwebfont_fontops::{font_info::FontFaceWrapper, subsetter::FontEncoder};
+use mkwebfont_common::join_set::JoinSet;
+use mkwebfont_fontops::{
+    font_info::{FontFaceSet, FontFaceWrapper},
+    gfonts::fallback_info::FallbackInfo,
+    subsetter::FontEncoder,
+};
+use std::sync::Arc;
 use tracing::info;
 
 mod gfsubsets;
@@ -67,4 +73,47 @@ pub async fn split_webfont(
         );
     }
     anyhow::Ok(info)
+}
+
+pub const FALLBACK_FONT_NAME: &str = "mkwebfontFallbackV1";
+
+pub async fn make_fallback_font(
+    plan: &LoadedSplitterPlan,
+    assigned: &AssignedSubsets,
+) -> Result<Vec<WebfontInfo>> {
+    let chars = assigned.get_fallback_chars().clone();
+    if chars.is_empty() {
+        Ok(Vec::new())
+    } else {
+        let needed_fonts = FallbackInfo::load_needed_fonts(&chars).await?;
+        let font_set = FontFaceSet::build(needed_fonts.into_iter());
+        let fallback_stack = FallbackInfo::build_stack(&chars);
+
+        let mut assigned = SubsetDataBuilder::default();
+        let mut stack_fonts = Vec::new();
+        for font in fallback_stack {
+            stack_fonts.push(font_set.resolve_all(&font)?);
+        }
+        assigned.push_stack(chars.clone(), &stack_fonts)?;
+        let assigned = Arc::new(assigned.build());
+
+        let mut joins = JoinSet::new();
+        for font in font_set.as_list() {
+            let assigned = assigned.clone();
+            let chars = chars.clone();
+            let font = font.clone();
+            let plan = plan.clone();
+            joins.spawn(async move {
+                let mut encoder = FontEncoder::new(font.clone(), chars);
+                gfsubsets::GfSubsetSplitter
+                    .split(&font, &plan, &*assigned, &mut encoder)
+                    .await?;
+                Ok(encoder
+                    .produce_webfont()
+                    .await?
+                    .with_family_name(FALLBACK_FONT_NAME))
+            });
+        }
+        joins.join().await
+    }
 }

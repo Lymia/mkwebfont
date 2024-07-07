@@ -115,7 +115,7 @@ fn rewrite_properties_for_fallback(
                 if init_len != family.len() {
                     rewritten = true;
                 }
-                if ctx.add_fallback.contains(&families) {
+                if ctx.fallback_info.contains_key(&families) {
                     family.push(FontFamily::FamilyName(ctx.fallback_font_name.clone().into()));
                     rewritten = true;
                 }

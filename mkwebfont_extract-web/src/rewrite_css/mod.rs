@@ -9,6 +9,7 @@ use html5ever::{
     Attribute,
 };
 use mkwebfont_common::{
+    character_set::CharacterSet,
     hashing::{WyHashMap, WyHashSet},
     join_set::JoinSet,
 };
@@ -35,7 +36,7 @@ struct WebrootRewriteTargets {
 #[derive(Debug, Default, Clone)]
 pub struct RewriteContext {
     pub fallback_font_name: String,
-    pub add_fallback: WyHashSet<Arc<[ArcStr]>>,
+    pub fallback_info: WyHashMap<Arc<[ArcStr]>, CharacterSet>,
     pub webfonts: Vec<Arc<WebfontInfo>>,
     pub store_path: PathBuf,
     pub store_uri: Option<String>,

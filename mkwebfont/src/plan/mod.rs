@@ -1,4 +1,3 @@
-use crate::plan::subsetter::SubsetDataBuilder;
 use anyhow::Result;
 use enumset::*;
 use mkwebfont_extract_web::WebrootInfo;
@@ -7,7 +6,7 @@ use std::{collections::HashSet, ops::Deref, sync::Arc};
 
 mod subsetter;
 
-pub use subsetter::AssignedSubsets;
+pub use subsetter::{AssignedSubsets, SubsetDataBuilder};
 
 /// A loaded configuration for font splitting.
 #[derive(Clone)]
