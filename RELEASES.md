@@ -4,6 +4,7 @@
 * Omit generating `@font-face` declarations for fonts not actually used on a particular webpage.
 * Removed the experimental `adjacency` splitter.
 * Implement automatic fallback font generation in webroot mode.
+* Updated harfbuzz to 9.0.0
 
 # Version 0.2.0-alpha3 (2024-07-01)
 

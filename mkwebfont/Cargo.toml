@@ -1,6 +1,6 @@
 [package]
 name = "mkwebfont"
-version = "0.2.0-alpha3"
+version = "0.2.0-alpha4"
 authors = ["Lymia Kanokawa <lymia@lymia.moe>"]
 edition = "2021"
 
