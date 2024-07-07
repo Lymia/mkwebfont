@@ -10,7 +10,8 @@ use mkwebfont_fontops::{
     subsetter::FontEncoder,
 };
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, info_span};
+use tracing_futures::Instrument;
 
 mod gfsubsets;
 
@@ -103,16 +104,33 @@ pub async fn make_fallback_font(
             let chars = chars.clone();
             let font = font.clone();
             let plan = plan.clone();
-            joins.spawn(async move {
-                let mut encoder = FontEncoder::new(font.clone(), chars);
-                gfsubsets::GfSubsetSplitter
-                    .split(&font, &plan, &*assigned, &mut encoder)
-                    .await?;
-                Ok(encoder
-                    .produce_webfont()
-                    .await?
-                    .with_family_name(FALLBACK_FONT_NAME))
-            });
+
+            let name = font.font_family().to_string();
+
+            joins.spawn(
+                async move {
+                    let mut encoder = FontEncoder::new(font.clone(), chars);
+
+                    gfsubsets::GfSubsetSplitter
+                        .split(&font, &plan, &*assigned, &mut encoder)
+                        .await?;
+                    let info = encoder
+                        .produce_webfont()
+                        .await?
+                        .with_family_name(FALLBACK_FONT_NAME);
+
+                    let codepoints = font.all_codepoints().len();
+                    let subsets = info.subsets().len();
+                    let remaining_codepoints = assigned.get_used_chars(&font).len();
+                    info!(
+                        "Split {remaining_codepoints} codepoints into {subsets} subsets! \
+                         ({codepoints} codepoints before subsetting)"
+                    );
+
+                    Ok(info)
+                }
+                .instrument(info_span!("split", "{name}")),
+            );
         }
         joins.join().await
     }

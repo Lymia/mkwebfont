@@ -407,7 +407,7 @@ pub async fn process_webfont(
         }
     }
     {
-        let span = info_span!("split", "(fallback font)");
+        let span = info_span!("fallback_font");
         let _enter = span.enter();
         let assigned = assigned.clone();
         joins.spawn(
