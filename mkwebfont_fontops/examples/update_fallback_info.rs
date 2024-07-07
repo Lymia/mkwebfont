@@ -189,18 +189,8 @@ const FALLBACK_FONTS: &[&str] = &[
 ];
 const EXTRA_FONTS_NAMES: &[&[&str]] = &[
     &["NotoSerifDivesAkuru-Regular.ttf"],
-    &[
-        "KurintoSans-BdIt.ttf",
-        "KurintoSans-Bd.ttf",
-        "KurintoSans-It.ttf",
-        "KurintoSans-Rg.ttf",
-    ],
-    &[
-        "KurintoSansCJK-BdIt.ttf",
-        "KurintoSansCJK-Bd.ttf",
-        "KurintoSansCJK-It.ttf",
-        "KurintoSansCJK-Rg.ttf",
-    ],
+    &["KurintoSans-Rg.ttf"],
+    &["KurintoSansCJK-Rg.ttf"],
     &["BabelStoneHan.ttf"],
 ];
 

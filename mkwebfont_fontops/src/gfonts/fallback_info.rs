@@ -1,4 +1,7 @@
-use crate::{font_info::FontFaceWrapper, gfonts::gfonts_list::GfontsList};
+use crate::{
+    font_info::{FontFaceWrapper, FontStyle},
+    gfonts::gfonts_list::GfontsList,
+};
 use anyhow::Result;
 use bincode::{config::standard, Decode, Encode};
 use mkwebfont_common::{
@@ -76,7 +79,9 @@ impl FallbackComponent {
         match &self.source {
             FallbackDownloadSource::GFonts(font) => {
                 for style in &GfontsList::find_font(&font).unwrap().styles {
-                    results.push(style.info.load().await?);
+                    if style.style == FontStyle::Regular {
+                        results.push(style.info.load().await?);
+                    }
                 }
             }
             FallbackDownloadSource::Download(info) => {

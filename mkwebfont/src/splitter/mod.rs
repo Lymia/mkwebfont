@@ -118,7 +118,7 @@ pub async fn make_fallback_font(
                     let info = encoder
                         .produce_webfont()
                         .await?
-                        .with_family_name(FALLBACK_FONT_NAME);
+                        .setup_as_fallback(FALLBACK_FONT_NAME);
 
                     let codepoints = font.all_codepoints().len();
                     let subsets = info.subsets().len();

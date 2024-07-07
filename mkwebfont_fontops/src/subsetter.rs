@@ -110,9 +110,10 @@ impl WebfontInfo {
         Ok(())
     }
 
-    /// Sets the name of this subset info.
-    pub fn with_family_name(mut self, name: impl ToString) -> WebfontInfo {
+    /// Set up the font as a fallback font with a given name.
+    pub fn setup_as_fallback(mut self, name: impl ToString) -> WebfontInfo {
         self.font_family = name.to_string().into();
+        self.weight_range = 100..=900;
         self
     }
 

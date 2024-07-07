@@ -9,7 +9,7 @@ use lightningcss::{
     properties::{
         custom::{CustomProperty, CustomPropertyName, Token, TokenOrValue},
         display::{Display, DisplayKeyword},
-        font::{AbsoluteFontWeight, FontFamily, FontStyle, FontWeight},
+        font::{AbsoluteFontWeight, FontFamily, FontStyle, FontWeight, GenericFontFamily},
         Property,
     },
     rules::{style::StyleRule, CssRule, CssRuleList},
@@ -21,7 +21,6 @@ use mkwebfont_common::hashing::WyHashBuilder;
 use moka::future::{Cache, CacheBuilder};
 use scraper::Selector;
 use std::{borrow::Cow, path::Path, sync::Arc};
-use lightningcss::properties::font::GenericFontFamily;
 use tracing::{info_span, warn, Instrument};
 
 // TODO: Figure out how `inherit` et al are represented.

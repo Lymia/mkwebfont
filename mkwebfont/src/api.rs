@@ -1,6 +1,7 @@
 use crate::{
     plan::{AssignedSubsets, FontFlags},
     splitter,
+    splitter::FALLBACK_FONT_NAME,
 };
 use anyhow::{bail, Result};
 use arcstr::ArcStr;
@@ -23,7 +24,6 @@ use std::{
 use tracing::{info, info_span, Instrument};
 
 pub use crate::plan::SplitterPlan;
-use crate::splitter::FALLBACK_FONT_NAME;
 pub use mkwebfont_fontops::{
     font_info::{FontStyle, FontWeight},
     subsetter::{SubsetInfo, WebfontInfo},
