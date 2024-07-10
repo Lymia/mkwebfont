@@ -1,6 +1,6 @@
 #!/bin/sh
 
-VERSION="0.2.0-alpha4"
+VERSION="0.2.0-alpha5"
 SHORT_VERSION="$(echo "$VERSION" | sed "s/-.*//g")"
 
 rm -v mkwebfont*.AppImage
