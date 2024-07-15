@@ -25,5 +25,4 @@ name = "hb_subset"
 thiserror = "1.0"
 
 [build-dependencies]
-bindgen = { workspace = true }
 cc = { workspace = true }

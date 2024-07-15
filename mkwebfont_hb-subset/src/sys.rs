@@ -7,7 +7,7 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+include!("../bindings.rs");
 
 pub const HB_SET_VALUE_INVALID: u32 = u32::MAX;
 pub const HB_LANGUAGE_INVALID: *const hb_language_impl_t = std::ptr::null();
