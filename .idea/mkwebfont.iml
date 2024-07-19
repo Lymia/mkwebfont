@@ -14,6 +14,9 @@
       <sourceFolder url="file://$MODULE_DIR$/mkwebfont_extract-web/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/mkwebfont_fontops/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/mkwebfont_fontops/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mkwebfont_kuchikiki/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/mkwebfont_kuchikiki/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mkwebfont_kuchikiki/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/out" />
       <excludeFolder url="file://$MODULE_DIR$/run" />
       <excludeFolder url="file://$MODULE_DIR$/target" />

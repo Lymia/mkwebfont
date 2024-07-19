@@ -1,20 +1,18 @@
 mod css_ops;
 
-use crate::webroot::{RelaWebroot, Webroot};
+use crate::{
+    utils::inner_html,
+    webroot::{RelaWebroot, Webroot},
+};
 use anyhow::Result;
 use arcstr::ArcStr;
-use html5ever::{
-    interface::{ElementFlags, TreeSink},
-    tree_builder::NodeOrText,
-    Attribute,
-};
+use kuchikiki::{iter::NodeIterator, parse_html, traits::TendrilSink, NodeRef, Selectors};
 use mkwebfont_common::{
     character_set::CharacterSet,
     hashing::{WyHashMap, WyHashSet},
     join_set::JoinSet,
 };
 use mkwebfont_fontops::subsetter::WebfontInfo;
-use scraper::{Html, Selector};
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, LazyLock},
@@ -44,55 +42,32 @@ pub struct RewriteContext {
 }
 
 fn process_html_path(ctx: &RewriteContext, root: &RelaWebroot) -> Result<()> {
-    static SELECTOR: LazyLock<Selector> =
-        LazyLock::new(|| Selector::parse("style,*[style]").unwrap());
+    static SELECTOR: LazyLock<Selectors> =
+        LazyLock::new(|| Selectors::compile("style,*[style]").unwrap());
 
-    let mut document = Html::parse_document(&std::fs::read_to_string(&root.file_name())?);
-    let mut remove_nodes = Vec::new();
-    let mut append_text = Vec::new();
-    let mut change_style_tag = Vec::new();
-    for elem in document.select(&SELECTOR) {
-        if elem.value().name.local.as_bytes() == b"style" {
-            let text = elem.inner_html();
-            if let Some(text) = css_ops::rewrite_style_tag(ctx, &text)? {
-                remove_nodes.extend(elem.children().map(|x| x.id()));
-                append_text.push((elem.id(), text));
-            }
-        }
-        if let Some(text) = elem.attr("style") {
-            if let Some(text) = css_ops::rewrite_style_attr(ctx, text)? {
-                change_style_tag.push((elem.id(), elem.value().clone(), text));
-            }
-        }
-    }
-
+    let document = parse_html().one(std::fs::read_to_string(&root.file_name())?);
     let mut modified = false;
-    for node in remove_nodes {
-        document.remove_from_parent(&node);
-        modified = true;
-    }
-    for (node, text) in append_text {
-        document.append(&node, NodeOrText::AppendText(text.into()));
-        modified = true;
-    }
-    for (old, value, text) in change_style_tag {
-        let mut attributes = Vec::new();
-        for (name, value) in value.attrs {
-            if name.local.as_bytes() != b"style" {
-                attributes.push(Attribute { name, value });
-            } else {
-                attributes.push(Attribute { name, value: text.clone().into() })
+    for elem in SELECTOR.filter(document.inclusive_descendants().elements()) {
+        if elem.name.local.as_bytes() == b"style" {
+            let text = inner_html(elem.as_node());
+            if let Some(text) = css_ops::rewrite_style_tag(ctx, &text)? {
+                elem.as_node().children().for_each(|x| x.detach());
+                elem.as_node().append(NodeRef::new_text(text));
+                modified = true;
             }
         }
-        let new = document.create_element(value.name, attributes, ElementFlags::default());
-        document.append_before_sibling(&old, NodeOrText::AppendNode(new));
-        document.reparent_children(&old, &new);
-        document.remove_from_parent(&old);
-        modified = true;
+
+        let mut attrs = elem.attributes.borrow_mut();
+        if let Some(text) = attrs.get("style") {
+            if let Some(text) = css_ops::rewrite_style_attr(ctx, text)? {
+                attrs.insert("style", text);
+                modified = true;
+            }
+        }
     }
 
     if modified {
-        std::fs::write(root.file_name(), document.html())?;
+        document.serialize_to_file(root.file_name())?;
     }
 
     Ok(())
@@ -155,10 +130,10 @@ pub fn find_css_for_rewrite(
     root: &RelaWebroot,
     used_stacks: WyHashSet<Arc<[ArcStr]>>,
 ) -> Result<()> {
-    static SELECTOR: LazyLock<Selector> =
-        LazyLock::new(|| Selector::parse("style,link[rel~=stylesheet],*[style]").unwrap());
+    static SELECTOR: LazyLock<Selectors> =
+        LazyLock::new(|| Selectors::compile("style,link[rel~=stylesheet],*[style]").unwrap());
 
-    let document = Html::parse_document(&document);
+    let document = parse_html().one(document.as_str());
 
     let mut css_list = Vec::new();
     let mut css_list_fonts = Vec::new();
@@ -168,16 +143,17 @@ pub fn find_css_for_rewrite(
         .entry(root.root().root().into())
         .or_default();
 
-    for elem in document.select(&SELECTOR) {
-        match elem.value().name.local.as_bytes() {
+    for elem in SELECTOR.filter(document.inclusive_descendants().elements()) {
+        match elem.name.local.as_bytes() {
             b"style" => {
                 root_target
                     .rewrite_html_style
                     .insert(root.file_name().clone());
             }
             b"link" => {
-                let path = root.resolve(elem.attr("href").unwrap())?;
-                if elem.attr("rel").unwrap().contains("mkwebfont-out") {
+                let attrs = elem.attributes.borrow();
+                let path = root.resolve(attrs.get("href").unwrap())?;
+                if attrs.get("rel").unwrap().contains("mkwebfont-out") {
                     css_list_fonts.push(path);
                 } else {
                     css_list.push(path);
@@ -185,7 +161,7 @@ pub fn find_css_for_rewrite(
             }
             _ => {}
         }
-        if elem.attr("style").is_some() {
+        if elem.attributes.borrow().get("style").is_some() {
             root_target
                 .rewrite_html_style
                 .insert(root.file_name().clone());

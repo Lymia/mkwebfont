@@ -4,3 +4,6 @@
 [submodule "mkwebfont-hb-subset/harfbuzz"]
 	path = mkwebfont_hb-subset/harfbuzz
 	url = https://github.com/harfbuzz/harfbuzz.git
+[submodule "mkwebfont_kuchikiki"]
+	path = mkwebfont_kuchikiki
+	url = git@github.com:Lymia/kuchikiki.git

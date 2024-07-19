@@ -1,3 +1,5 @@
+ignore = ["/mkwebfont_kuchikiki"]
+
 # Width options
 max_width = 100
 fn_call_width = 80

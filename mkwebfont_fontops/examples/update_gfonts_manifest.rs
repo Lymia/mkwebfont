@@ -12,8 +12,6 @@ use mkwebfont_fontops::{
 use std::{collections::HashMap, io, path::PathBuf};
 use tracing::{error, info};
 
-// TODO: https://dl.rimin.moe/paste/lymia/NotoSerifDivesAkuru-_0hqwpxg8zdnbzn3k927znd1h3pa7pqws434mhnhazqighd89aicc.ttf
-
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()

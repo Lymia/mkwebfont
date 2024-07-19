@@ -3,6 +3,7 @@ use anyhow::{bail, ensure, Error, Result};
 use arcstr::ArcStr;
 use async_recursion::async_recursion;
 use cssparser::ToCss as CssParserToString;
+use kuchikiki::Selectors;
 use lightningcss::{
     declaration::DeclarationBlock,
     printer::PrinterOptions,
@@ -19,7 +20,6 @@ use lightningcss::{
 };
 use mkwebfont_common::hashing::WyHashBuilder;
 use moka::future::{Cache, CacheBuilder};
-use scraper::Selector;
 use std::{borrow::Cow, path::Path, sync::Arc};
 use tracing::{info_span, warn, Instrument};
 
@@ -28,7 +28,7 @@ use tracing::{info_span, warn, Instrument};
 
 #[derive(Clone, Debug)]
 pub struct RawCssRule {
-    pub selector: Arc<Selector>,
+    pub selector: Arc<Selectors>,
     pub is_conditional: bool,
     pub pseudo_element: Option<ArcStr>,
     pub declarations: Arc<RawCssRuleDeclarations>,
@@ -189,10 +189,6 @@ async fn parse_css(
         for component in selector.iter_raw_parse_order_from(0) {
             match component {
                 // Unsupported by `scrapers`.
-                Component::Has(_) => {
-                    warn!("`:has` is only partly supported: {root_selector:?}");
-                    conditional = true;
-                }
                 Component::Scope => {
                     bail!("`:scope` is not supported: {root_selector:?}");
                 }
@@ -242,7 +238,8 @@ async fn parse_css(
                 | Component::AttributeOther(_)
                 | Component::Empty
                 | Component::Nth(_)
-                | Component::NthOf(_) => combinator_late.push(component.clone()),
+                | Component::NthOf(_)
+                | Component::Has(_) => combinator_late.push(component.clone()),
 
                 Component::Negation(selectors)
                 | Component::Where(selectors)
@@ -290,10 +287,9 @@ async fn parse_css(
                     ToCss::to_css_string(&filtered.selector, PrinterOptions::default())?;
 
                 let raw = RawCssRule {
-                    selector: Arc::new(
-                        Selector::parse(&new_selector_str)
-                            .map_err(|e| Error::msg(format!("Failed to parse selector: {e}")))?,
-                    ),
+                    selector: Arc::new(Selectors::compile(&new_selector_str).map_err(|()| {
+                        Error::msg(format!("Selector is not valid: {new_selector_str}"))
+                    })?),
                     is_conditional: force_conditional | filtered.is_conditional,
                     pseudo_element: filtered.pseudo_element.map(Into::into),
                     declarations: declarations.clone(),

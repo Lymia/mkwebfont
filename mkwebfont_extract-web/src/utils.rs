@@ -1,12 +1,18 @@
-use scraper::ElementRef;
+use kuchikiki::{Node, NodeRef};
+use std::io::Cursor;
 
-pub fn direct_text_children(node: &ElementRef) -> String {
-    let mut text = String::new();
+pub fn inner_html(node: &NodeRef) -> String {
+    let mut str = Vec::new();
     for child in node.children() {
-        let child = child.value();
-        if child.is_text() {
-            text.push_str(&String::from_utf8_lossy(child.as_text().unwrap().as_bytes()));
-        }
+        child.serialize(&mut Cursor::new(&mut str)).unwrap();
     }
-    text
+    String::from_utf8(str).unwrap()
+}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Hash)]
+pub struct NodeId(usize);
+impl NodeId {
+    pub fn from_node(node: &NodeRef) -> NodeId {
+        NodeId((&*node.0) as *const Node as usize)
+    }
 }

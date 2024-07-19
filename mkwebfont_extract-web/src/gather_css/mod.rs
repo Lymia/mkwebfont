@@ -1,7 +1,7 @@
 use crate::{utils, webroot::RelaWebroot};
 use anyhow::Result;
 use arcstr::ArcStr;
-use scraper::{Html, Selector};
+use kuchikiki::{iter::NodeIterator, parse_html, traits::TendrilSink, Selectors};
 use std::sync::{Arc, LazyLock};
 use tracing::warn;
 
@@ -17,18 +17,18 @@ enum CssSource {
 }
 
 fn extract_css_sources(document: &ArcStr) -> Result<Vec<CssSource>> {
-    static SELECTOR: LazyLock<Selector> =
-        LazyLock::new(|| Selector::parse("style,link[rel~=stylesheet]").unwrap());
+    static SELECTOR: LazyLock<Selectors> =
+        LazyLock::new(|| Selectors::compile("style,link[rel~=stylesheet]").unwrap());
 
-    let document = Html::parse_document(&document);
+    let document = parse_html().one(document.as_str());
     let mut data = Vec::new();
-    for tag in document.select(&SELECTOR) {
-        match tag.value().name.local.as_bytes() {
-            b"link" => match tag.value().attr("href") {
+    for tag in SELECTOR.filter(document.inclusive_descendants().elements()) {
+        match tag.name.local.as_bytes() {
+            b"link" => match tag.attributes.borrow().get("href") {
                 Some(x) => data.push(CssSource::RelFile(x.to_string())),
                 None => warn!("Tag does not contain href: {tag:?}"),
             },
-            b"style" => data.push(CssSource::Embedded(utils::direct_text_children(&tag).into())),
+            b"style" => data.push(CssSource::Embedded(utils::inner_html(tag.as_node()).into())),
             _ => unreachable!(),
         }
     }

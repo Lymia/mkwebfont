@@ -1,15 +1,17 @@
-use crate::gather_css::{parse_declarations, RawCssRule, RawCssRuleDeclarations};
+use crate::{
+    gather_css::{parse_declarations, RawCssRule, RawCssRuleDeclarations},
+    utils::NodeId,
+};
 use anyhow::Result;
 use arcstr::ArcStr;
-use ego_tree::NodeId;
 use enumset::{EnumSet, EnumSetType};
+use kuchikiki::{traits::NodeIterator, NodeRef, Selectors};
 use lightningcss::{
     declaration::DeclarationBlock,
     properties::font::{AbsoluteFontWeight, FontStyle},
     stylesheet::ParserOptions,
 };
 use mkwebfont_common::hashing::WyHashBuilder;
-use scraper::{Element, ElementRef, Html, Selector};
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, LazyLock},
@@ -121,9 +123,17 @@ fn apply_properties(
 }
 
 /// Applies a CSS rule to a document.
-fn apply_rule_to_raw_info(info: &mut RawNodeInfo, document: &Html, rule: &RawCssRule) {
-    for elem in document.select(&rule.selector) {
-        apply_rule_to_elem(info.raw.entry(elem.id()).or_default(), rule);
+fn apply_rule_to_raw_info(info: &mut RawNodeInfo, document: &NodeRef, rule: &RawCssRule) {
+    for elem in rule
+        .selector
+        .filter(document.inclusive_descendants().elements())
+    {
+        apply_rule_to_elem(
+            info.raw
+                .entry(NodeId::from_node(elem.as_node()))
+                .or_default(),
+            rule,
+        );
     }
 }
 
@@ -162,68 +172,74 @@ pub struct ResolvedNode {
 }
 
 impl RawNodeInfo {
-    pub fn compute(document: &Html, rules: &[Arc<RawCssRule>]) -> Result<Self> {
-        static SELECTOR: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("*[style]").unwrap());
+    pub fn compute(document: &NodeRef, rules: &[Arc<RawCssRule>]) -> Result<Self> {
+        static SELECTOR: LazyLock<Selectors> =
+            LazyLock::new(|| Selectors::compile("*[style]").unwrap());
+
         let mut info = Self::default();
         for rule in rules {
             apply_rule_to_raw_info(&mut info, document, &rule);
         }
-        for elem in document.select(&SELECTOR) {
-            let style = elem.attr("style").unwrap();
+        for elem in SELECTOR.filter(document.inclusive_descendants().elements()) {
+            let style = elem.attributes.borrow();
+            let style = style.get("style").unwrap();
             match DeclarationBlock::parse_string(style, ParserOptions::default()) {
                 Ok(block) => {
                     if let Some(decls) = parse_declarations(&block)? {
                         apply_properties(
-                            &mut info.raw.entry(elem.id()).or_default().properties,
+                            &mut info
+                                .raw
+                                .entry(NodeId::from_node(elem.as_node()))
+                                .or_default()
+                                .properties,
                             false,
                             &decls,
                         );
                     }
                 }
                 Err(e) => warn!("Error parsing style {style:?}: {e}"),
-            }
+            };
         }
         Ok(info)
     }
 
-    pub fn is_displayed(&self, node: &ElementRef) -> bool {
+    pub fn is_displayed(&self, node: &NodeRef) -> bool {
         let mut accum = Some(node.clone());
         while let Some(x) = accum {
-            if let Some(props) = self.raw.get(&x.id()) {
+            if let Some(props) = self.raw.get(&NodeId::from_node(&x)) {
                 if props.properties.is_displayed == Some(false) {
                     return false;
                 }
             }
-            accum = x.parent_element();
+            accum = x.parent();
         }
         true
     }
 
-    pub fn has_pseudo_elements(&self, node: &ElementRef) -> bool {
-        if let Some(props) = self.raw.get(&node.id()) {
+    pub fn has_pseudo_elements(&self, node: &NodeRef) -> bool {
+        if let Some(props) = self.raw.get(&NodeId::from_node(node)) {
             !props.pseudo_elements.is_empty()
         } else {
             false
         }
     }
 
-    pub fn resolve_node(&self, node: &ElementRef) -> ResolvedNode {
+    pub fn resolve_node(&self, node: &NodeRef) -> ResolvedNode {
         let mut accum = Some(node.clone());
         let mut chain = Vec::new();
         while let Some(x) = accum {
             chain.push(x.clone());
-            accum = x.parent_element();
+            accum = x.parent();
         }
 
         let mut resolved = ResolvedNodeProperties::default();
         for node in chain.into_iter().rev() {
-            if let Some(props) = self.raw.get(&node.id()) {
+            if let Some(props) = self.raw.get(&NodeId::from_node(&node)) {
                 resolved.apply_props(&props.properties);
             }
         }
         let mut pseudo_elements = HashMap::default();
-        if let Some(props) = self.raw.get(&node.id()) {
+        if let Some(props) = self.raw.get(&NodeId::from_node(&node)) {
             for (k, v) in &props.pseudo_elements {
                 let mut pelem_resolved = resolved.clone();
                 pelem_resolved.apply_props(v);
