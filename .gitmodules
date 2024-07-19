@@ -6,4 +6,4 @@
 	url = https://github.com/harfbuzz/harfbuzz.git
 [submodule "mkwebfont_kuchikiki"]
 	path = mkwebfont_kuchikiki
-	url = git@github.com:Lymia/kuchikiki.git
+	url = https://github.com/Lymia/kuchikiki.git
