@@ -23,9 +23,6 @@ use moka::future::{Cache, CacheBuilder};
 use std::{borrow::Cow, path::Path, sync::Arc};
 use tracing::{info_span, warn, Instrument};
 
-// TODO: Figure out how `inherit` et al are represented.
-// TODO: Put out a warning for var(--blah) and such.
-
 #[derive(Clone, Debug)]
 pub struct RawCssRule {
     pub selector: Arc<Selectors>,
@@ -36,22 +33,38 @@ pub struct RawCssRule {
 }
 
 #[derive(Clone, Debug)]
+pub enum ParsedCssRule<T> {
+    Override(T),
+    Inherit,
+    NoneSet,
+    IgnoreSet,
+}
+impl<T> ParsedCssRule<T> {
+    pub fn map<R>(&self, func: impl FnOnce(&T) -> R) -> ParsedCssRule<R> {
+        match self {
+            ParsedCssRule::Override(v) => ParsedCssRule::Override(func(v)),
+            ParsedCssRule::Inherit => ParsedCssRule::Inherit,
+            ParsedCssRule::NoneSet => ParsedCssRule::NoneSet,
+            ParsedCssRule::IgnoreSet => ParsedCssRule::IgnoreSet,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct RawCssRuleDeclarations {
-    pub font_stack: Option<Arc<[ArcStr]>>,
-    pub font_weight: Option<AbsoluteFontWeight>,
-    pub font_style: Option<FontStyle>,
-    pub is_displayed: Option<bool>,
-    pub content: Option<ArcStr>,
+    pub font_stack: ParsedCssRule<Arc<[ArcStr]>>,
+    pub font_weight: ParsedCssRule<AbsoluteFontWeight>,
+    pub font_style: ParsedCssRule<FontStyle>,
+    pub is_displayed: ParsedCssRule<bool>,
+    pub content: ParsedCssRule<ArcStr>,
 }
 
 /// Parses CSS font families into the form used in the rest of this subcrate.
-pub fn parse_font_families(families: &[FontFamily<'_>]) -> Option<Arc<[ArcStr]>> {
+pub fn parse_font_families(families: &[FontFamily<'_>]) -> ParsedCssRule<Arc<[ArcStr]>> {
     let mut new = Vec::new();
     for family in families {
         match family {
-            FontFamily::Generic(GenericFontFamily::Inherit) => {
-                warn!("`font-family: inherit;` is not handled properly.");
-            }
+            FontFamily::Generic(GenericFontFamily::Inherit) => return ParsedCssRule::Inherit,
             FontFamily::Generic(_) => {
                 warn!("Generic font families are ignored: {family:?}")
             }
@@ -59,21 +72,21 @@ pub fn parse_font_families(families: &[FontFamily<'_>]) -> Option<Arc<[ArcStr]>>
         }
     }
     if new.is_empty() {
-        warn!("Empty fonts list (excluding generics). Treating as `inherit`.");
-        None
+        warn!("Found empty fonts list (excluding generics)");
+        ParsedCssRule::IgnoreSet
     } else {
-        Some(new.into())
+        ParsedCssRule::Override(new.into())
     }
 }
 
 /// Parses the list of declarations in a CSS rule into only the ones we need.
 pub fn parse_declarations(style: &DeclarationBlock) -> Result<Option<RawCssRuleDeclarations>> {
     let mut raw_declarations = RawCssRuleDeclarations {
-        font_stack: None,
-        font_weight: None,
-        font_style: None,
-        is_displayed: None,
-        content: None,
+        font_stack: ParsedCssRule::NoneSet,
+        font_weight: ParsedCssRule::NoneSet,
+        font_style: ParsedCssRule::NoneSet,
+        is_displayed: ParsedCssRule::NoneSet,
+        content: ParsedCssRule::NoneSet,
     };
     let mut is_interesting = false;
 
@@ -87,12 +100,12 @@ pub fn parse_declarations(style: &DeclarationBlock) -> Result<Option<RawCssRuleD
         .chain(style.declarations.iter())
     {
         /// Parses CSS font weight declarations.
-        fn parse_font_weight(weight: &FontWeight) -> Option<AbsoluteFontWeight> {
+        fn parse_font_weight(weight: &FontWeight) -> ParsedCssRule<AbsoluteFontWeight> {
             match weight {
-                FontWeight::Absolute(v) => Some(v.clone()),
+                FontWeight::Absolute(v) => ParsedCssRule::Override(v.clone()),
                 FontWeight::Bolder | FontWeight::Lighter => {
                     warn!("Relative font weights are not supported.");
-                    None
+                    ParsedCssRule::NoneSet
                 }
             }
         }
@@ -100,9 +113,9 @@ pub fn parse_declarations(style: &DeclarationBlock) -> Result<Option<RawCssRuleD
         match declaration {
             Property::Display(kind) => {
                 if let Display::Keyword(DisplayKeyword::None) = kind {
-                    raw_declarations.is_displayed = Some(false);
+                    raw_declarations.is_displayed = ParsedCssRule::Override(false);
                 } else {
-                    raw_declarations.is_displayed = Some(true);
+                    raw_declarations.is_displayed = ParsedCssRule::Override(true);
                 }
                 is_interesting = true;
             }
@@ -110,7 +123,7 @@ pub fn parse_declarations(style: &DeclarationBlock) -> Result<Option<RawCssRuleD
             Property::Font(font) => {
                 raw_declarations.font_stack = parse_font_families(&font.family);
                 raw_declarations.font_weight = parse_font_weight(&font.weight);
-                raw_declarations.font_style = Some(font.style.clone());
+                raw_declarations.font_style = ParsedCssRule::Override(font.style.clone());
                 is_interesting = true;
             }
             Property::FontFamily(family) => {
@@ -122,18 +135,31 @@ pub fn parse_declarations(style: &DeclarationBlock) -> Result<Option<RawCssRuleD
                 is_interesting = true;
             }
             Property::FontStyle(style) => {
-                raw_declarations.font_style = Some(style.clone());
+                raw_declarations.font_style = ParsedCssRule::Override(style.clone());
                 is_interesting = true;
             }
 
             // Custom properties parsing
             Property::Custom(CustomProperty { name: CustomPropertyName::Unknown(name), value }) => {
                 match name.0.as_ref() {
+                    "font" => {
+                        warn!("Unparsed font");
+                    }
+                    "font-family" => {
+                        warn!("Unparsed font-family");
+                    }
+                    "font-weight" => {
+                        warn!("Unparsed font-weight");
+                    }
+                    "font-style" => {
+                        warn!("Unparsed font-style");
+                    }
                     "content" => {
                         if value.0.len() == 1 {
                             match &value.0[0] {
                                 TokenOrValue::Token(Token::String(str)) => {
-                                    raw_declarations.content = Some(str.to_string().into());
+                                    raw_declarations.content =
+                                        ParsedCssRule::Override(str.to_string().into());
                                     is_interesting = true;
                                 }
                                 _ => warn!("Could not parse `content` attribute: {value:?}"),

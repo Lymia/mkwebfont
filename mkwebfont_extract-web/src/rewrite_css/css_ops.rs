@@ -26,6 +26,7 @@ use mkwebfont_common::{
 use mkwebfont_fontops::font_info::FontStyle;
 use std::{borrow::Cow, sync::Arc};
 use tracing::{debug, info};
+use crate::gather_css::ParsedCssRule;
 
 const DEFAULT_LOC: Location = Location { source_index: 0, line: 0, column: 0 };
 const DEFAULT_LOC_CSS: lightningcss::dependencies::Location =
@@ -145,7 +146,7 @@ fn rewrite_properties_for_fallback(
     {
         match property {
             Property::FontFamily(family) => {
-                let Some(families) = parse_font_families(&family) else {
+                let ParsedCssRule::Override(families) = parse_font_families(&family) else {
                     continue;
                 };
                 let init_len = family.len();

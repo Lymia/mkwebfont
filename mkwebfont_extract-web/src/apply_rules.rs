@@ -1,31 +1,67 @@
 use crate::{
-    gather_css::{parse_declarations, RawCssRule, RawCssRuleDeclarations},
+    gather_css::{parse_declarations, ParsedCssRule, RawCssRule, RawCssRuleDeclarations},
     utils::NodeId,
 };
 use anyhow::Result;
 use arcstr::ArcStr;
-use enumset::{EnumSet, EnumSetType};
 use kuchikiki::{traits::NodeIterator, NodeRef, Selectors};
 use lightningcss::{
     declaration::DeclarationBlock,
     properties::font::{AbsoluteFontWeight, FontStyle},
     stylesheet::ParserOptions,
 };
-use mkwebfont_common::hashing::WyHashBuilder;
+use mkwebfont_common::hashing::{WyHashBuilder, WyHashSet};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
+    hash::Hash,
     sync::{Arc, LazyLock},
 };
 use tracing::warn;
 
+#[derive(Debug)]
+struct NodeProperty<T> {
+    active: WyHashSet<T>,
+    overwritten: bool,
+}
+impl<T> NodeProperty<T> {
+    fn push_node(&mut self, rule: &ParsedCssRule<T>, is_conditional: bool)
+    where T: Clone + Hash + Eq {
+        match rule {
+            ParsedCssRule::Override(new) => {
+                self.active.insert(new.clone());
+                if !is_conditional {
+                    self.overwritten = true;
+                }
+            }
+            ParsedCssRule::Inherit => {
+                if !is_conditional {
+                    self.active.clear();
+                    self.overwritten = false;
+                }
+            }
+            ParsedCssRule::IgnoreSet => {
+                if !is_conditional {
+                    self.active.clear();
+                    self.overwritten = true;
+                }
+            }
+            ParsedCssRule::NoneSet => {}
+        }
+    }
+}
+impl<T> Default for NodeProperty<T> {
+    fn default() -> Self {
+        NodeProperty { active: Default::default(), overwritten: false }
+    }
+}
+
 #[derive(Debug, Default)]
 struct NodeProperties {
-    font_stack: HashSet<Arc<[ArcStr]>, WyHashBuilder>,
-    font_weight: HashSet<i32, WyHashBuilder>,
-    font_style: HashSet<ParsedFontStyle, WyHashBuilder>,
-    is_displayed: Option<bool>,
-    content: HashSet<ArcStr, WyHashBuilder>,
-    cleared: EnumSet<ClearedFlags>,
+    font_stack: NodeProperty<Arc<[ArcStr]>>,
+    font_weight: NodeProperty<i32>,
+    font_style: NodeProperty<ParsedFontStyle>,
+    is_displayed: NodeProperty<bool>,
+    content: NodeProperty<ArcStr>,
 }
 
 #[derive(Debug, Default)]
@@ -39,14 +75,6 @@ pub enum ParsedFontStyle {
     Normal,
     Italic,
     Oblique,
-}
-
-#[derive(EnumSetType, Debug)]
-enum ClearedFlags {
-    FontStack,
-    FontWeight,
-    FontStyle,
-    Content,
 }
 
 #[derive(Debug, Default)]
@@ -70,56 +98,29 @@ fn apply_properties(
     is_conditional: bool,
     decls: &RawCssRuleDeclarations,
 ) {
-    // Handle `font-family`.
-    if let Some(stack) = &decls.font_stack {
-        if !is_conditional {
-            properties.font_stack.clear();
-            properties.cleared.insert(ClearedFlags::FontStack);
-        }
-        properties.font_stack.insert(stack.clone());
-    }
-
-    // Handle `font-weight`.
-    if let Some(weight) = &decls.font_weight {
-        if !is_conditional {
-            properties.font_weight.clear();
-            properties.cleared.insert(ClearedFlags::FontWeight);
-        }
-        properties.font_weight.insert(match weight {
+    properties
+        .font_stack
+        .push_node(&decls.font_stack, is_conditional);
+    properties.font_weight.push_node(
+        &decls.font_weight.map(|x| match x {
             AbsoluteFontWeight::Weight(w) => *w as i32,
             AbsoluteFontWeight::Normal => 400,
             AbsoluteFontWeight::Bold => 700,
-        });
-    }
-
-    // Handle `font-style`.
-    if let Some(style) = &decls.font_style {
-        if !is_conditional {
-            properties.font_style.clear();
-            properties.cleared.insert(ClearedFlags::FontStyle);
-        }
-        properties.font_style.insert(match style {
+        }),
+        is_conditional,
+    );
+    properties.font_style.push_node(
+        &decls.font_style.map(|x| match x {
             FontStyle::Normal => ParsedFontStyle::Normal,
             FontStyle::Italic => ParsedFontStyle::Italic,
             FontStyle::Oblique(_) => ParsedFontStyle::Oblique,
-        });
-    }
-
-    // Handle `display`.
-    if decls.is_displayed == Some(false) && !is_conditional {
-        properties.is_displayed = Some(false);
-    } else if decls.is_displayed == Some(true) {
-        properties.is_displayed = Some(true);
-    }
-
-    // Handle `content`.
-    if let Some(content) = &decls.content {
-        if !is_conditional {
-            properties.content.clear();
-            properties.cleared.insert(ClearedFlags::Content);
-        }
-        properties.content.insert(content.clone());
-    }
+        }),
+        is_conditional,
+    );
+    properties
+        .is_displayed
+        .push_node(&decls.is_displayed, is_conditional);
+    properties.content.push_node(&decls.content, is_conditional);
 }
 
 /// Applies a CSS rule to a document.
@@ -139,28 +140,23 @@ fn apply_rule_to_raw_info(info: &mut RawNodeInfo, document: &NodeRef, rule: &Raw
 
 #[derive(Debug, Default, Clone)]
 pub struct ResolvedNodeProperties {
-    pub font_stack: HashSet<Arc<[ArcStr]>, WyHashBuilder>,
-    pub font_weight: HashSet<i32, WyHashBuilder>,
-    pub font_style: HashSet<ParsedFontStyle, WyHashBuilder>,
-    pub content: HashSet<ArcStr, WyHashBuilder>,
+    pub font_stack: WyHashSet<Arc<[ArcStr]>>,
+    pub font_weight: WyHashSet<i32>,
+    pub font_style: WyHashSet<ParsedFontStyle>,
+    pub content: WyHashSet<ArcStr>,
 }
 impl ResolvedNodeProperties {
     fn apply_props(&mut self, props: &NodeProperties) {
-        if props.cleared.contains(ClearedFlags::FontStack) {
-            self.font_stack.clear();
+        fn push_property<T: Hash + Eq + Clone>(set: &mut WyHashSet<T>, props: &NodeProperty<T>) {
+            if props.overwritten {
+                set.clear();
+            }
+            set.extend(props.active.iter().cloned());
         }
-        self.font_stack.extend(props.font_stack.iter().cloned());
 
-        if props.cleared.contains(ClearedFlags::FontWeight) {
-            self.font_weight.clear();
-        }
-        self.font_weight.extend(props.font_weight.iter().cloned());
-
-        if props.cleared.contains(ClearedFlags::FontStyle) {
-            self.font_style.clear();
-        }
-        self.font_style.extend(props.font_style.iter().cloned());
-
+        push_property(&mut self.font_stack, &props.font_stack);
+        push_property(&mut self.font_weight, &props.font_weight);
+        push_property(&mut self.font_style, &props.font_style);
         // note: content isn't inherited
     }
 }
@@ -207,7 +203,9 @@ impl RawNodeInfo {
         let mut accum = Some(node.clone());
         while let Some(x) = accum {
             if let Some(props) = self.raw.get(&NodeId::from_node(&x)) {
-                if props.properties.is_displayed == Some(false) {
+                if props.properties.is_displayed.active.contains(&false)
+                    && !props.properties.is_displayed.active.contains(&true)
+                {
                     return false;
                 }
             }
@@ -243,12 +241,14 @@ impl RawNodeInfo {
             for (k, v) in &props.pseudo_elements {
                 let mut pelem_resolved = resolved.clone();
                 pelem_resolved.apply_props(v);
-                pelem_resolved.content.extend(v.content.iter().cloned());
+                pelem_resolved
+                    .content
+                    .extend(v.content.active.iter().cloned());
                 pseudo_elements.insert(k.clone(), pelem_resolved);
             }
             resolved
                 .content
-                .extend(props.properties.content.iter().cloned());
+                .extend(props.properties.content.active.iter().cloned());
         }
 
         ResolvedNode { properties: resolved, pseudo_elements }
