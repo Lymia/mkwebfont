@@ -1,6 +1,6 @@
 [package]
 name = "mkwebfont_extract-web"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Lymia Kanokawa <lymia@lymia.moe>"]
 edition = "2021"
 

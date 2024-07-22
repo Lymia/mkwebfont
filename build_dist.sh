@@ -1,8 +1,7 @@
 #!/bin/sh
 
 BIN_NAME="mkwebfont"
-VERSION="0.2.0-alpha5"
-SHORT_VERSION="$(echo "$VERSION" | sed "s/-.*//g")"
+VERSION="0.2.0-alpha6"
 
 rm -rfv dist
 mkdir dist

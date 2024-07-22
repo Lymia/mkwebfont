@@ -1,3 +1,7 @@
+# Version 0.2.0-alpha6 (2024-07-22)
+
+* Major internal changes for performance and code quality.
+
 # Version 0.2.0-alpha5 (2024-07-07)
 
 * Fix issue with the fallback font.
