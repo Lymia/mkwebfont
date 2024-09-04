@@ -8,10 +8,10 @@ use lightningcss::{
     declaration::DeclarationBlock,
     printer::PrinterOptions,
     properties::{
-        custom::{CustomProperty, CustomPropertyName, Token, TokenOrValue},
+        custom::{CustomProperty, CustomPropertyName, Token, TokenOrValue, UnparsedProperty},
         display::{Display, DisplayKeyword},
         font::{AbsoluteFontWeight, FontFamily, FontStyle, FontWeight, GenericFontFamily},
-        Property,
+        Property, PropertyId,
     },
     rules::{style::StyleRule, CssRule, CssRuleList},
     selector::Component,
@@ -21,7 +21,7 @@ use lightningcss::{
 use mkwebfont_common::hashing::WyHashBuilder;
 use moka::future::{Cache, CacheBuilder};
 use std::{borrow::Cow, path::Path, sync::Arc};
-use tracing::{info_span, warn, Instrument};
+use tracing::{info, info_span, warn, Instrument};
 
 #[derive(Clone, Debug)]
 pub struct RawCssRule {
@@ -142,6 +142,47 @@ pub fn parse_declarations(style: &DeclarationBlock) -> Result<Option<RawCssRuleD
             }
 
             // Custom properties parsing
+            Property::Unparsed(UnparsedProperty { property_id, value })
+                if value.0.len() == 1
+                    && match &value.0[0] {
+                        TokenOrValue::Token(Token::Ident(id)) if *id == "inherit" => true,
+                        _ => false,
+                    } =>
+            {
+                match property_id {
+                    PropertyId::Display => {
+                        raw_declarations.is_displayed = ParsedCssRule::Inherit;
+                        is_interesting = true;
+                    }
+                    PropertyId::Font => {
+                        raw_declarations.font_stack = ParsedCssRule::Inherit;
+                        raw_declarations.font_weight = ParsedCssRule::Inherit;
+                        raw_declarations.font_style = ParsedCssRule::Inherit;
+                        is_interesting = true;
+                    }
+                    PropertyId::FontFamily => {
+                        raw_declarations.font_stack = ParsedCssRule::Inherit;
+                        is_interesting = true;
+                    }
+                    PropertyId::FontWeight => {
+                        raw_declarations.font_weight = ParsedCssRule::Inherit;
+                        is_interesting = true;
+                    }
+                    PropertyId::FontStyle => {
+                        raw_declarations.font_style = ParsedCssRule::Inherit;
+                        is_interesting = true;
+                    }
+                    _ => {}
+                }
+            }
+            Property::Unparsed(UnparsedProperty { property_id, value }) => match property_id {
+                PropertyId::Display => warn!("Unparsed display property: {value:?}"),
+                PropertyId::Font => warn!("Unparsed font property: {value:?}"),
+                PropertyId::FontFamily => warn!("Unparsed font-family property: {value:?}"),
+                PropertyId::FontWeight => warn!("Unparsed font-weight property: {value:?}"),
+                PropertyId::FontStyle => warn!("Unparsed font-style property: {value:?}"),
+                _ => {}
+            },
             Property::Custom(CustomProperty { name: CustomPropertyName::Unknown(name), value }) => {
                 match name.0.as_ref() {
                     "font" => {
@@ -317,6 +358,11 @@ async fn parse_css(
                 let filtered = filter_selector(selector, selector)?;
                 let new_selector_str =
                     ToCss::to_css_string(&filtered.selector, PrinterOptions::default())?;
+
+                if new_selector_str.is_empty() {
+                    info!("Ignoring unknown selector: {selector:?}");
+                    continue;
+                }
 
                 let raw = RawCssRule {
                     selector: Arc::new(Selectors::compile(&new_selector_str).map_err(|()| {
