@@ -33,6 +33,12 @@ impl<T> NodeProperty<T> {
                     self.overwritten = true;
                 }
             }
+            ParsedCssRule::OverrideUnset => {
+                if !is_conditional {
+                    self.active.clear();
+                }
+                self.overwritten = true;
+            }
             ParsedCssRule::Inherit => {
                 if !is_conditional {
                     self.active.clear();
@@ -197,29 +203,6 @@ impl RawNodeInfo {
             };
         }
         Ok(info)
-    }
-
-    pub fn is_displayed(&self, node: &NodeRef) -> bool {
-        let mut accum = Some(node.clone());
-        while let Some(x) = accum {
-            if let Some(props) = self.raw.get(&NodeId::from_node(&x)) {
-                if props.properties.is_displayed.active.contains(&false)
-                    && !props.properties.is_displayed.active.contains(&true)
-                {
-                    return false;
-                }
-            }
-            accum = x.parent();
-        }
-        true
-    }
-
-    pub fn has_pseudo_elements(&self, node: &NodeRef) -> bool {
-        if let Some(props) = self.raw.get(&NodeId::from_node(node)) {
-            !props.pseudo_elements.is_empty()
-        } else {
-            false
-        }
     }
 
     pub fn resolve_node(&self, node: &NodeRef) -> ResolvedNode {

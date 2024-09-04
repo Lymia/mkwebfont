@@ -69,10 +69,6 @@ impl Webroot {
         &self.0.root
     }
 
-    pub async fn load(&self, rela_root: Option<&Path>, path: &str) -> Result<ArcStr> {
-        self.cache_read(&self.resolve(rela_root, path)?).await
-    }
-
     pub async fn load_rela(
         &self,
         rela_root: Option<&Path>,
@@ -114,10 +110,6 @@ pub struct RelaWebroot {
 impl RelaWebroot {
     pub fn resolve(&self, path: &str) -> Result<PathBuf> {
         self.root.resolve(Some(&self.parent), path)
-    }
-
-    pub async fn load(&self, path: &str) -> Result<ArcStr> {
-        self.root.load(Some(&self.parent), path).await
     }
 
     pub async fn load_rela(&self, path: &str) -> Result<(ArcStr, RelaWebroot)> {

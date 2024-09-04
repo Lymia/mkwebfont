@@ -35,6 +35,7 @@ pub struct RawCssRule {
 #[derive(Clone, Debug)]
 pub enum ParsedCssRule<T> {
     Override(T),
+    OverrideUnset,
     Inherit,
     NoneSet,
     IgnoreSet,
@@ -43,6 +44,7 @@ impl<T> ParsedCssRule<T> {
     pub fn map<R>(&self, func: impl FnOnce(&T) -> R) -> ParsedCssRule<R> {
         match self {
             ParsedCssRule::Override(v) => ParsedCssRule::Override(func(v)),
+            ParsedCssRule::OverrideUnset => ParsedCssRule::OverrideUnset,
             ParsedCssRule::Inherit => ParsedCssRule::Inherit,
             ParsedCssRule::NoneSet => ParsedCssRule::NoneSet,
             ParsedCssRule::IgnoreSet => ParsedCssRule::IgnoreSet,
@@ -160,6 +162,10 @@ pub fn parse_declarations(style: &DeclarationBlock) -> Result<Option<RawCssRuleD
                                 TokenOrValue::Token(Token::String(str)) => {
                                     raw_declarations.content =
                                         ParsedCssRule::Override(str.to_string().into());
+                                    is_interesting = true;
+                                }
+                                TokenOrValue::Token(Token::Ident(id)) if *id == "none" => {
+                                    raw_declarations.content = ParsedCssRule::OverrideUnset;
                                     is_interesting = true;
                                 }
                                 _ => warn!("Could not parse `content` attribute: {value:?}"),

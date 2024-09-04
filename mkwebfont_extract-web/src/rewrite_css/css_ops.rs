@@ -1,4 +1,8 @@
-use crate::{gather_css::parse_font_families, webroot::RelaWebroot, RewriteContext};
+use crate::{
+    gather_css::{parse_font_families, ParsedCssRule},
+    webroot::RelaWebroot,
+    RewriteContext,
+};
 use anyhow::{bail, Result};
 use arcstr::ArcStr;
 use lightningcss::{
@@ -26,7 +30,6 @@ use mkwebfont_common::{
 use mkwebfont_fontops::font_info::FontStyle;
 use std::{borrow::Cow, sync::Arc};
 use tracing::{debug, info};
-use crate::gather_css::ParsedCssRule;
 
 const DEFAULT_LOC: Location = Location { source_index: 0, line: 0, column: 0 };
 const DEFAULT_LOC_CSS: lightningcss::dependencies::Location =
