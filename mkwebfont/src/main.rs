@@ -92,6 +92,10 @@ struct Args {
     /// that will be directly interpreted as text.
     #[arg(long)]
     subset_data: Vec<String>,
+
+    /// Dumps all loaded fonts into a directory and return JSON data representing the paths.
+    #[arg(long)]
+    dump_fonts: Option<PathBuf>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -107,7 +111,7 @@ async fn main_impl(args: Args) -> Result<()> {
         error!("Only one of `--append` and `--output` may be used in one invocation.");
         std::process::exit(1)
     }
-    if args.store.is_none() {
+    if args.store.is_none() && args.dump_fonts.is_none() {
         error!("`--store <STORE>` parameter must be provided.");
         std::process::exit(1)
     }
@@ -157,6 +161,14 @@ async fn main_impl(args: Args) -> Result<()> {
     fonts = fonts.load_from_gfonts(&args.gfont);
     if let Some(root) = &webroot {
         fonts = fonts.add_from_webroot(&root);
+    }
+
+    // dump fonts pass
+    if let Some(path) = args.dump_fonts {
+        info!("Dumping fonts to disk...");
+        let result = fonts.build().await?.dump_fonts(&path, &ctx.build())?;
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
     }
 
     // process webfonts

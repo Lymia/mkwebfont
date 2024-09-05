@@ -318,6 +318,10 @@ impl FontFaceWrapper {
         self.0.parsed_font_weight
     }
 
+    pub fn font_data(&self) -> &[u8] {
+        &self.0.font_data
+    }
+
     pub fn weight_range(&self) -> RangeInclusive<u32> {
         if let Some(axis) = self
             .variations()

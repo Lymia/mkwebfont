@@ -17,17 +17,21 @@ use mkwebfont_fontops::{
     gfonts::gfonts_list::GfontsList,
 };
 use std::{
+    collections::HashMap,
     fmt::Debug,
+    ops::RangeInclusive,
     path::{Path, PathBuf},
     sync::Arc,
 };
 use tracing::{info, info_span, Instrument};
 
+use crate::plan::LoadedSplitterPlan;
 pub use crate::plan::SplitterPlan;
 pub use mkwebfont_fontops::{
     font_info::{FontStyle, FontWeight},
     subsetter::{SubsetInfo, WebfontInfo},
 };
+use serde::{Deserialize, Serialize};
 
 /// A loaded font.
 ///
@@ -194,6 +198,56 @@ impl LoadedFontSet {
             .map(|x| LoadedFont { underlying: x.clone() })
             .collect())
     }
+
+    /// Dumps all fonts in this set to a given directory.
+    pub fn dump_fonts(&self, target: &Path, plan: &LoadedSplitterPlan) -> Result<FontDumpInfo> {
+        std::fs::create_dir_all(target)?;
+        let mut dump = FontDumpInfo { font_faces: Default::default() };
+        for font in self.font_set.as_list() {
+            if plan.family_config.check_font(font) {
+                let name = format!(
+                    "{}_{}_{}.ttf",
+                    font.font_family(),
+                    font.font_style(),
+                    mkwebfont_common::hashing::hash_fragment(font.font_data()),
+                );
+                let name = name.replace(" ", "");
+                std::fs::write(target.join(&name), font.font_data())?;
+
+                dump.font_faces
+                    .entry(font.font_family().to_string())
+                    .or_default()
+                    .push(FontDumpFile {
+                        style_name: font.font_style().to_string(),
+                        style: format!("{:?}", font.parsed_font_style()),
+                        weight: format!("{:?}", font.parsed_font_weight()),
+                        weight_num: font.parsed_font_weight().as_num(),
+                        weight_range: font.weight_range(),
+                        is_variable: font.is_variable(),
+                        name,
+                    });
+            } else {
+                info!("Font family is excluded: {font}")
+            }
+        }
+        Ok(dump)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FontDumpInfo {
+    font_faces: HashMap<String, Vec<FontDumpFile>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FontDumpFile {
+    style_name: String,
+    style: String,
+    weight: String,
+    weight_num: u32,
+    weight_range: RangeInclusive<u32>,
+    is_variable: bool,
+    name: String,
 }
 
 /// A fast function for loading remaining fonts in a webroot from Google Fonts
@@ -403,9 +457,10 @@ pub async fn process_webfont(
                     .in_current_span(),
             );
         } else {
-            info!("Font family is excluded: {}", font)
+            info!("Font family is excluded: {font}")
         }
     }
+
     {
         let span = info_span!("fallback_font");
         let _enter = span.enter();

@@ -1229,6 +1229,8 @@ dependencies = [
  "mkwebfont_extract-web",
  "mkwebfont_fontops",
  "ordered-float",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-futures",

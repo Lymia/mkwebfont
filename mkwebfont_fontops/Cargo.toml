@@ -45,7 +45,7 @@ chrono = "0.4"
 git2 = { version = "0.19", default-features = false }
 
 # Serde-related
-serde = { version = "1.0", features = ["derive"] }
+serde = { workspace = true }
 toml = "0.8"
 
 # Unicode data
