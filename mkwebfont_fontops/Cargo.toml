@@ -1,6 +1,6 @@
 [package]
 name = "mkwebfont_fontops"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Lymia Kanokawa <lymia@lymia.moe>"]
 edition = "2021"
 
