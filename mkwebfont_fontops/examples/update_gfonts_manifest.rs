@@ -97,7 +97,7 @@ async fn main() -> Result<()> {
         zstd_compress(&bincode::encode_to_vec(&font_info, bincode::config::standard())?)?,
     )?;
     std::fs::write(
-        "mkwebfont_fontops/src/gfonts/gfonts_list_manifest.txt",
+        "target/gfonts_list_manifest.txt",
         format!("{font_info:#?}"),
     )?;
     info!("Revision: {rev}");

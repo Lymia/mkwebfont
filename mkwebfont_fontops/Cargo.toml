@@ -20,10 +20,6 @@ include = [
     "contrib/woff_wrapper",
 ]
 
-exclude = [
-    "src/gfonts/gfonts_list_manifest.txt",
-]
-
 [dependencies]
 toml = "0.8 "
 
