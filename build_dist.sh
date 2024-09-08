@@ -18,7 +18,7 @@ else
 fi
 
 BIN_NAME="mkwebfont"
-VERSION="0.2.0-alpha7"
+VERSION="0.2.0-alpha8"
 
 rm -rfv dist ||:
 mkdir dist
