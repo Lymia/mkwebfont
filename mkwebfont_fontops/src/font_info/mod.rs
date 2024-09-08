@@ -207,18 +207,20 @@ impl FontFaceWrapper {
         let variations = variation_axises::get_variation_axises(&font_face);
         let is_variable = !variations.is_empty();
 
-        let font_family = if is_variable {
+        let (font_family, weight_from_name) = {
             // a lot of dynamic fonts have a weight prebaked in the font_family for some reason
             let family = font_face.font_family();
             let typographic_family = font_face.typographic_family();
 
             if family.starts_with(&typographic_family) && !typographic_family.is_empty() {
-                typographic_family
+                let remaining = family.strip_prefix(&typographic_family);
+                (typographic_family, match remaining {
+                    None => None,
+                    Some(family) => Some(FontWeight::infer(family.trim())),
+                })
             } else {
-                family
+                (family, None)
             }
-        } else {
-            font_face.font_family()
         };
         let font_style = font_face.font_subfamily();
         let font_version = font_face
@@ -232,7 +234,12 @@ impl FontFaceWrapper {
         let parsed_font_weight = if is_variable {
             FontWeight::Regular // font weight doesn't matter for variable fonts
         } else {
-            FontWeight::infer(&font_style)
+            let style = FontWeight::infer(&font_style);
+            if style == FontWeight::Regular {
+                weight_from_name.unwrap_or(style)
+            } else {
+                style
+            }
         };
 
         let mut available_codepoints = CharacterSet::new();

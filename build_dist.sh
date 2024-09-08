@@ -30,12 +30,12 @@ cargo install cargo-zigbuild
 cargo +beta clean
 cargo +beta zigbuild -p $BIN_NAME --target x86_64-unknown-linux-musl --release
 cargo +beta zigbuild -p $BIN_NAME --target aarch64-unknown-linux-musl --release
-cargo +beta zigbuild -p $BIN_NAME --target x86_64-apple-darwin --release
-cargo +beta zigbuild -p $BIN_NAME --target aarch64-apple-darwin --release
+#cargo +beta zigbuild -p $BIN_NAME --target x86_64-apple-darwin --release
+#cargo +beta zigbuild -p $BIN_NAME --target aarch64-apple-darwin --release
 cargo +beta zigbuild -p $BIN_NAME --target x86_64-pc-windows-gnu --release
 
 cp -v target/x86_64-unknown-linux-musl/release/$BIN_NAME dist/"$BIN_NAME-$VERSION-x86_64-linux"
 cp -v target/aarch64-unknown-linux-musl/release/$BIN_NAME dist/"$BIN_NAME-$VERSION-aarch64-linux"
-cp -v target/x86_64-apple-darwin/release/$BIN_NAME dist/"$BIN_NAME-$VERSION-x86_64-macos"
-cp -v target/aarch64-apple-darwin/release/$BIN_NAME dist/"$BIN_NAME-$VERSION-aarch64-macos"
+#cp -v target/x86_64-apple-darwin/release/$BIN_NAME dist/"$BIN_NAME-$VERSION-x86_64-macos"
+#cp -v target/aarch64-apple-darwin/release/$BIN_NAME dist/"$BIN_NAME-$VERSION-aarch64-macos"
 cp -v target/x86_64-pc-windows-gnu/release/$BIN_NAME.exe dist/"$BIN_NAME-$VERSION-x86_64-win32.exe"

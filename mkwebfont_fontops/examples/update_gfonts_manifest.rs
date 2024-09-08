@@ -96,6 +96,10 @@ async fn main() -> Result<()> {
         "mkwebfont_fontops/src/gfonts/gfonts_list.bin.zst",
         zstd_compress(&bincode::encode_to_vec(&font_info, bincode::config::standard())?)?,
     )?;
+    std::fs::write(
+        "mkwebfont_fontops/src/gfonts/gfonts_list_manifest.txt",
+        format!("{font_info:#?}"),
+    )?;
     info!("Revision: {rev}");
     info!("Revision Date: {rev_date}");
     info!("Found {fonts_len} font files, and {font_faces_len} font faces.");
