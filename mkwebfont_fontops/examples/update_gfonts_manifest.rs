@@ -61,7 +61,8 @@ async fn main() -> Result<()> {
 
     let mut font_info = HashMap::new();
     for (full_path, font_path, font) in font_faces {
-        let url = format!("https://github.com/google/fonts/raw/{rev}/{}", font_path.display());
+        let url =
+            format!("https://raw.githubusercontent.com/google/fonts/{rev}/{}", font_path.display());
 
         let info = font_info
             .entry(font.font_family().to_string())
@@ -96,10 +97,7 @@ async fn main() -> Result<()> {
         "mkwebfont_fontops/src/gfonts/gfonts_list.bin.zst",
         zstd_compress(&bincode::encode_to_vec(&font_info, bincode::config::standard())?)?,
     )?;
-    std::fs::write(
-        "target/gfonts_list_manifest.txt",
-        format!("{font_info:#?}"),
-    )?;
+    std::fs::write("target/gfonts_list_manifest.txt", format!("{font_info:#?}"))?;
     info!("Revision: {rev}");
     info!("Revision Date: {rev_date}");
     info!("Found {fonts_len} font files, and {font_faces_len} font faces.");
