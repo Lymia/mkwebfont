@@ -25,6 +25,7 @@ bincode = "2.0.0-rc.3"
 enumset = { version = "1.1", features = ["serde"] }
 glob = "0.3"
 serde = { version = "1.0.204", features = ["derive"] }
+serde_json = "1"
 tokio = { version = "1.38", features = ["rt-multi-thread", "sync", "macros"] }
 tracing = "0.1"
 tracing-futures = "0.2"
@@ -38,8 +39,8 @@ unicode-blocks = "0.1"
 unicode-properties = "0.1"
 
 # Crates in the workspace
-mkwebfont_common = { version = "0.6.0", path = "mkwebfont_common" }
-mkwebfont_extract-web = { version = "0.5.0", path = "mkwebfont_extract-web" }
-mkwebfont_fontops = { version = "0.5.1", path = "mkwebfont_fontops" }
-mkwebfont_hb-subset = { version = "0.5.0", path = "mkwebfont_hb-subset" }
+mkwebfont_common = { version = "0.6.1", path = "mkwebfont_common" }
+mkwebfont_extract-web = { version = "0.5.1", path = "mkwebfont_extract-web" }
+mkwebfont_fontops = { version = "0.5.2", path = "mkwebfont_fontops" }
+mkwebfont_hb-subset = { version = "0.5.1", path = "mkwebfont_hb-subset" }
 mkwebfont_kuchikiki = { version = "0.8.2-mkwebfont", path = "mkwebfont_kuchikiki" }
