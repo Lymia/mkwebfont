@@ -74,7 +74,7 @@ unsafe fn load_axis_info(face: *mut hb_face_t, axis: hb_ot_var_axis_info_t) -> V
         axis: axis_name,
         tag: axis.tag,
         range: axis.min_value..=axis.max_value,
-        default: axis.max_value,
+        default: axis.default_value,
         is_hidden: (axis.flags & hb_ot_var_axis_flags_t_HB_OT_VAR_AXIS_FLAG_HIDDEN) != 0,
     }
 }
