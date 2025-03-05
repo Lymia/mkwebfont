@@ -1,15 +1,15 @@
 #!/bin/sh -eu
 
 if which zig; then
-    if [ "$(zig version)" != "0.11.0" ]; then
-        echo "Zig version must be 0.11.0"
+    if [[ "$(zig version)" != 0.12.* ]]; then
+        echo "Zig version must be 0.12.x"
         exit 1
     fi
     true
 else
     if which nix-shell; then
         echo "(zig binary not found, grabbing via nix-shell)"
-        nix-shell -p zig_0_11 --run "$0"
+        nix-shell -p zig_0_12 --run "$0"
         exit 0
     else
         echo "Could not find zig binary."
@@ -18,7 +18,7 @@ else
 fi
 
 BIN_NAME="mkwebfont"
-VERSION="0.2.0-alpha9"
+VERSION="0.2.0-alpha10"
 
 rm -rfv dist ||:
 mkdir dist
