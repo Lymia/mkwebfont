@@ -42,7 +42,7 @@ pub async fn extract_text(
         }
         fn push_text(
             samples: &mut Vec<(ResolvedNodeProperties, Vec<ArcStr>)>,
-            current_properties: &mut ResolvedNodeProperties,
+            current_properties: &ResolvedNodeProperties,
             last_text_properties: &mut ResolvedNodeProperties,
             current_samples: &mut String,
             text: &str,
@@ -82,11 +82,27 @@ pub async fn extract_text(
                 NodeData::Element(_) => {
                     let resolved = node_info.resolve_node(node);
 
-                    // TODO: For now, we treat pseudo-elements as "outside" text flow.
-                    // This is not strictly accurate, but good enough.
-                    for (_, props) in resolved.pseudo_elements {
-                        let content: Vec<_> = props.content.iter().cloned().collect();
-                        samples.push((props, content));
+                    if resolved.properties.is_hidden {
+                        return;
+                    }
+
+                    for (kind, props) in &resolved.pseudo_elements {
+                        if (kind != ":before" && kind != ":after") || props.content.len() != 1 {
+                            let content: Vec<_> = props.content.iter().cloned().collect();
+                            samples.push((props.clone(), content));
+                        }
+                    }
+
+                    if let Some(props) = resolved.pseudo_elements.get(":before") {
+                        if props.content.len() == 1 {
+                            push_text(
+                                samples,
+                                props,
+                                last_text_properties,
+                                current_samples,
+                                props.content.iter().next().unwrap().as_str(),
+                            )
+                        }
                     }
 
                     // Handle replacing the properties.
@@ -103,6 +119,18 @@ pub async fn extract_text(
                         );
                     }
                     *current_properties = previous_properties;
+
+                    if let Some(props) = resolved.pseudo_elements.get(":after") {
+                        if props.content.len() == 1 {
+                            push_text(
+                                samples,
+                                props,
+                                last_text_properties,
+                                current_samples,
+                                props.content.iter().next().unwrap().as_str(),
+                            )
+                        }
+                    }
                 }
                 NodeData::Text(text) => {
                     push_text(

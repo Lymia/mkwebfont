@@ -150,6 +150,7 @@ pub struct ResolvedNodeProperties {
     pub font_weight: WyHashSet<i32>,
     pub font_style: WyHashSet<ParsedFontStyle>,
     pub content: WyHashSet<ArcStr>,
+    pub is_hidden: bool,
 }
 impl ResolvedNodeProperties {
     fn apply_props(&mut self, props: &NodeProperties) {
@@ -164,6 +165,10 @@ impl ResolvedNodeProperties {
         push_property(&mut self.font_weight, &props.font_weight);
         push_property(&mut self.font_style, &props.font_style);
         // note: content isn't inherited
+
+        if props.is_displayed.active.contains(&false) && props.is_displayed.active.len() == 1 {
+            self.is_hidden = true;
+        }
     }
 }
 

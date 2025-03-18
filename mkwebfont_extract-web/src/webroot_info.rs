@@ -5,7 +5,7 @@ use crate::{
 use anyhow::Result;
 use arcstr::ArcStr;
 use enumset::EnumSet;
-use mkwebfont_common::hashing::WyHashBuilder;
+use mkwebfont_common::hashing::{WyHashBuilder, WyHashMap, WyHashSet};
 use mkwebfont_fontops::font_info::{FontStyle, FontWeight};
 use std::{
     collections::{HashMap, HashSet},
@@ -57,14 +57,10 @@ impl TextSample {
 
 #[derive(Debug, Default)]
 pub struct TextInfoBuilder {
-    stacks: HashMap<
-        Arc<[ArcStr]>,
-        HashMap<TextSampleKey, HashSet<ArcStr, WyHashBuilder>>,
-        WyHashBuilder,
-    >,
-    cached_strs: HashSet<ArcStr, WyHashBuilder>,
-    cached_stacks: HashSet<Arc<[ArcStr]>, WyHashBuilder>,
-    cached_weights: HashSet<Arc<[FontWeight]>, WyHashBuilder>,
+    stacks: WyHashMap<Arc<[ArcStr]>, HashMap<TextSampleKey, WyHashSet<ArcStr>>>,
+    cached_strs: WyHashSet<ArcStr>,
+    cached_stacks: WyHashSet<Arc<[ArcStr]>>,
+    cached_weights: WyHashSet<Arc<[FontWeight]>>,
 }
 impl TextInfoBuilder {
     fn intern_str(&mut self, str: &str) -> ArcStr {
