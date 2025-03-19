@@ -1,6 +1,7 @@
 use crate::{
     apply_rules::{RawNodeInfo, ResolvedNodeProperties},
     gather_css::CssCache,
+    utils,
     webroot::RelaWebroot,
     webroot_info::TextInfoBuilder,
 };
@@ -33,9 +34,8 @@ pub async fn extract_text(
             current_samples: &mut String,
         ) {
             if !current_samples.is_empty() {
-                samples.push((last_text_properties.clone(), vec![replace(
-                    current_samples,
-                    String::new(),
+                samples.push((last_text_properties.clone(), vec![utils::condense_spaces(
+                    &replace(current_samples, String::new()),
                 )
                 .into()]));
             }
@@ -51,11 +51,11 @@ pub async fn extract_text(
                 && current_properties.font_style == last_text_properties.font_style
                 && current_properties.font_weight == last_text_properties.font_weight
             {
-                current_samples.push_str(text);
+                current_samples.push_str(&text);
             } else {
                 push_samples(samples, last_text_properties, current_samples);
                 *last_text_properties = current_properties.clone();
-                current_samples.push_str(text);
+                current_samples.push_str(&text);
             }
         }
         fn recurse(

@@ -16,3 +16,22 @@ impl NodeId {
         NodeId((&*node.0) as *const Node as usize)
     }
 }
+
+pub fn condense_spaces(s: &str) -> String {
+    let mut out = String::new();
+
+    let mut last_whitespace = false;
+    for ch in s.chars() {
+        if ch.is_whitespace() {
+            if !last_whitespace {
+                out.push(' ');
+            }
+            last_whitespace = true;
+        } else {
+            out.push(ch);
+            last_whitespace = false;
+        }
+    }
+
+    out.trim().to_string()
+}
