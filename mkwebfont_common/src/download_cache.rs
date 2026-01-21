@@ -13,6 +13,7 @@ use tracing::{info, warn};
 
 static CACHE: LazyLock<Mutex<HashMap<RawHash, Arc<OnceCell<Arc<[u8]>>>, WyHashBuilder>>> =
     LazyLock::new(|| Mutex::new(HashMap::default()));
+#[cfg(feature = "appimage")]
 static APPIMAGE_DIR: LazyLock<Option<PathBuf>> =
     LazyLock::new(|| std::env::var_os("MKWEBFONT_APPIMAGE_DATA").map(PathBuf::from));
 static CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
@@ -65,6 +66,7 @@ impl DownloadInfo {
             self.filename_suffix
         );
 
+        #[cfg(feature = "appimage")]
         if let Some(appimage_dir) = &*APPIMAGE_DIR {
             let mut appimage_dir = appimage_dir.to_path_buf();
             appimage_dir.push(&filename);
@@ -96,7 +98,8 @@ impl DownloadInfo {
         info!("Downloading '{}'...", self.url);
         let req = ureq::get(&self.url).call()?;
         let mut file_data = Vec::new();
-        req.into_reader()
+        req.into_body()
+            .into_reader()
             .take(self.size)
             .read_to_end(&mut file_data)?;
 

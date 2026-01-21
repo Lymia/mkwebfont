@@ -14,7 +14,6 @@ readme = "README.md"
 cssparser = "0.33"
 lightningcss = { version = "=1.0.0-alpha.70", features = ["into_owned", "serde"] }
 moka = { version = "0.12", features = ["future"] }
-serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Common Dependencies

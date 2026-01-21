@@ -10,14 +10,17 @@ repository = "https://github.com/Lymia/mkwebfont"
 license = "Apache-2.0"
 readme = "README.md"
 
+[features]
+appimage = []
+
 [dependencies]
 blake3 = { version = "1.5", features = ["pure"] }
-wyrand = { version = "=0.2.1", features = ["wyhash"] } # low usage crate, pin version
+wyrand = { version = "=0.3.2", features = ["wyhash"] } # low usage crate, pin version
 zstd = { version = "0.13", features = ["zstdmt"] }
 
 # Used for downloading packages from the internet.
-directories = { version = "5.0" }
-ureq = { version = "2.9" }
+directories = { version = "6.0" }
+ureq = { version = "3.1" }
 
 # Common Dependencies
 anyhow = { workspace = true }

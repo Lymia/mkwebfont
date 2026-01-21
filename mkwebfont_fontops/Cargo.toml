@@ -21,10 +21,8 @@ include = [
 ]
 
 [dependencies]
-toml = "0.8 "
-
 # Linking-only dependencies (Rust implementation, used by woff2)
-brotli = { version = "6.0", features = ["ffi-api"] }
+brotli = { version = "8.0", features = ["ffi-api"] }
 
 # Unicode data
 unicode-blocks = { workspace = true }
@@ -42,11 +40,11 @@ mkwebfont_hb-subset = { workspace = true }
 
 [dev-dependencies]
 chrono = "0.4"
-git2 = { version = "0.19", default-features = false }
+git2 = { version = "0.20", default-features = false }
 
 # Serde-related
 serde = { workspace = true }
-toml = "0.8"
+toml = "0.9"
 
 # Unicode data
 unicode-properties = { workspace = true }
