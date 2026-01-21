@@ -14,7 +14,6 @@ fn main() {
         .file("contrib/woff2/src/woff2_dec.cc")
         .file("contrib/woff2/src/woff2_enc.cc")
         .file("contrib/woff2/src/woff2_out.cc")
-        .static_flag(true)
         .warnings(false)
         .compile("libwoff2.a");
 
@@ -24,7 +23,6 @@ fn main() {
         .file("contrib/woff_wrapper/woff2.cpp")
         .include("contrib/woff2/include")
         .include("contrib/woff2/wrapper")
-        .static_flag(true)
         .warnings(false)
         .compile("libwoff2wrapper.a");
 }

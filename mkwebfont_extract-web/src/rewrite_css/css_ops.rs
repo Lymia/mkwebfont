@@ -1,5 +1,6 @@
 use crate::{
     gather_css::{parse_font_families, ParsedCssRule},
+    utils,
     webroot::RelaWebroot,
     RewriteContext,
 };
@@ -96,7 +97,7 @@ fn generate_font_face_stylesheet<'a, 'b>(
             font_face
                 .properties
                 .push(FontFaceProperty::FontFamily(FontFamily::FamilyName(
-                    font.font_family().to_string().into(),
+                    utils::create_family_name(&font.font_family()),
                 )));
             font_face.properties.push(FontFaceProperty::FontStyle(
                 match font.parsed_font_style() {
@@ -158,7 +159,9 @@ fn rewrite_properties_for_fallback(
                     rewritten = true;
                 }
                 if ctx.fallback_info.contains_key(&families) {
-                    family.push(FontFamily::FamilyName(ctx.fallback_font_name.clone().into()));
+                    family.push(FontFamily::FamilyName(utils::create_family_name(
+                        &ctx.fallback_font_name,
+                    )));
                     rewritten = true;
                 }
             }

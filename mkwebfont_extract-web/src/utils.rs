@@ -1,4 +1,6 @@
 use kuchikiki::{Node, NodeRef};
+use lightningcss::{properties::font::FamilyName, traits::IntoOwned};
+use serde_json::Value;
 use std::io::Cursor;
 
 pub fn inner_html(node: &NodeRef) -> String {
@@ -34,4 +36,19 @@ pub fn condense_spaces(s: &str) -> String {
     }
 
     out.trim().to_string()
+}
+
+pub fn extract_family_name(name: &FamilyName<'_>) -> String {
+    let value = serde_json::to_value(name).unwrap();
+    match value {
+        Value::String(s) => s,
+        _ => unreachable!(),
+    }
+}
+
+pub fn create_family_name(name: &str) -> FamilyName<'static> {
+    // TODO: This is very slow, but hopefully lightningcss people fix this shit.
+    let json = serde_json::to_string(name).unwrap();
+    let value: FamilyName = serde_json::from_str(&json).unwrap();
+    value.into_owned()
 }

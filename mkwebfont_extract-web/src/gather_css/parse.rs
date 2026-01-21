@@ -1,4 +1,4 @@
-use crate::{consts::CACHE_SIZE, webroot::RelaWebroot};
+use crate::{consts::CACHE_SIZE, utils, webroot::RelaWebroot};
 use anyhow::{bail, ensure, Error, Result};
 use arcstr::ArcStr;
 use async_recursion::async_recursion;
@@ -70,7 +70,9 @@ pub fn parse_font_families(families: &[FontFamily<'_>]) -> ParsedCssRule<Arc<[Ar
             FontFamily::Generic(_) => {
                 warn!("Generic font families are ignored: {family:?}")
             }
-            FontFamily::FamilyName(name) => new.push(name.to_lowercase().into()),
+            FontFamily::FamilyName(name) => {
+                new.push(utils::extract_family_name(name).to_lowercase().into())
+            }
         }
     }
     if new.is_empty() {
