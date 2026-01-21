@@ -1,6 +1,6 @@
 use crate::{
     apply_rules::{ParsedFontStyle, ResolvedNodeProperties},
-    rewrite_css::RewriteTargets,
+    rewrite_css::RewriteInfo,
 };
 use anyhow::Result;
 use arcstr::ArcStr;
@@ -9,19 +9,20 @@ use mkwebfont_common::hashing::{WyHashBuilder, WyHashMap, WyHashSet};
 use mkwebfont_fontops::font_info::{FontStyle, FontWeight};
 use std::{
     collections::{HashMap, HashSet},
+    path::Path,
     sync::Arc,
 };
 
 #[derive(Debug, Clone)]
 pub struct WebrootInfo {
-    pub font_stacks: Vec<FontStackInfo>,
-    pub(crate) targets: RewriteTargets,
+    pub font_stacks: Arc<[FontStackInfo]>,
+    pub(crate) targets: RewriteInfo,
 }
 
 #[derive(Debug, Clone)]
 pub struct FontStackInfo {
     pub stack: Arc<[ArcStr]>,
-    pub samples: Vec<TextSample>,
+    pub samples: Vec<Arc<TextSample>>,
 }
 impl FontStackInfo {
     pub fn glyphs(&self) -> String {
@@ -38,6 +39,7 @@ impl FontStackInfo {
 
 #[derive(Debug, Clone)]
 pub struct TextSample {
+    pub source: Arc<Path>,
     pub used_styles: EnumSet<FontStyle>,
     pub used_weights: Arc<[FontWeight]>,
     pub content: Vec<ArcStr>,
@@ -98,12 +100,14 @@ impl TextInfoBuilder {
         }
     }
 
-    pub fn push_sample(
+    pub fn push_text_sample(
         &mut self,
+        source: Arc<Path>,
         properties: &ResolvedNodeProperties,
         additional_text: &[ArcStr],
     ) -> Vec<Arc<[ArcStr]>> {
         let key = TextSampleKey {
+            source,
             styles: properties
                 .font_style
                 .iter()
@@ -137,11 +141,11 @@ impl TextInfoBuilder {
         result
     }
 
-    pub fn build(&self, targets: &RewriteTargets) -> WebrootInfo {
+    pub fn build(&self, targets: &RewriteInfo) -> WebrootInfo {
         let mut keys: Vec<_> = self.stacks.keys().collect();
         keys.sort();
 
-        let mut out = WebrootInfo { font_stacks: vec![], targets: targets.clone() };
+        let mut font_stacks = Vec::new();
         for key in keys {
             let stack = self.stacks.get(key).unwrap();
             let mut stack_keys: Vec<_> = stack.keys().collect();
@@ -151,20 +155,23 @@ impl TextInfoBuilder {
             for key in stack_keys {
                 let mut content: Vec<_> = stack.get(key).unwrap().into_iter().cloned().collect();
                 content.sort();
-                stack_info.samples.push(TextSample {
+                stack_info.samples.push(Arc::new(TextSample {
+                    source: key.source.clone(),
                     used_styles: key.styles,
                     used_weights: key.weights.clone(),
                     content,
-                });
+                }));
             }
-            out.font_stacks.push(stack_info);
+            font_stacks.push(stack_info);
         }
-        out
+
+        WebrootInfo { font_stacks: font_stacks.into(), targets: targets.clone() }
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 struct TextSampleKey {
+    source: Arc<Path>,
     styles: EnumSet<FontStyle>,
     weights: Arc<[FontWeight]>,
 }

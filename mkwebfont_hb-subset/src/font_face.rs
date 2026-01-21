@@ -54,7 +54,7 @@ impl<'a> FontFace<'a> {
 
     /// Collects all of the Unicode characters covered by the font face.
     #[doc(alias = "hb_face_collect_unicodes")]
-    pub fn covered_codepoints(&self) -> Result<CharSet, AllocationError> {
+    pub fn covered_codepoints(&self) -> Result<CharSet<'_>, AllocationError> {
         let set = CharSet::new()?;
         unsafe { sys::hb_face_collect_unicodes(self.as_raw(), set.as_raw()) };
         Ok(set)

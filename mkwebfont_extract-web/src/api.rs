@@ -1,6 +1,6 @@
 use crate::{
     gather_css::CssCache,
-    rewrite_css::{RewriteContext, RewriteTargets},
+    rewrite_css::{RewriteContext, RewriteInfo},
     webroot::Webroot,
     webroot_info::TextInfoBuilder,
     WebrootInfo,
@@ -20,7 +20,7 @@ pub struct WebrootInfoExtractor(Arc<WebrootInfoExtractorData>);
 #[derive(Debug)]
 struct WebrootInfoExtractorData {
     builder: Arc<RwLock<TextInfoBuilder>>,
-    target: Arc<RwLock<RewriteTargets>>,
+    target: Arc<RwLock<RewriteInfo>>,
     css_cache: CssCache,
 }
 impl WebrootInfoExtractor {
@@ -112,7 +112,7 @@ impl Default for WebrootInfoExtractor {
     fn default() -> Self {
         WebrootInfoExtractor(Arc::new(WebrootInfoExtractorData {
             builder: Arc::new(RwLock::new(TextInfoBuilder::default())),
-            target: Arc::new(RwLock::new(RewriteTargets::default())),
+            target: Arc::new(RwLock::new(RewriteInfo::default())),
             css_cache: CssCache::new(),
         }))
     }
@@ -120,7 +120,8 @@ impl Default for WebrootInfoExtractor {
 
 impl WebrootInfo {
     pub async fn rewrite_webroot(&self, ctx: RewriteContext) -> Result<()> {
-        crate::rewrite_css::perform_rewrite(&self.targets, Arc::new(ctx)).await?;
+        crate::rewrite_css::perform_rewrite(&self.targets, &self.font_stacks, Arc::new(ctx))
+            .await?;
         Ok(())
     }
 }

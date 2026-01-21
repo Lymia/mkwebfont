@@ -3,6 +3,7 @@ mod css_ops;
 use crate::{
     utils::inner_html,
     webroot::{RelaWebroot, Webroot},
+    FontStackInfo,
 };
 use anyhow::Result;
 use arcstr::ArcStr;
@@ -20,12 +21,12 @@ use std::{
 use tracing::{warn, Instrument};
 
 #[derive(Default, Debug, Clone)]
-pub struct RewriteTargets {
-    targets: WyHashMap<Arc<Path>, WebrootRewriteTargets>,
+pub struct RewriteInfo {
+    webroots: WyHashMap<Arc<Path>, WebrootRewriteInfo>,
 }
 
 #[derive(Default, Debug, Clone)]
-struct WebrootRewriteTargets {
+struct WebrootRewriteInfo {
     rewrite_html_style: WyHashSet<Arc<Path>>,
     rewrite_css_path: WyHashSet<Arc<Path>>,
     rewrite_css_path_fonts: WyHashSet<Arc<Path>>,
@@ -41,7 +42,11 @@ pub struct RewriteContext {
     pub store_uri: Option<String>,
 }
 
-fn process_html_path(ctx: &RewriteContext, root: &RelaWebroot) -> Result<()> {
+fn process_html_path(
+    ctx: &RewriteContext,
+    _font_stacks: &[FontStackInfo],
+    root: &RelaWebroot,
+) -> Result<()> {
     static SELECTOR: LazyLock<Selectors> =
         LazyLock::new(|| Selectors::compile("style,*[style]").unwrap());
 
@@ -74,7 +79,8 @@ fn process_html_path(ctx: &RewriteContext, root: &RelaWebroot) -> Result<()> {
 }
 
 async fn perform_rewrite_for_root(
-    targets: &WebrootRewriteTargets,
+    targets: &WebrootRewriteInfo,
+    font_stacks: &Arc<[FontStackInfo]>,
     webroot: &Webroot,
     ctx: Arc<RewriteContext>,
 ) -> Result<()> {
@@ -96,8 +102,9 @@ async fn perform_rewrite_for_root(
     }
     for path in &targets.rewrite_html_style {
         let ctx = ctx.clone();
+        let font_stacks = font_stacks.clone();
         let root = webroot.rela(&path)?;
-        joins.spawn(async move { process_html_path(&ctx, &root) }.in_current_span());
+        joins.spawn(async move { process_html_path(&ctx, &font_stacks, &root) }.in_current_span());
     }
     joins.join().await?;
     Ok(())
@@ -109,14 +116,19 @@ impl RewriteContext {
     }
 }
 
-pub async fn perform_rewrite(targets: &RewriteTargets, ctx: Arc<RewriteContext>) -> Result<()> {
+pub async fn perform_rewrite(
+    targets: &RewriteInfo,
+    font_stacks: &Arc<[FontStackInfo]>,
+    ctx: Arc<RewriteContext>,
+) -> Result<()> {
     let mut joins = JoinSet::new();
-    for (root, targets) in &targets.targets {
+    for (root, targets) in &targets.webroots {
         let targets = targets.clone();
+        let font_stacks = font_stacks.clone();
         let webroot = Webroot::new(root.to_path_buf())?;
         let ctx = ctx.clone();
         joins.spawn(
-            async move { perform_rewrite_for_root(&targets, &webroot, ctx).await }
+            async move { perform_rewrite_for_root(&targets, &font_stacks, &webroot, ctx).await }
                 .in_current_span(),
         );
     }
@@ -125,7 +137,7 @@ pub async fn perform_rewrite(targets: &RewriteTargets, ctx: Arc<RewriteContext>)
 }
 
 pub fn find_css_for_rewrite(
-    targets: &mut RewriteTargets,
+    targets: &mut RewriteInfo,
     document: &ArcStr,
     root: &RelaWebroot,
     used_stacks: WyHashSet<Arc<[ArcStr]>>,
@@ -138,15 +150,15 @@ pub fn find_css_for_rewrite(
     let mut css_list = Vec::new();
     let mut css_list_fonts = Vec::new();
 
-    let root_target = targets
-        .targets
+    let webroot_info = targets
+        .webroots
         .entry(root.root().root().into())
         .or_default();
 
     for elem in SELECTOR.filter(document.inclusive_descendants().elements()) {
         match elem.name.local.as_bytes() {
             b"style" => {
-                root_target
+                webroot_info
                     .rewrite_html_style
                     .insert(root.file_name().clone());
             }
@@ -162,7 +174,7 @@ pub fn find_css_for_rewrite(
             _ => {}
         }
         if elem.attributes.borrow().get("style").is_some() {
-            root_target
+            webroot_info
                 .rewrite_html_style
                 .insert(root.file_name().clone());
         }
@@ -191,16 +203,16 @@ pub fn find_css_for_rewrite(
     }
 
     for path in css_list {
-        root_target.rewrite_css_path.insert(path.into());
+        webroot_info.rewrite_css_path.insert(path.into());
     }
     for path in css_list_fonts {
-        if root_target.rewrite_css_path.contains(path.as_path()) {
+        if webroot_info.rewrite_css_path.contains(path.as_path()) {
             warn!("Path {} is used for @font-face generation only on some pages.", path.display());
             warn!("This may have unpredictable results.");
         }
         let path: Arc<Path> = path.into();
-        root_target.rewrite_css_path_fonts.insert(path.clone());
-        root_target
+        webroot_info.rewrite_css_path_fonts.insert(path.clone());
+        webroot_info
             .used_stacks
             .entry(path)
             .or_default()

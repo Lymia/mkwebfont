@@ -273,7 +273,7 @@ impl SubsetDataBuilder {
     /// This function expects that all fonts present in the `TextInfo` are loaded!!
     /// That is not the job of this function.
     pub fn push_webroot_info(&mut self, fonts: &FontFaceSet, text: &WebrootInfo) -> Result<()> {
-        for stack in &text.font_stacks {
+        for stack in &*text.font_stacks {
             for sample in &stack.samples {
                 let mut list: Vec<Vec<_>> = Vec::new();
                 for font in &*stack.stack {

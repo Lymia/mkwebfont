@@ -53,7 +53,7 @@ impl CharacterSet {
     }
 
     /// Returns an iterator.
-    pub fn iter(&self) -> CharacterSetIter {
+    pub fn iter(&self) -> CharacterSetIter<'_> {
         CharacterSetIter(self.0.iter())
     }
 

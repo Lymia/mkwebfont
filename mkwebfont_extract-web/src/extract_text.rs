@@ -162,7 +162,7 @@ pub async fn extract_text(
     let mut lock = builder.write().await;
     let mut stacks = WyHashSet::default();
     for (props, sample) in samples {
-        stacks.extend(lock.push_sample(&props, &sample));
+        stacks.extend(lock.push_text_sample(root.file_name().clone(), &props, &sample));
     }
     Ok(stacks)
 }

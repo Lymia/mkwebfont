@@ -277,7 +277,7 @@ async fn load_fonts_from_webroot(
     }
 
     let mut infos = WyHashSet::default();
-    for stacks in &webroot.0.font_stacks {
+    for stacks in &*webroot.0.font_stacks {
         for font in &*stacks.stack {
             for sample in &stacks.samples {
                 for style in sample.used_styles {
