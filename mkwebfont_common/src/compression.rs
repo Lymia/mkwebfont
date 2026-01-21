@@ -1,10 +1,17 @@
 use anyhow::Result;
-use std::io::Cursor;
+use brotli::{CompressorReader, Decompressor};
+use std::io::{Cursor, Read};
 
-pub fn zstd_compress(data: &[u8]) -> Result<Vec<u8>> {
-    Ok(zstd::encode_all(Cursor::new(data), 10)?)
+pub fn brotli_compress(data: &[u8]) -> Result<Vec<u8>> {
+    let mut reader = CompressorReader::with_params(Cursor::new(data), 0, &Default::default());
+    let mut out = Vec::new();
+    reader.read_to_end(&mut out)?;
+    Ok(out)
 }
 
-pub fn zstd_decompress(data: &[u8]) -> Result<Vec<u8>> {
-    Ok(zstd::decode_all(Cursor::new(data))?)
+pub fn brotli_decompress(data: &[u8]) -> Result<Vec<u8>> {
+    let mut reader = Decompressor::new(Cursor::new(data), 0);
+    let mut out = Vec::new();
+    reader.read_to_end(&mut out)?;
+    Ok(out)
 }

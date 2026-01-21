@@ -1,7 +1,7 @@
 use bincode::{config::standard, Decode, Encode};
 use mkwebfont_common::{
     character_set::{CharacterSet, CompressedCharacterSet},
-    compression::zstd_decompress,
+    compression::brotli_decompress,
 };
 use std::{
     collections::HashMap,
@@ -17,8 +17,8 @@ pub struct WebfontData {
 impl WebfontData {
     pub fn load<'a>() -> &'a WebfontData {
         static CACHE: LazyLock<WebfontData> = LazyLock::new(|| {
-            let data = include_bytes!("gfonts_subsets.bin.zst");
-            let decompressed = zstd_decompress(data).unwrap();
+            let data = include_bytes!("gfonts_subsets.bin.br");
+            let decompressed = brotli_decompress(data).unwrap();
             let out: RawSubsets = bincode::decode_from_slice(&decompressed, standard())
                 .unwrap()
                 .0;

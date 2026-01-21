@@ -1,7 +1,7 @@
 use crate::font_info::{FontStyle, FontWeight};
 use bincode::{config::standard, Decode, Encode};
 use mkwebfont_common::{
-    compression::zstd_decompress, download_cache::DownloadInfo, hashing::WyHashBuilder,
+    compression::brotli_decompress, download_cache::DownloadInfo, hashing::WyHashBuilder,
 };
 use std::{
     collections::HashMap,
@@ -20,8 +20,8 @@ pub struct GfontsList {
 impl GfontsList {
     pub fn load() -> &'static GfontsList {
         static CACHE: LazyLock<GfontsList> = LazyLock::new(|| {
-            let data = include_bytes!("gfonts_list.bin.zst");
-            let decompressed = zstd_decompress(data).unwrap();
+            let data = include_bytes!("gfonts_list.bin.br");
+            let decompressed = brotli_decompress(data).unwrap();
             let out = bincode::decode_from_slice(&decompressed, standard()).unwrap();
             out.0
         });

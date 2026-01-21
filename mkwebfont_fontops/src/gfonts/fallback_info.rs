@@ -6,7 +6,7 @@ use anyhow::Result;
 use bincode::{config::standard, Decode, Encode};
 use mkwebfont_common::{
     character_set::{CharacterSet, CompressedCharacterSet},
-    compression::zstd_decompress,
+    compression::brotli_decompress,
     download_cache::DownloadInfo,
     join_set::JoinSet,
 };
@@ -20,8 +20,8 @@ pub struct FallbackInfo {
 impl FallbackInfo {
     pub fn load<'a>() -> &'a FallbackInfo {
         static CACHE: LazyLock<FallbackInfo> = LazyLock::new(|| {
-            let data = include_bytes!("fallback_info.bin.zst");
-            let decompressed = zstd_decompress(data).unwrap();
+            let data = include_bytes!("fallback_info.bin.br");
+            let decompressed = brotli_decompress(data).unwrap();
             bincode::decode_from_slice(&decompressed, standard())
                 .unwrap()
                 .0

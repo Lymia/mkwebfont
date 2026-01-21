@@ -3,7 +3,7 @@ use chrono::DateTime;
 use git2::Repository;
 use glob::glob;
 use mkwebfont_common::{
-    compression::zstd_compress, download_cache::DownloadInfo, join_set::JoinSet,
+    compression::brotli_compress, download_cache::DownloadInfo, join_set::JoinSet,
 };
 use mkwebfont_fontops::{
     font_info::{AxisName, FontFaceWrapper},
@@ -94,8 +94,8 @@ async fn main() -> Result<()> {
         fonts: font_info,
     };
     std::fs::write(
-        "mkwebfont_fontops/src/gfonts/gfonts_list.bin.zst",
-        zstd_compress(&bincode::encode_to_vec(&font_info, bincode::config::standard())?)?,
+        "mkwebfont_fontops/src/gfonts/gfonts_list.bin.br",
+        brotli_compress(&bincode::encode_to_vec(&font_info, bincode::config::standard())?)?,
     )?;
     std::fs::write("target/gfonts_list_manifest.txt", format!("{font_info:#?}"))?;
     info!("Revision: {rev}");

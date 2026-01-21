@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bincode::config;
-use mkwebfont_common::{character_set::CharacterSet, compression::zstd_compress};
+use mkwebfont_common::{character_set::CharacterSet, compression::brotli_compress};
 use mkwebfont_fontops::gfonts::gfonts_subsets::{RawSubset, RawSubsets};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, io};
@@ -51,8 +51,8 @@ async fn main() -> Result<()> {
     }
 
     std::fs::write(
-        "mkwebfont_fontops/src/gfonts/gfonts_subsets.bin.zst",
-        zstd_compress(&bincode::encode_to_vec(reencoded, config::standard())?)?,
+        "mkwebfont_fontops/src/gfonts/gfonts_subsets.bin.br",
+        brotli_compress(&bincode::encode_to_vec(reencoded, config::standard())?)?,
     )?;
 
     Ok(())

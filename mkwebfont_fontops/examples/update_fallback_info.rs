@@ -1,6 +1,6 @@
 use anyhow::Result;
 use mkwebfont_common::{
-    character_set::CharacterSet, compression::zstd_compress, download_cache::DownloadInfo,
+    character_set::CharacterSet, compression::brotli_compress, download_cache::DownloadInfo,
 };
 use mkwebfont_fontops::{
     font_info::FontFaceWrapper,
@@ -57,7 +57,7 @@ const FALLBACK_FONTS: &[&str] = &[
     "Noto Sans Cypro Minoan",
     "Noto Sans Deseret",
     "Noto Sans Devanagari",
-    //"Noto Serif Dives Akuru", // TODO: Not on Google Fonts
+    "Noto Serif Dives Akuru",
     "Noto Serif Dogra",
     "Noto Sans Duployan",
     "Noto Sans Egyptian Hieroglyphs",
@@ -188,7 +188,6 @@ const FALLBACK_FONTS: &[&str] = &[
     "Noto Znamenny Musical Notation",
 ];
 const EXTRA_FONTS_NAMES: &[&[&str]] = &[
-    &["NotoSerifDivesAkuru-Regular.ttf"],
     &["KurintoSans-Rg.ttf"],
     &["KurintoSansCJK-Rg.ttf"],
     &["BabelStoneHan.ttf"],
@@ -206,7 +205,7 @@ async fn main() -> Result<()> {
         return Ok(());
     };
     let Some(uri_prefix) = std::env::args().skip(2).next() else {
-        error!("Pass the path of the directory with the URI prefix.");
+        error!("Pass the URI prefix.");
         return Ok(());
     };
 
@@ -279,8 +278,8 @@ async fn main() -> Result<()> {
     println!("{fallback_info:#?}");
 
     std::fs::write(
-        "mkwebfont_fontops/src/gfonts/fallback_info.bin.zst",
-        zstd_compress(&bincode::encode_to_vec(&fallback_info, bincode::config::standard())?)?,
+        "mkwebfont_fontops/src/gfonts/fallback_info.bin.br",
+        brotli_compress(&bincode::encode_to_vec(&fallback_info, bincode::config::standard())?)?,
     )?;
 
     Ok(())
