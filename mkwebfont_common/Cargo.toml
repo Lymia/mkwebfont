@@ -23,7 +23,7 @@ ureq = { version = "3.1" }
 
 # Common Dependencies
 anyhow = { workspace = true }
-bincode = { workspace = true }
 brotli = { workspace = true }
+rkyv = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

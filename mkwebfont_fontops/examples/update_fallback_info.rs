@@ -187,11 +187,8 @@ const FALLBACK_FONTS: &[&str] = &[
     // Misc Noto Fonts
     "Noto Znamenny Musical Notation",
 ];
-const EXTRA_FONTS_NAMES: &[&[&str]] = &[
-    &["KurintoSans-Rg.ttf"],
-    &["KurintoSansCJK-Rg.ttf"],
-    &["BabelStoneHan.ttf"],
-];
+const EXTRA_FONTS_NAMES: &[&[&str]] =
+    &[&["KurintoSans-Rg.ttf"], &["KurintoSansCJK-Rg.ttf"], &["BabelStoneHan.ttf"]];
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -277,10 +274,9 @@ async fn main() -> Result<()> {
 
     println!("{fallback_info:#?}");
 
-    std::fs::write(
-        "mkwebfont_fontops/src/gfonts/fallback_info.bin.br",
-        brotli_compress(&bincode::encode_to_vec(&fallback_info, bincode::config::standard())?)?,
-    )?;
+    let encoded = rkyv::to_bytes::<rkyv::rancor::Error>(&fallback_info)?;
+    let compressed = brotli_compress(&encoded)?;
+    std::fs::write("mkwebfont_fontops/src/gfonts/fallback_info.bin.br", compressed)?;
 
     Ok(())
 }

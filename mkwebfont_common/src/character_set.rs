@@ -1,5 +1,5 @@
 use crate::hashing::WyHashSet;
-use bincode::{Decode, Encode};
+use rkyv::{Archive, Deserialize, Serialize};
 use std::{
     collections::hash_set::{IntoIter, Iter},
     fmt::{Debug, Formatter},
@@ -219,7 +219,7 @@ impl Iterator for CharacterSetIntoIter {
 ///
 /// This does not take less memory, but compresses better, as it is delta encoded and not in a
 /// random order as a [`HashSet`] would be.
-#[derive(Clone, Encode, Decode)]
+#[derive(Clone, Serialize, Deserialize, Archive)]
 pub struct CompressedCharacterSet(Vec<u32>);
 impl Debug for CompressedCharacterSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

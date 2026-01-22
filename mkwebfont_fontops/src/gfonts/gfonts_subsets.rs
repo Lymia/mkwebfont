@@ -1,8 +1,8 @@
-use bincode::{config::standard, Decode, Encode};
 use mkwebfont_common::{
     character_set::{CharacterSet, CompressedCharacterSet},
     compression::brotli_decompress,
 };
+use rkyv::{Archive, Deserialize, Serialize};
 use std::{
     collections::HashMap,
     sync::{Arc, LazyLock},
@@ -19,9 +19,9 @@ impl WebfontData {
         static CACHE: LazyLock<WebfontData> = LazyLock::new(|| {
             let data = include_bytes!("gfonts_subsets.bin.br");
             let decompressed = brotli_decompress(data).unwrap();
-            let out: RawSubsets = bincode::decode_from_slice(&decompressed, standard())
-                .unwrap()
-                .0;
+            let archived =
+                rkyv::access::<ArchivedRawSubsets, rkyv::rancor::Error>(&decompressed).unwrap();
+            let out = rkyv::deserialize::<RawSubsets, rkyv::rancor::Error>(archived).unwrap();
             out.build()
         });
         &*CACHE
@@ -40,16 +40,16 @@ pub struct WebfontSubset {
     pub map: CharacterSet,
 }
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Serialize, Deserialize, Archive)]
+pub struct RawSubsets {
+    pub subsets: Vec<RawSubset>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Archive)]
 pub struct RawSubset {
     pub name: String,
     pub group: Option<String>,
     pub chars: CompressedCharacterSet,
-}
-
-#[derive(Clone, Debug, Encode, Decode)]
-pub struct RawSubsets {
-    pub subsets: Vec<RawSubset>,
 }
 
 fn convert_subset(name: &str, chars: &CompressedCharacterSet) -> Arc<WebfontSubset> {

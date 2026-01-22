@@ -3,17 +3,17 @@ use crate::{
     gfonts::gfonts_list::GfontsList,
 };
 use anyhow::Result;
-use bincode::{config::standard, Decode, Encode};
 use mkwebfont_common::{
     character_set::{CharacterSet, CompressedCharacterSet},
     compression::brotli_decompress,
     download_cache::DownloadInfo,
     join_set::JoinSet,
 };
+use rkyv::{Archive, Deserialize, Serialize};
 use std::sync::{Arc, LazyLock};
 use tracing::info;
 
-#[derive(Debug, Clone, Decode, Encode)]
+#[derive(Debug, Clone, Deserialize, Serialize, Archive)]
 pub struct FallbackInfo {
     pub fonts: Vec<FallbackComponent>,
 }
@@ -22,9 +22,10 @@ impl FallbackInfo {
         static CACHE: LazyLock<FallbackInfo> = LazyLock::new(|| {
             let data = include_bytes!("fallback_info.bin.br");
             let decompressed = brotli_decompress(data).unwrap();
-            bincode::decode_from_slice(&decompressed, standard())
-                .unwrap()
-                .0
+
+            let archived =
+                rkyv::access::<ArchivedFallbackInfo, rkyv::rancor::Error>(&decompressed).unwrap();
+            rkyv::deserialize::<FallbackInfo, rkyv::rancor::Error>(archived).unwrap()
         });
         &*CACHE
     }
@@ -67,7 +68,7 @@ impl FallbackInfo {
     }
 }
 
-#[derive(Debug, Clone, Decode, Encode)]
+#[derive(Debug, Clone, Deserialize, Serialize, Archive)]
 pub struct FallbackComponent {
     pub name: String,
     pub source: FallbackDownloadSource,
@@ -94,7 +95,7 @@ impl FallbackComponent {
     }
 }
 
-#[derive(Debug, Clone, Decode, Encode)]
+#[derive(Debug, Clone, Deserialize, Serialize, Archive)]
 pub enum FallbackDownloadSource {
     GFonts(String),
     Download(Vec<DownloadInfo>),

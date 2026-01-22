@@ -1,8 +1,8 @@
 use anyhow::{bail, Result};
-use bincode::{Decode, Encode};
 use enumset::{EnumSet, EnumSetType};
 use hb_subset::{Blob, FontFace, SubsetInput};
 use mkwebfont_common::{character_set::CharacterSet, hashing::WyHashBuilder};
+use rkyv::{Archive, Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Display, Formatter},
@@ -19,7 +19,7 @@ mod woff2;
 
 pub use variation_axises::{AxisName, VariationAxis};
 
-#[derive(EnumSetType, Debug, Decode, Encode)]
+#[derive(EnumSetType, Debug, Serialize, Deserialize, Archive)]
 pub enum FontStyle {
     Regular,
     Italic,

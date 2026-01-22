@@ -1,6 +1,6 @@
 use crate::hashing::{raw_hash, to_nix_base32, RawHash, WyHashBuilder};
 use anyhow::{bail, Result};
-use bincode::{Decode, Encode};
+use rkyv::{Archive, Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fmt::{Debug, Formatter},
@@ -13,9 +13,11 @@ use tracing::{info, warn};
 
 static CACHE: LazyLock<Mutex<HashMap<RawHash, Arc<OnceCell<Arc<[u8]>>>, WyHashBuilder>>> =
     LazyLock::new(|| Mutex::new(HashMap::default()));
+
 #[cfg(feature = "appimage")]
 static APPIMAGE_DIR: LazyLock<Option<PathBuf>> =
     LazyLock::new(|| std::env::var_os("MKWEBFONT_APPIMAGE_DATA").map(PathBuf::from));
+
 static CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     let project_dirs = directories::ProjectDirs::from("moe.rimin", "", "mkwebfont")
         .expect("Could not get cache directory!");
@@ -29,7 +31,7 @@ static CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     cache_dir
 });
 
-#[derive(Clone, Encode, Decode, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Serialize, Deserialize, Archive)]
 pub struct DownloadInfo {
     filename_prefix: String,
     filename_suffix: String,

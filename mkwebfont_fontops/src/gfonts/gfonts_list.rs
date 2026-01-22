@@ -1,8 +1,8 @@
 use crate::font_info::{FontStyle, FontWeight};
-use bincode::{config::standard, Decode, Encode};
 use mkwebfont_common::{
     compression::brotli_decompress, download_cache::DownloadInfo, hashing::WyHashBuilder,
 };
+use rkyv::{Archive, Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fmt::{Debug, Display, Formatter},
@@ -10,7 +10,7 @@ use std::{
     sync::LazyLock,
 };
 
-#[derive(Debug, Clone, Decode, Encode)]
+#[derive(Debug, Clone, Serialize, Deserialize, Archive)]
 pub struct GfontsList {
     pub repo_revision: String,
     pub repo_date: String,
@@ -22,8 +22,9 @@ impl GfontsList {
         static CACHE: LazyLock<GfontsList> = LazyLock::new(|| {
             let data = include_bytes!("gfonts_list.bin.br");
             let decompressed = brotli_decompress(data).unwrap();
-            let out = bincode::decode_from_slice(&decompressed, standard()).unwrap();
-            out.0
+            let archived =
+                rkyv::access::<ArchivedGfontsList, rkyv::rancor::Error>(&decompressed).unwrap();
+            rkyv::deserialize::<GfontsList, rkyv::rancor::Error>(archived).unwrap()
         });
         &*CACHE
     }
@@ -41,7 +42,7 @@ impl GfontsList {
     }
 }
 
-#[derive(Debug, Clone, Decode, Encode)]
+#[derive(Debug, Clone, Serialize, Deserialize, Archive)]
 pub struct GfontInfo {
     pub name: String,
     pub styles: Vec<GfontStyleInfo>,
@@ -66,7 +67,7 @@ impl GfontInfo {
     }
 }
 
-#[derive(Debug, Clone, Decode, Encode)]
+#[derive(Debug, Clone, Serialize, Deserialize, Archive)]
 pub struct GfontStyleInfo {
     pub style: FontStyle,
     pub weight: RangeInclusive<u32>,

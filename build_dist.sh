@@ -1,10 +1,6 @@
 #!/bin/sh -eu
 
 if which zig; then
-    if [[ "$(zig version)" != 0.12.* ]]; then
-        echo "Zig version must be 0.12.x"
-        exit 1
-    fi
     true
 else
     if which nix-shell; then

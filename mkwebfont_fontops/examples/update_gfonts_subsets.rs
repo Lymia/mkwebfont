@@ -1,5 +1,4 @@
 use anyhow::Result;
-use bincode::config;
 use mkwebfont_common::{character_set::CharacterSet, compression::brotli_compress};
 use mkwebfont_fontops::gfonts::gfonts_subsets::{RawSubset, RawSubsets};
 use serde::{Deserialize, Serialize};
@@ -50,10 +49,9 @@ async fn main() -> Result<()> {
         });
     }
 
-    std::fs::write(
-        "mkwebfont_fontops/src/gfonts/gfonts_subsets.bin.br",
-        brotli_compress(&bincode::encode_to_vec(reencoded, config::standard())?)?,
-    )?;
+    let encoded = rkyv::to_bytes::<rkyv::rancor::Error>(&reencoded)?;
+    let compressed = brotli_compress(&encoded)?;
+    std::fs::write("mkwebfont_fontops/src/gfonts/gfonts_subsets.bin.br", &compressed)?;
 
     Ok(())
 }

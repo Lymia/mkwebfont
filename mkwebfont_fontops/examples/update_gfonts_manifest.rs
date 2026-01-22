@@ -93,10 +93,9 @@ async fn main() -> Result<()> {
         repo_short_date: rev_date.format("%Y-%m-%d").to_string(),
         fonts: font_info,
     };
-    std::fs::write(
-        "mkwebfont_fontops/src/gfonts/gfonts_list.bin.br",
-        brotli_compress(&bincode::encode_to_vec(&font_info, bincode::config::standard())?)?,
-    )?;
+    let encoded = rkyv::to_bytes::<rkyv::rancor::Error>(&font_info)?;
+    let compressed = brotli_compress(&encoded)?;
+    std::fs::write("mkwebfont_fontops/src/gfonts/gfonts_list.bin.br", &compressed)?;
     std::fs::write("target/gfonts_list_manifest.txt", format!("{font_info:#?}"))?;
     info!("Revision: {rev}");
     info!("Revision Date: {rev_date}");
