@@ -1,8 +1,8 @@
 [package]
 name = "mkwebfont_common"
 version = "0.6.1"
-authors = ["Lymia Kanokawa <lymia@lymia.moe>"]
-edition = "2021"
+authors = ["Rimi Kanokawa <rimi@rimin.moe>"]
+edition = "2024"
 
 description = "Internal crate for mkwebfont."
 repository = "https://github.com/Lymia/mkwebfont"

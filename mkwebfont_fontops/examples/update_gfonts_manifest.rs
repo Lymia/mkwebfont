@@ -2,14 +2,14 @@ use anyhow::Result;
 use chrono::DateTime;
 use git2::Repository;
 use glob::glob;
-use mkwebfont_common::{
-    compression::brotli_compress, download_cache::DownloadInfo, join_set::JoinSet,
-};
-use mkwebfont_fontops::{
-    font_info::{AxisName, FontFaceWrapper},
-    gfonts::gfonts_list::{GfontInfo, GfontStyleInfo, GfontsList},
-};
-use std::{collections::HashMap, io, path::PathBuf};
+use mkwebfont_common::compression::brotli_compress;
+use mkwebfont_common::download_cache::DownloadInfo;
+use mkwebfont_common::join_set::JoinSet;
+use mkwebfont_fontops::font_info::{AxisName, FontFaceWrapper};
+use mkwebfont_fontops::gfonts::gfonts_list::{GfontInfo, GfontStyleInfo, GfontsList};
+use std::collections::HashMap;
+use std::io;
+use std::path::PathBuf;
 use tracing::{error, info};
 
 #[tokio::main]

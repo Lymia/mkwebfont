@@ -1,16 +1,13 @@
-use crate::{
-    plan::{AssignedSubsets, LoadedSplitterPlan},
-    splitter::SplitterImplementation,
-};
+use crate::plan::{AssignedSubsets, LoadedSplitterPlan};
+use crate::splitter::SplitterImplementation;
 use anyhow::Result;
 use mkwebfont_common::character_set::CharacterSet;
-use mkwebfont_fontops::{
-    font_info::FontFaceWrapper,
-    gfonts::gfonts_subsets::{WebfontData, WebfontSubset, WebfontSubsetGroup},
-    subsetter::FontEncoder,
-};
+use mkwebfont_fontops::font_info::FontFaceWrapper;
+use mkwebfont_fontops::gfonts::gfonts_subsets::{WebfontData, WebfontSubset, WebfontSubsetGroup};
+use mkwebfont_fontops::subsetter::FontEncoder;
 use ordered_float::OrderedFloat;
-use std::{collections::HashSet, sync::Arc};
+use std::collections::HashSet;
+use std::sync::Arc;
 use tracing::debug;
 use unicode_blocks::find_unicode_block;
 

@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "tool_fontdata",
     "mkwebfont",
     "mkwebfont_common",
     "mkwebfont_fontops",

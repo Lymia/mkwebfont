@@ -1,17 +1,14 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use enumset::{EnumSet, EnumSetType};
 use hb_subset::{Blob, FontFace, SubsetInput};
-use mkwebfont_common::{character_set::CharacterSet, hashing::WyHashBuilder};
+use mkwebfont_common::character_set::CharacterSet;
+use mkwebfont_common::hashing::WyHashBuilder;
 use rkyv::{Archive, Deserialize, Serialize};
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::{Debug, Display, Formatter},
-    ops::RangeInclusive,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-};
+use std::collections::{HashMap, HashSet};
+use std::fmt::{Debug, Display, Formatter};
+use std::ops::RangeInclusive;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::debug;
 
 mod variation_axises;

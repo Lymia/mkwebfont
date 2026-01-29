@@ -1,0 +1,8 @@
+[package]
+name = "tool_fontdata"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+[dependencies]
+mkwebfont_common = { workspace = true }

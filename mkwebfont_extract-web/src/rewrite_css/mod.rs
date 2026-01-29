@@ -1,24 +1,20 @@
 mod css_ops;
 
-use crate::{
-    utils::inner_html,
-    webroot::{RelaWebroot, Webroot},
-    FontStackInfo,
-};
+use crate::FontStackInfo;
+use crate::utils::inner_html;
+use crate::webroot::{RelaWebroot, Webroot};
 use anyhow::Result;
 use arcstr::ArcStr;
-use kuchikiki::{iter::NodeIterator, parse_html, traits::TendrilSink, NodeRef, Selectors};
-use mkwebfont_common::{
-    character_set::CharacterSet,
-    hashing::{WyHashMap, WyHashSet},
-    join_set::JoinSet,
-};
+use kuchikiki::iter::NodeIterator;
+use kuchikiki::traits::TendrilSink;
+use kuchikiki::{NodeRef, Selectors, parse_html};
+use mkwebfont_common::character_set::CharacterSet;
+use mkwebfont_common::hashing::{WyHashMap, WyHashSet};
+use mkwebfont_common::join_set::JoinSet;
 use mkwebfont_fontops::subsetter::WebfontInfo;
-use std::{
-    path::{Path, PathBuf},
-    sync::{Arc, LazyLock},
-};
-use tracing::{warn, Instrument};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, LazyLock};
+use tracing::{Instrument, warn};
 
 #[derive(Default, Debug, Clone)]
 pub struct RewriteInfo {

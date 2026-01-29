@@ -1,11 +1,9 @@
-use std::{
-    ffi::{c_char, CString},
-    marker::PhantomData,
-    ops::Deref,
-    path::Path,
-    ptr::null_mut,
-    slice,
-};
+use std::ffi::{c_char, CString};
+use std::marker::PhantomData;
+use std::ops::Deref;
+use std::path::Path;
+use std::ptr::null_mut;
+use std::slice;
 
 use crate::{sys, AllocationError};
 

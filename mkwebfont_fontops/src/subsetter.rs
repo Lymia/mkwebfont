@@ -1,12 +1,14 @@
 use crate::font_info::{FontFaceWrapper, FontStyle, FontWeight};
 use anyhow::*;
-use mkwebfont_common::{
-    character_set::CharacterSet,
-    hashing::{hash_fragment, hash_full},
-};
-use std::{fs, ops::RangeInclusive, path::Path, sync::Arc};
-use tokio::{task, task::JoinHandle};
-use tracing::{debug, Instrument};
+use mkwebfont_common::character_set::CharacterSet;
+use mkwebfont_common::hashing::{hash_fragment, hash_full};
+use std::fs;
+use std::ops::RangeInclusive;
+use std::path::Path;
+use std::sync::Arc;
+use tokio::task;
+use tokio::task::JoinHandle;
+use tracing::{Instrument, debug};
 use unicode_blocks::find_unicode_block;
 
 fn extract_name(str: &str) -> String {

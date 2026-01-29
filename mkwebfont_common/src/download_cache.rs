@@ -1,13 +1,11 @@
-use crate::hashing::{raw_hash, to_nix_base32, RawHash, WyHashBuilder};
-use anyhow::{bail, Result};
+use crate::hashing::{RawHash, WyHashBuilder, raw_hash, to_nix_base32};
+use anyhow::{Result, bail};
 use rkyv::{Archive, Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Formatter},
-    io::Read,
-    path::{Path, PathBuf},
-    sync::{Arc, LazyLock},
-};
+use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, LazyLock};
 use tokio::sync::{Mutex, OnceCell};
 use tracing::{info, warn};
 

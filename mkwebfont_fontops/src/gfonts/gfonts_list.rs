@@ -1,14 +1,12 @@
 use crate::font_info::{FontStyle, FontWeight};
-use mkwebfont_common::{
-    compression::brotli_decompress, download_cache::DownloadInfo, hashing::WyHashBuilder,
-};
+use mkwebfont_common::compression::brotli_decompress;
+use mkwebfont_common::download_cache::DownloadInfo;
+use mkwebfont_common::hashing::WyHashBuilder;
 use rkyv::{Archive, Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Display, Formatter},
-    ops::RangeInclusive,
-    sync::LazyLock,
-};
+use std::collections::HashMap;
+use std::fmt::{Debug, Display, Formatter};
+use std::ops::RangeInclusive;
+use std::sync::LazyLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Archive)]
 pub struct GfontsList {

@@ -1,5 +1,6 @@
 use kuchikiki::{Node, NodeRef};
-use lightningcss::{properties::font::FamilyName, traits::IntoOwned};
+use lightningcss::properties::font::FamilyName;
+use lightningcss::traits::IntoOwned;
 use serde_json::Value;
 use std::io::Cursor;
 

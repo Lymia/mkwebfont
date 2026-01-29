@@ -4,14 +4,13 @@
 //! [`std::collections::BTreeMap`] or [`std::collections::HashMap`] as those are implemented directly in Rust and do not
 //! rely on FFI to work.
 
-use std::{
-    fmt,
-    hash::Hash,
-    iter::{FilterMap, FusedIterator},
-    marker::PhantomData,
-};
+use std::fmt;
+use std::hash::Hash;
+use std::iter::{FilterMap, FusedIterator};
+use std::marker::PhantomData;
 
-use crate::{set::Set, sys, AllocationError};
+use crate::set::Set;
+use crate::{sys, AllocationError};
 
 /// Map objects are integer-to-integer hash-maps.
 ///

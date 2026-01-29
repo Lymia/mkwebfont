@@ -1,7 +1,8 @@
 use anyhow::Result;
-use std::{future::Future, sync::Arc};
+use std::future::Future;
+use std::sync::Arc;
 use tokio::task::JoinHandle;
-use tracing::{debug, Instrument};
+use tracing::{Instrument, debug};
 
 pub struct JoinSet<T> {
     joins: Vec<JoinHandle<Result<T>>>,

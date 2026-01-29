@@ -1,36 +1,26 @@
-use crate::{
-    plan::{AssignedSubsets, FontFlags},
-    splitter,
-    splitter::FALLBACK_FONT_NAME,
-};
-use anyhow::{bail, Result};
+use crate::plan::{AssignedSubsets, FontFlags};
+use crate::splitter;
+use crate::splitter::FALLBACK_FONT_NAME;
+use anyhow::{Result, bail};
 use arcstr::ArcStr;
-use mkwebfont_common::{
-    character_set::CharacterSet,
-    download_cache::DownloadInfo,
-    hashing::{WyHashMap, WyHashSet},
-    join_set::JoinSet,
-};
+use mkwebfont_common::character_set::CharacterSet;
+use mkwebfont_common::download_cache::DownloadInfo;
+use mkwebfont_common::hashing::{WyHashMap, WyHashSet};
+use mkwebfont_common::join_set::JoinSet;
 use mkwebfont_extract_web::{RewriteContext, WebrootInfo, WebrootInfoExtractor};
-use mkwebfont_fontops::{
-    font_info::{FontFaceSet, FontFaceWrapper},
-    gfonts::gfonts_list::GfontsList,
-};
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    ops::RangeInclusive,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-use tracing::{info, info_span, Instrument};
+use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
+use mkwebfont_fontops::gfonts::gfonts_list::GfontsList;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::ops::RangeInclusive;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tracing::{Instrument, info, info_span};
 
 use crate::plan::LoadedSplitterPlan;
 pub use crate::plan::SplitterPlan;
-pub use mkwebfont_fontops::{
-    font_info::{FontStyle, FontWeight},
-    subsetter::{SubsetInfo, WebfontInfo},
-};
+pub use mkwebfont_fontops::font_info::{FontStyle, FontWeight};
+pub use mkwebfont_fontops::subsetter::{SubsetInfo, WebfontInfo};
 use serde::{Deserialize, Serialize};
 
 /// A loaded font.

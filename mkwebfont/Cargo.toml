@@ -1,8 +1,8 @@
 [package]
 name = "mkwebfont"
 version = "0.2.0-alpha10"
-authors = ["Lymia Kanokawa <lymia@lymia.moe>"]
-edition = "2021"
+authors = ["Rimi Kanokawa <rimi@rimin.moe>"]
+edition = "2024"
 
 description = "A simple tool for turning .ttf/.otf files into webfonts."
 keywords = ["fonts"]

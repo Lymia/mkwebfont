@@ -1,10 +1,8 @@
-use std::{
-    borrow::Borrow,
-    ffi::{c_char, CStr},
-    fmt,
-    ptr::null,
-    str::FromStr,
-};
+use std::borrow::Borrow;
+use std::ffi::{c_char, CStr};
+use std::fmt;
+use std::ptr::null;
+use std::str::FromStr;
 
 use crate::{sys, AllocationError};
 

@@ -7,14 +7,12 @@
 //! Sets are used in HarfBuzz in some non-shaping APIs to query certain sets of characters or glyphs, or other integer
 //! values.
 
-use std::{
-    any::TypeId,
-    fmt,
-    hash::Hash,
-    iter::{FilterMap, FusedIterator},
-    marker::PhantomData,
-    ops::{Bound, RangeBounds},
-};
+use std::any::TypeId;
+use std::fmt;
+use std::hash::Hash;
+use std::iter::{FilterMap, FusedIterator};
+use std::marker::PhantomData;
+use std::ops::{Bound, RangeBounds};
 
 use crate::{sys, AllocationError, Tag};
 

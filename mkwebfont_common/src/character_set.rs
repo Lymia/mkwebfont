@@ -1,10 +1,8 @@
 use crate::hashing::WyHashSet;
 use rkyv::{Archive, Deserialize, Serialize};
-use std::{
-    collections::hash_set::{IntoIter, Iter},
-    fmt::{Debug, Formatter},
-    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Sub, SubAssign},
-};
+use std::collections::hash_set::{IntoIter, Iter};
+use std::fmt::{Debug, Formatter};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Sub, SubAssign};
 
 #[derive(Clone, Eq, PartialEq, Default)]
 pub struct CharacterSet(WyHashSet<u32>);

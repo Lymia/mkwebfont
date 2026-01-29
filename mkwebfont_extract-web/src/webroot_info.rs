@@ -1,17 +1,13 @@
-use crate::{
-    apply_rules::{ParsedFontStyle, ResolvedNodeProperties},
-    rewrite_css::RewriteInfo,
-};
+use crate::apply_rules::{ParsedFontStyle, ResolvedNodeProperties};
+use crate::rewrite_css::RewriteInfo;
 use anyhow::Result;
 use arcstr::ArcStr;
 use enumset::EnumSet;
 use mkwebfont_common::hashing::{WyHashBuilder, WyHashMap, WyHashSet};
 use mkwebfont_fontops::font_info::{FontStyle, FontWeight};
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct WebrootInfo {

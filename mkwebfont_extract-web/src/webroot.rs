@@ -1,14 +1,12 @@
 use crate::consts::CACHE_SIZE;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use arcstr::ArcStr;
 use mkwebfont_common::hashing::WyHashBuilder;
 use moka::future::{Cache, CacheBuilder};
-use std::{
-    io,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-use tracing::{debug, Instrument};
+use std::io;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tracing::{Instrument, debug};
 
 #[derive(Clone)]
 pub struct Webroot(Arc<WebrootData>);

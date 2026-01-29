@@ -1,19 +1,15 @@
-use crate::{
-    gather_css::CssCache,
-    rewrite_css::{RewriteContext, RewriteInfo},
-    webroot::Webroot,
-    webroot_info::TextInfoBuilder,
-    WebrootInfo,
-};
+use crate::WebrootInfo;
+use crate::gather_css::CssCache;
+use crate::rewrite_css::{RewriteContext, RewriteInfo};
+use crate::webroot::Webroot;
+use crate::webroot_info::TextInfoBuilder;
 use anyhow::Result;
 use arcstr::ArcStr;
 use mkwebfont_common::join_set::JoinSet;
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, info_span, Instrument};
+use tracing::{Instrument, info, info_span};
 
 #[derive(Debug, Clone)]
 pub struct WebrootInfoExtractor(Arc<WebrootInfoExtractorData>);

@@ -1,15 +1,14 @@
 use anyhow::Result;
-use mkwebfont_common::{
-    character_set::CharacterSet, compression::brotli_compress, download_cache::DownloadInfo,
+use mkwebfont_common::character_set::CharacterSet;
+use mkwebfont_common::compression::brotli_compress;
+use mkwebfont_common::download_cache::DownloadInfo;
+use mkwebfont_fontops::font_info::FontFaceWrapper;
+use mkwebfont_fontops::gfonts::fallback_info::{
+    FallbackComponent, FallbackDownloadSource, FallbackInfo,
 };
-use mkwebfont_fontops::{
-    font_info::FontFaceWrapper,
-    gfonts::{
-        fallback_info::{FallbackComponent, FallbackDownloadSource, FallbackInfo},
-        gfonts_list::GfontsList,
-    },
-};
-use std::{io, path::PathBuf};
+use mkwebfont_fontops::gfonts::gfonts_list::GfontsList;
+use std::io;
+use std::path::PathBuf;
 use tracing::{error, info};
 use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
 

@@ -1,14 +1,10 @@
-use crate::{
-    font_info::{FontFaceWrapper, FontStyle},
-    gfonts::gfonts_list::GfontsList,
-};
+use crate::font_info::{FontFaceWrapper, FontStyle};
+use crate::gfonts::gfonts_list::GfontsList;
 use anyhow::Result;
-use mkwebfont_common::{
-    character_set::{CharacterSet, CompressedCharacterSet},
-    compression::brotli_decompress,
-    download_cache::DownloadInfo,
-    join_set::JoinSet,
-};
+use mkwebfont_common::character_set::{CharacterSet, CompressedCharacterSet};
+use mkwebfont_common::compression::brotli_decompress;
+use mkwebfont_common::download_cache::DownloadInfo;
+use mkwebfont_common::join_set::JoinSet;
 use rkyv::{Archive, Deserialize, Serialize};
 use std::sync::{Arc, LazyLock};
 use tracing::info;

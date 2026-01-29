@@ -5,7 +5,7 @@ use anyhow::*;
 
 extern crate brotli; // force include
 
-extern "C" {
+unsafe extern "C" {
     fn ComputeTTFToWOFF2Size(
         data: *const u8,
         length: usize,

@@ -1,8 +1,10 @@
 use anyhow::Result;
-use mkwebfont_common::{character_set::CharacterSet, compression::brotli_compress};
+use mkwebfont_common::character_set::CharacterSet;
+use mkwebfont_common::compression::brotli_compress;
 use mkwebfont_fontops::gfonts::gfonts_subsets::{RawSubset, RawSubsets};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, io};
+use std::collections::HashSet;
+use std::io;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct TomlRawSubset {

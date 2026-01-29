@@ -1,12 +1,8 @@
-use mkwebfont_common::{
-    character_set::{CharacterSet, CompressedCharacterSet},
-    compression::brotli_decompress,
-};
+use mkwebfont_common::character_set::{CharacterSet, CompressedCharacterSet};
+use mkwebfont_common::compression::brotli_decompress;
 use rkyv::{Archive, Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    sync::{Arc, LazyLock},
-};
+use std::collections::HashMap;
+use std::sync::{Arc, LazyLock};
 
 #[derive(Clone, Debug)]
 pub struct WebfontData {

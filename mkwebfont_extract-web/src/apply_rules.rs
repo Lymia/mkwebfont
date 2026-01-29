@@ -1,21 +1,16 @@
-use crate::{
-    gather_css::{parse_declarations, ParsedCssRule, RawCssRule, RawCssRuleDeclarations},
-    utils::NodeId,
-};
+use crate::gather_css::{ParsedCssRule, RawCssRule, RawCssRuleDeclarations, parse_declarations};
+use crate::utils::NodeId;
 use anyhow::Result;
 use arcstr::ArcStr;
-use kuchikiki::{traits::NodeIterator, NodeRef, Selectors};
-use lightningcss::{
-    declaration::DeclarationBlock,
-    properties::font::{AbsoluteFontWeight, FontStyle},
-    stylesheet::ParserOptions,
-};
+use kuchikiki::traits::NodeIterator;
+use kuchikiki::{NodeRef, Selectors};
+use lightningcss::declaration::DeclarationBlock;
+use lightningcss::properties::font::{AbsoluteFontWeight, FontStyle};
+use lightningcss::stylesheet::ParserOptions;
 use mkwebfont_common::hashing::{WyHashBuilder, WyHashSet};
-use std::{
-    collections::HashMap,
-    hash::Hash,
-    sync::{Arc, LazyLock},
-};
+use std::collections::HashMap;
+use std::hash::Hash;
+use std::sync::{Arc, LazyLock};
 use tracing::warn;
 
 #[derive(Debug)]

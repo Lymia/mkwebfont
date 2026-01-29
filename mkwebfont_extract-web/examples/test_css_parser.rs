@@ -1,6 +1,7 @@
 use anyhow::Result;
 use mkwebfont_common::FILTER_SPEC;
-use std::{io, path::PathBuf};
+use std::io;
+use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -2,7 +2,9 @@ use anyhow::Result;
 use enumset::*;
 use mkwebfont_extract_web::WebrootInfo;
 use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
-use std::{collections::HashSet, ops::Deref, sync::Arc};
+use std::collections::HashSet;
+use std::ops::Deref;
+use std::sync::Arc;
 
 mod subsetter;
 

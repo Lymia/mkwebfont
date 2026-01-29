@@ -1,13 +1,12 @@
-use hb_subset::{
-    sys::{
-        hb_face_t, hb_ot_name_get_utf8, hb_ot_name_id_t,
-        hb_ot_var_axis_flags_t_HB_OT_VAR_AXIS_FLAG_HIDDEN, hb_ot_var_axis_info_t,
-        hb_ot_var_get_axis_count, hb_ot_var_get_axis_infos, hb_subset_input_pin_axis_location,
-        hb_tag_t, HB_LANGUAGE_INVALID,
-    },
-    FontFace, SubsetInput,
+use hb_subset::sys::{
+    HB_LANGUAGE_INVALID, hb_face_t, hb_ot_name_get_utf8, hb_ot_name_id_t,
+    hb_ot_var_axis_flags_t_HB_OT_VAR_AXIS_FLAG_HIDDEN, hb_ot_var_axis_info_t,
+    hb_ot_var_get_axis_count, hb_ot_var_get_axis_infos, hb_subset_input_pin_axis_location,
+    hb_tag_t,
 };
-use std::{ffi::c_uint, ops::RangeInclusive};
+use hb_subset::{FontFace, SubsetInput};
+use std::ffi::c_uint;
+use std::ops::RangeInclusive;
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub enum AxisName {
@@ -54,7 +53,15 @@ unsafe fn load_string(face: *mut hb_face_t, name: hb_ot_name_id_t) -> String {
     let mut buf = vec![0u8; 128];
     loop {
         let mut size = buf.len() as c_uint;
-        hb_ot_name_get_utf8(face, name, HB_LANGUAGE_INVALID, &mut size, buf.as_mut_ptr() as *mut _);
+        unsafe {
+            hb_ot_name_get_utf8(
+                face,
+                name,
+                HB_LANGUAGE_INVALID,
+                &mut size,
+                buf.as_mut_ptr() as *mut _,
+            );
+        }
         if size as usize != buf.len() {
             let name = &buf[..size as usize];
             return String::from_utf8_lossy(name).to_string();
@@ -64,7 +71,7 @@ unsafe fn load_string(face: *mut hb_face_t, name: hb_ot_name_id_t) -> String {
     }
 }
 unsafe fn load_axis_info(face: *mut hb_face_t, axis: hb_ot_var_axis_info_t) -> VariationAxis {
-    let mut name = load_string(face, axis.name_id);
+    let mut name = unsafe { load_string(face, axis.name_id) };
     let axis_name = AxisName::of(&name);
     if let Some(axis) = axis_name {
         name = axis.standard_name().to_string();

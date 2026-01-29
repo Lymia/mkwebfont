@@ -1,35 +1,27 @@
-use crate::{
-    gather_css::{parse_font_families, ParsedCssRule},
-    utils,
-    webroot::RelaWebroot,
-    RewriteContext,
-};
-use anyhow::{bail, Result};
+use crate::gather_css::{ParsedCssRule, parse_font_families};
+use crate::webroot::RelaWebroot;
+use crate::{RewriteContext, utils};
+use anyhow::{Result, bail};
 use arcstr::ArcStr;
-use lightningcss::{
-    declaration::DeclarationBlock,
-    printer::PrinterOptions,
-    properties::{
-        font::{AbsoluteFontWeight, FontFamily, FontWeight as CssFontWeight},
-        Property,
-    },
-    rules::{
-        font_face::{
-            FontFaceProperty, FontFaceRule, FontFormat, FontStyle as CssFontStyle, Source,
-            UnicodeRange, UrlSource,
-        },
-        CssRule, CssRuleList, Location,
-    },
-    stylesheet::{ParserOptions, StyleSheet},
-    traits::{ToCss, Zero},
-    values::{angle::Angle, size::Size2D, url::Url},
+use lightningcss::declaration::DeclarationBlock;
+use lightningcss::printer::PrinterOptions;
+use lightningcss::properties::Property;
+use lightningcss::properties::font::{AbsoluteFontWeight, FontFamily, FontWeight as CssFontWeight};
+use lightningcss::rules::font_face::{
+    FontFaceProperty, FontFaceRule, FontFormat, FontStyle as CssFontStyle, Source, UnicodeRange,
+    UrlSource,
 };
-use mkwebfont_common::{
-    hashing::WyHashSet,
-    paths::{get_relative_from, is_superpath},
-};
+use lightningcss::rules::{CssRule, CssRuleList, Location};
+use lightningcss::stylesheet::{ParserOptions, StyleSheet};
+use lightningcss::traits::{ToCss, Zero};
+use lightningcss::values::angle::Angle;
+use lightningcss::values::size::Size2D;
+use lightningcss::values::url::Url;
+use mkwebfont_common::hashing::WyHashSet;
+use mkwebfont_common::paths::{get_relative_from, is_superpath};
 use mkwebfont_fontops::font_info::FontStyle;
-use std::{borrow::Cow, sync::Arc};
+use std::borrow::Cow;
+use std::sync::Arc;
 use tracing::{debug, info};
 
 const DEFAULT_LOC: Location = Location { source_index: 0, line: 0, column: 0 };

@@ -1,14 +1,10 @@
-use crate::{
-    plan::{AssignedSubsets, FontFlags, LoadedSplitterPlan, SubsetDataBuilder},
-    WebfontInfo,
-};
+use crate::WebfontInfo;
+use crate::plan::{AssignedSubsets, FontFlags, LoadedSplitterPlan, SubsetDataBuilder};
 use anyhow::Result;
 use mkwebfont_common::join_set::JoinSet;
-use mkwebfont_fontops::{
-    font_info::{FontFaceSet, FontFaceWrapper},
-    gfonts::fallback_info::FallbackInfo,
-    subsetter::FontEncoder,
-};
+use mkwebfont_fontops::font_info::{FontFaceSet, FontFaceWrapper};
+use mkwebfont_fontops::gfonts::fallback_info::FallbackInfo;
+use mkwebfont_fontops::subsetter::FontEncoder;
 use std::sync::Arc;
 use tracing::{info, info_span};
 use tracing_futures::Instrument;

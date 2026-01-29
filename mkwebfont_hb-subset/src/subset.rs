@@ -1,10 +1,9 @@
-use std::{marker::PhantomData, ptr::null_mut};
+use std::marker::PhantomData;
+use std::ptr::null_mut;
 
-use crate::{
-    map::Map,
-    set::{CharSet, Set, TagSet, U32Set},
-    sys, AllocationError, FontFace, SubsettingError,
-};
+use crate::map::Map;
+use crate::set::{CharSet, Set, TagSet, U32Set};
+use crate::{sys, AllocationError, FontFace, SubsettingError};
 
 mod flags;
 
@@ -355,7 +354,8 @@ impl<'f, 'b> Drop for SubsetPlan<'f, 'b> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tests::NOTO_SANS, Blob};
+    use crate::tests::NOTO_SANS;
+    use crate::Blob;
 
     #[test]
     fn keep_everything_should_keep_all_codepoints_and_glyphs() {

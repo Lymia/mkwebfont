@@ -1,7 +1,5 @@
-use std::{
-    collections::{HashMap, HashSet},
-    hash::{BuildHasher, Hash, Hasher},
-};
+use std::collections::{HashMap, HashSet};
+use std::hash::{BuildHasher, Hash, Hasher};
 use wyrand::WyHash;
 
 // we don't need a secret, and generating a secret involves primality checks. oww.

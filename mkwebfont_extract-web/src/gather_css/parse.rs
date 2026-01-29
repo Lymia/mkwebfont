@@ -1,27 +1,32 @@
-use crate::{consts::CACHE_SIZE, utils, webroot::RelaWebroot};
-use anyhow::{bail, ensure, Error, Result};
+use crate::consts::CACHE_SIZE;
+use crate::utils;
+use crate::webroot::RelaWebroot;
+use anyhow::{Error, Result, bail, ensure};
 use arcstr::ArcStr;
 use async_recursion::async_recursion;
 use cssparser::ToCss as CssParserToString;
 use kuchikiki::Selectors;
-use lightningcss::{
-    declaration::DeclarationBlock,
-    printer::PrinterOptions,
-    properties::{
-        custom::{CustomProperty, CustomPropertyName, Token, TokenOrValue, UnparsedProperty},
-        display::{Display, DisplayKeyword},
-        font::{AbsoluteFontWeight, FontFamily, FontStyle, FontWeight, GenericFontFamily},
-        Property, PropertyId,
-    },
-    rules::{style::StyleRule, CssRule, CssRuleList},
-    selector::Component,
-    stylesheet::{ParserOptions, StyleSheet},
-    traits::ToCss,
+use lightningcss::declaration::DeclarationBlock;
+use lightningcss::printer::PrinterOptions;
+use lightningcss::properties::custom::{
+    CustomProperty, CustomPropertyName, Token, TokenOrValue, UnparsedProperty,
 };
+use lightningcss::properties::display::{Display, DisplayKeyword};
+use lightningcss::properties::font::{
+    AbsoluteFontWeight, FontFamily, FontStyle, FontWeight, GenericFontFamily,
+};
+use lightningcss::properties::{Property, PropertyId};
+use lightningcss::rules::style::StyleRule;
+use lightningcss::rules::{CssRule, CssRuleList};
+use lightningcss::selector::Component;
+use lightningcss::stylesheet::{ParserOptions, StyleSheet};
+use lightningcss::traits::ToCss;
 use mkwebfont_common::hashing::WyHashBuilder;
 use moka::future::{Cache, CacheBuilder};
-use std::{borrow::Cow, path::Path, sync::Arc};
-use tracing::{info, info_span, warn, Instrument};
+use std::borrow::Cow;
+use std::path::Path;
+use std::sync::Arc;
+use tracing::{Instrument, info, info_span, warn};
 
 #[derive(Clone, Debug)]
 pub struct RawCssRule {

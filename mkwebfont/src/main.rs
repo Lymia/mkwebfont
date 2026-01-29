@@ -2,7 +2,10 @@ use anyhow::Result;
 use clap::Parser;
 use mkwebfont::{LoadedFontSetBuilder, SplitterPlan, Webroot};
 use mkwebfont_common::FILTER_SPEC;
-use std::{fs::OpenOptions, io, io::Write as IoWrite, path::PathBuf};
+use std::fs::OpenOptions;
+use std::io;
+use std::io::Write as IoWrite;
+use std::path::PathBuf;
 use tokio::runtime::Builder;
 use tracing::{error, info, warn};
 

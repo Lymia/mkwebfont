@@ -1,15 +1,15 @@
-use crate::{
-    apply_rules::{RawNodeInfo, ResolvedNodeProperties},
-    gather_css::CssCache,
-    utils,
-    webroot::RelaWebroot,
-    webroot_info::TextInfoBuilder,
-};
+use crate::apply_rules::{RawNodeInfo, ResolvedNodeProperties};
+use crate::gather_css::CssCache;
+use crate::utils;
+use crate::webroot::RelaWebroot;
+use crate::webroot_info::TextInfoBuilder;
 use anyhow::Result;
 use arcstr::ArcStr;
-use kuchikiki::{parse_html, traits::TendrilSink, NodeData, NodeRef};
+use kuchikiki::traits::TendrilSink;
+use kuchikiki::{NodeData, NodeRef, parse_html};
 use mkwebfont_common::hashing::WyHashSet;
-use std::{mem::replace, sync::Arc};
+use std::mem::replace;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 pub async fn extract_text(
@@ -34,10 +34,9 @@ pub async fn extract_text(
             current_samples: &mut String,
         ) {
             if !current_samples.is_empty() {
-                samples.push((last_text_properties.clone(), vec![utils::condense_spaces(
-                    &replace(current_samples, String::new()),
-                )
-                .into()]));
+                samples.push((last_text_properties.clone(), vec![
+                    utils::condense_spaces(&replace(current_samples, String::new())).into(),
+                ]));
             }
         }
         fn push_text(

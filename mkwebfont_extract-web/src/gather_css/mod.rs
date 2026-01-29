@@ -1,7 +1,10 @@
-use crate::{utils, webroot::RelaWebroot};
+use crate::utils;
+use crate::webroot::RelaWebroot;
 use anyhow::Result;
 use arcstr::ArcStr;
-use kuchikiki::{iter::NodeIterator, parse_html, traits::TendrilSink, Selectors};
+use kuchikiki::iter::NodeIterator;
+use kuchikiki::traits::TendrilSink;
+use kuchikiki::{Selectors, parse_html};
 use std::sync::{Arc, LazyLock};
 use tracing::warn;
 
