@@ -27,7 +27,7 @@ clap = { version = "4.5", features = ["derive"], optional = true }
 ordered-float = { version = "5.1", default-features = false }
 
 # Unicode data
-unicode-blocks = { workspace = true}
+unicode-blocks = { workspace = true }
 
 # Common Dependencies
 anyhow = { workspace = true }
