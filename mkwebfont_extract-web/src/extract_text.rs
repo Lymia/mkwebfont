@@ -5,12 +5,11 @@ use crate::webroot::RelaWebroot;
 use crate::webroot_info::TextInfoBuilder;
 use anyhow::Result;
 use arcstr::ArcStr;
-use kuchikiki::traits::TendrilSink;
-use kuchikiki::{NodeData, NodeRef, parse_html};
 use mkwebfont_common::hashing::WyHashSet;
 use std::mem::replace;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tsugiki::dom::{NodeData, NodeRef};
 
 pub async fn extract_text(
     data: &ArcStr,
@@ -25,7 +24,7 @@ pub async fn extract_text(
 
     let mut samples = Vec::new();
     {
-        let document = parse_html().one(data.as_str());
+        let document = tsugiki::parse_document(data.as_str());
         let node_info = RawNodeInfo::compute(&document, &rules)?;
 
         fn push_samples(
@@ -137,7 +136,7 @@ pub async fn extract_text(
                         current_properties,
                         last_text_properties,
                         current_samples,
-                        text.borrow().as_str(),
+                        text.borrow().content.as_str(),
                     );
                 }
                 _ => {}

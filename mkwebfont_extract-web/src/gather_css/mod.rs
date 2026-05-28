@@ -2,11 +2,11 @@ use crate::utils;
 use crate::webroot::RelaWebroot;
 use anyhow::Result;
 use arcstr::ArcStr;
-use kuchikiki::iter::NodeIterator;
-use kuchikiki::traits::TendrilSink;
-use kuchikiki::{Selectors, parse_html};
 use std::sync::{Arc, LazyLock};
 use tracing::warn;
+use tsugiki::iter::NodeIterator;
+use tsugiki::parse_document;
+use tsugiki::select::SelectorSet;
 
 mod parse;
 
@@ -20,14 +20,15 @@ enum CssSource {
 }
 
 fn extract_css_sources(document: &ArcStr) -> Result<Vec<CssSource>> {
-    static SELECTOR: LazyLock<Selectors> =
-        LazyLock::new(|| Selectors::compile("style,link[rel~=stylesheet]").unwrap());
+    static SELECTOR: LazyLock<SelectorSet> =
+        LazyLock::new(|| SelectorSet::compile("style,link[rel~=stylesheet]").unwrap());
 
-    let document = parse_html().one(document.as_str());
+    let document = parse_document(document.as_str());
     let mut data = Vec::new();
     for tag in SELECTOR.filter(document.inclusive_descendants().elements()) {
-        match tag.name.local.as_bytes() {
-            b"link" => match tag.attributes.borrow().get("href") {
+        let lock = tag.borrow();
+        match lock.name.local.as_bytes() {
+            b"link" => match lock.attributes.get("href") {
                 Some(x) => data.push(CssSource::RelFile(x.to_string())),
                 None => warn!("Tag does not contain href: {tag:?}"),
             },

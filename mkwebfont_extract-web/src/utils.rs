@@ -1,8 +1,8 @@
-use kuchikiki::{Node, NodeRef};
 use lightningcss::properties::font::FamilyName;
 use lightningcss::traits::IntoOwned;
 use serde_json::Value;
 use std::io::Cursor;
+use tsugiki::dom::{Node, NodeRef};
 
 pub fn inner_html(node: &NodeRef) -> String {
     let mut str = Vec::new();

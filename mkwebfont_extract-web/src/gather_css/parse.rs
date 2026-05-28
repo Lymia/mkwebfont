@@ -5,7 +5,6 @@ use anyhow::{Error, Result, bail, ensure};
 use arcstr::ArcStr;
 use async_recursion::async_recursion;
 use cssparser::ToCss as CssParserToString;
-use kuchikiki::Selectors;
 use lightningcss::declaration::DeclarationBlock;
 use lightningcss::printer::PrinterOptions;
 use lightningcss::properties::custom::{
@@ -27,10 +26,11 @@ use std::borrow::Cow;
 use std::path::Path;
 use std::sync::Arc;
 use tracing::{Instrument, info, info_span, warn};
+use tsugiki::select::SelectorSet;
 
 #[derive(Clone, Debug)]
 pub struct RawCssRule {
-    pub selector: Arc<Selectors>,
+    pub selector: Arc<SelectorSet>,
     pub is_conditional: bool,
     pub pseudo_element: Option<ArcStr>,
     pub declarations: Arc<RawCssRuleDeclarations>,
@@ -372,7 +372,7 @@ async fn parse_css(
                 }
 
                 let raw = RawCssRule {
-                    selector: Arc::new(Selectors::compile(&new_selector_str).map_err(|()| {
+                    selector: Arc::new(SelectorSet::compile(&new_selector_str).map_err(|()| {
                         Error::msg(format!("Selector is not valid: {new_selector_str}"))
                     })?),
                     is_conditional: force_conditional | filtered.is_conditional,

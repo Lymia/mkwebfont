@@ -2,8 +2,6 @@ use crate::gather_css::{ParsedCssRule, RawCssRule, RawCssRuleDeclarations, parse
 use crate::utils::NodeId;
 use anyhow::Result;
 use arcstr::ArcStr;
-use kuchikiki::traits::NodeIterator;
-use kuchikiki::{NodeRef, Selectors};
 use lightningcss::declaration::DeclarationBlock;
 use lightningcss::properties::font::{AbsoluteFontWeight, FontStyle};
 use lightningcss::stylesheet::ParserOptions;
@@ -12,6 +10,9 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::{Arc, LazyLock};
 use tracing::warn;
+use tsugiki::dom::NodeRef;
+use tsugiki::select::SelectorSet;
+use tsugiki::traits::NodeIterator;
 
 #[derive(Debug)]
 struct NodeProperty<T> {
@@ -175,16 +176,16 @@ pub struct ResolvedNode {
 
 impl RawNodeInfo {
     pub fn compute(document: &NodeRef, rules: &[Arc<RawCssRule>]) -> Result<Self> {
-        static SELECTOR: LazyLock<Selectors> =
-            LazyLock::new(|| Selectors::compile("*[style]").unwrap());
+        static SELECTOR: LazyLock<SelectorSet> =
+            LazyLock::new(|| SelectorSet::compile("*[style]").unwrap());
 
         let mut info = Self::default();
         for rule in rules {
             apply_rule_to_raw_info(&mut info, document, &rule);
         }
         for elem in SELECTOR.filter(document.inclusive_descendants().elements()) {
-            let style = elem.attributes.borrow();
-            let style = style.get("style").unwrap();
+            let lock = elem.borrow();
+            let style = lock.attributes.get("style").unwrap();
             match DeclarationBlock::parse_string(style, ParserOptions::default()) {
                 Ok(block) => {
                     if let Some(decls) = parse_declarations(&block)? {

@@ -5,9 +5,6 @@ use crate::utils::inner_html;
 use crate::webroot::{RelaWebroot, Webroot};
 use anyhow::Result;
 use arcstr::ArcStr;
-use kuchikiki::iter::NodeIterator;
-use kuchikiki::traits::TendrilSink;
-use kuchikiki::{NodeRef, Selectors, parse_html};
 use mkwebfont_common::character_set::CharacterSet;
 use mkwebfont_common::hashing::{WyHashMap, WyHashSet};
 use mkwebfont_common::join_set::JoinSet;
@@ -15,6 +12,10 @@ use mkwebfont_fontops::subsetter::WebfontInfo;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use tracing::{Instrument, warn};
+use tsugiki::dom::NodeRef;
+use tsugiki::iter::NodeIterator;
+use tsugiki::parse_document;
+use tsugiki::select::SelectorSet;
 
 #[derive(Default, Debug, Clone)]
 pub struct RewriteInfo {
@@ -43,13 +44,13 @@ fn process_html_path(
     _font_stacks: &[FontStackInfo],
     root: &RelaWebroot,
 ) -> Result<()> {
-    static SELECTOR: LazyLock<Selectors> =
-        LazyLock::new(|| Selectors::compile("style,*[style]").unwrap());
+    static SELECTOR: LazyLock<SelectorSet> =
+        LazyLock::new(|| SelectorSet::compile("style,*[style]").unwrap());
 
-    let document = parse_html().one(std::fs::read_to_string(&root.file_name())?);
+    let document = parse_document(std::fs::read_to_string(&root.file_name())?);
     let mut modified = false;
     for elem in SELECTOR.filter(document.inclusive_descendants().elements()) {
-        if elem.name.local.as_bytes() == b"style" {
+        if elem.borrow().name.local.as_bytes() == b"style" {
             let text = inner_html(elem.as_node());
             if let Some(text) = css_ops::rewrite_style_tag(ctx, &text)? {
                 elem.as_node().children().for_each(|x| x.detach());
@@ -58,7 +59,8 @@ fn process_html_path(
             }
         }
 
-        let mut attrs = elem.attributes.borrow_mut();
+        let mut lock = elem.borrow_mut();
+        let attrs = &mut lock.attributes;
         if let Some(text) = attrs.get("style") {
             if let Some(text) = css_ops::rewrite_style_attr(ctx, text)? {
                 attrs.insert("style", text);
@@ -138,10 +140,10 @@ pub fn find_css_for_rewrite(
     root: &RelaWebroot,
     used_stacks: WyHashSet<Arc<[ArcStr]>>,
 ) -> Result<()> {
-    static SELECTOR: LazyLock<Selectors> =
-        LazyLock::new(|| Selectors::compile("style,link[rel~=stylesheet],*[style]").unwrap());
+    static SELECTOR: LazyLock<SelectorSet> =
+        LazyLock::new(|| SelectorSet::compile("style,link[rel~=stylesheet],*[style]").unwrap());
 
-    let document = parse_html().one(document.as_str());
+    let document = parse_document(document.as_str());
 
     let mut css_list = Vec::new();
     let mut css_list_fonts = Vec::new();
@@ -152,6 +154,8 @@ pub fn find_css_for_rewrite(
         .or_default();
 
     for elem in SELECTOR.filter(document.inclusive_descendants().elements()) {
+        let elem = elem.borrow();
+
         match elem.name.local.as_bytes() {
             b"style" => {
                 webroot_info
@@ -159,9 +163,13 @@ pub fn find_css_for_rewrite(
                     .insert(root.file_name().clone());
             }
             b"link" => {
-                let attrs = elem.attributes.borrow();
-                let path = root.resolve(attrs.get("href").unwrap())?;
-                if attrs.get("rel").unwrap().contains("mkwebfont-out") {
+                let path = root.resolve(elem.attributes.get("href").unwrap())?;
+                if elem
+                    .attributes
+                    .get("rel")
+                    .unwrap()
+                    .contains("mkwebfont-out")
+                {
                     css_list_fonts.push(path);
                 } else {
                     css_list.push(path);
@@ -169,7 +177,7 @@ pub fn find_css_for_rewrite(
             }
             _ => {}
         }
-        if elem.attributes.borrow().get("style").is_some() {
+        if elem.attributes.get("style").is_some() {
             webroot_info
                 .rewrite_html_style
                 .insert(root.file_name().clone());
