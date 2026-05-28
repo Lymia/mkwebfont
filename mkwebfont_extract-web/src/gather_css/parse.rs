@@ -218,6 +218,15 @@ pub fn parse_declarations(style: &DeclarationBlock) -> Result<Option<RawCssRuleD
                                 }
                                 _ => warn!("Could not parse `content` attribute: {value:?}"),
                             }
+                        } else if let [
+                            TokenOrValue::Token(Token::String(str)),
+                            TokenOrValue::Token(Token::Delim(_)),
+                            ..,
+                        ] = value.0.as_slice()
+                        {
+                            raw_declarations.content =
+                                ParsedCssRule::Override(str.to_string().into());
+                            is_interesting = true;
                         } else {
                             warn!("Could not parse `content` attribute: {value:?}");
                         }
